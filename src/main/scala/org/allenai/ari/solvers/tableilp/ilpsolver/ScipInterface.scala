@@ -40,12 +40,12 @@ class ScipInterface(val probName: String) extends Logging {
   // initialization: create empty problem tied to the given problem name
   env.createProbBasic(scip, probName)
 
-  /** set objection function as minimization */
+  /** set objective function as minimization */
   def setAsMinimization() {
     env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MINIMIZE)
   }
 
-  /** set objection function as maximization */
+  /** set objective function as maximization */
   def setAsMaximization() {
     env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MAXIMIZE)
   }
