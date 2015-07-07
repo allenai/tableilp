@@ -18,34 +18,34 @@ object SplittingType extends Enumeration {
   */
 class Question(
     questionRaw: String,
-    val questionCons: Array[String],
-    val choices: Array[String],
+    val questionCons: Seq[String],
+    val choices: Seq[String],
     aristoQuestion: MultipleChoiceQuestion,
     splitType: SplittingType.Value
 ) extends Logging {
 
   def this(questionRaw: String) {
     // TODO: add chunker here
-    this(questionRaw, questionRaw.split(" "), new Array[String](0), null, SplittingType.SpaceSplit)
+    this(questionRaw, questionRaw.split(" "), Seq.empty, null, SplittingType.SpaceSplit)
   }
 
-  def this(questionCons: Array[String]) {
-    this("", questionCons, new Array[String](0), null, SplittingType.SpaceSplit)
+  def this(questionCons: Seq[String]) {
+    this("", questionCons, Seq.empty, null, SplittingType.SpaceSplit)
   }
 
   def this(aristoQuestion: MultipleChoiceQuestion) {
     this(aristoQuestion.rawQuestion, aristoQuestion.text.get.split(" "),
-      aristoQuestion.selections.map(_.focus).toArray, aristoQuestion, SplittingType.SpaceSplit)
+      aristoQuestion.selections.map(_.focus), aristoQuestion, SplittingType.SpaceSplit)
   }
 
   def this(aristoQuestion: MultipleChoiceQuestion, splittingType: SplittingType.Value) {
     this(aristoQuestion.rawQuestion, splitMethods.split(aristoQuestion.text.get, splittingType),
-      aristoQuestion.selections.map(_.focus).toArray, aristoQuestion, splittingType)
+      aristoQuestion.selections.map(_.focus), aristoQuestion, splittingType)
   }
 }
 
 object splitMethods {
-  def split(str: String, splittingType: SplittingType.Value): Array[String] = {
+  def split(str: String, splittingType: SplittingType.Value): Seq[String] = {
     splittingType match {
       case SplittingType.Chunk => chunk(str)
       case SplittingType.Tokenize => tokenize(str)
@@ -53,7 +53,7 @@ object splitMethods {
     }
   }
 
-  private def chunk(str: String): Array[String] = {
+  private def chunk(str: String): Seq[String] = {
     val tokens = defaultTokenizer.tokenize(str)
     val posTaggedTokens = defaultPostagger.postagTokenized(tokens)
 
@@ -63,11 +63,11 @@ object splitMethods {
     intervals.map {
       case (_, anInterval) =>
         chunkedTokens.map(_.string).slice(anInterval.start, anInterval.end).mkString(" ")
-    }.toArray
+    }
   }
 
-  private def tokenize(str: String): Array[String] = {
+  private def tokenize(str: String): Seq[String] = {
     val tokens = defaultTokenizer.tokenize(str)
-    tokens.map { tok => tok.string }.toArray
+    tokens.map(_.toString())
   }
 }

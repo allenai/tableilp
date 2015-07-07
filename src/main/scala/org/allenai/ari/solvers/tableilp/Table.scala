@@ -15,9 +15,9 @@ class Table(fileName: String) extends Logging {
   // extract title row and the rest of the content matrix from a CSV file
   val (titleRow, contentMatrix) = readCSV(fileName)
 
-  private def readCSV(file: String): (Array[String], Seq[Array[String]]) = {
+  private def readCSV(file: String): (Seq[String], Seq[Seq[String]]) = {
     val reader = new CSVReader(new FileReader(file))
-    val fullContents: Seq[Array[String]] = reader.readAll.asScala
+    val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
 
     val fullContentsFiltered = {
       if (ignoreTableColumnFillers) {
