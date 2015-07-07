@@ -9,9 +9,9 @@ object ScipExample extends Logging {
   /** Main method to run an ILP model from the command line. */
   def main(args: Array[String]): Unit = {
     val scipSolver = new ScipInterface("example")
-    val vars = buildModel(scipSolver)
+    val varsOfInterest = buildModel(scipSolver)
     scipSolver.solve()
-    scipSolver.printResult(vars)
+    scipSolver.printResult(varsOfInterest)
   }
 
   /** Build a simple ILP model: x0 + 2*x1 <= 2, objective function: - x0 - x1.
@@ -22,7 +22,6 @@ object ScipExample extends Logging {
   private def buildModel(scipSolver: ScipInterface): Array[Long] = {
     // create an array of variables
     val nvars = 2
-    val varsOfInterest = new Array[Long](nvars)
 
     // create binary variables
     val vars = for {
@@ -33,9 +32,10 @@ object ScipExample extends Logging {
     } yield {
       logger.debug(s"created variable $name with pointer $x")
       scipSolver.addVar(x)
-      varsOfInterest(i) = x // keep track of x as a variable whose value may be queried later
       x
     }
+    val varsOfInterest = new Array[Long](1)
+    varsOfInterest(0) = vars(1) // add x1 to the list of variables of interest to return
 
     // create coefficients for the constraint
     val coeffs = (0 until nvars).map(_ + 1d)
