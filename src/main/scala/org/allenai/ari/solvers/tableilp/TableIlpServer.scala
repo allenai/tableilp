@@ -20,6 +20,7 @@ object TableIlpServer extends HttpSolverServer {
   // Load SolversCommonModule for EntailmentService
   val injector = Guice.createInjector(
     new ActorSystemModule,
+    // TODO(ashish33) Replace localConfig call with ConfigModule instance; needs new AllenAICommon
     new SolversCommonModule(localConfig)
   )
 

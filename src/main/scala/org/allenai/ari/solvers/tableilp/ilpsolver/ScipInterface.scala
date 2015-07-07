@@ -5,9 +5,9 @@ import org.allenai.common.Logging
 import de.zib.jscip.nativ.jni._
 
 /** This is a generic interface to the SCIP ILP solver providing a number of common initialization
-  * steps and access to the SCIP environment.
+  * steps and access to the SCIP environment. This class is NOT guaranteed to be thread-safe!
   */
-class ScipInterface(val probName: String) extends Logging {
+class ScipInterface(probName: String) extends Logging {
   /** config: local log file where SCIP output is stored for debugging purposes */
   private val ScipLogFile = "scip.log"
 
@@ -23,10 +23,10 @@ class ScipInterface(val probName: String) extends Logging {
   private val envVar: JniScipVar = new JniScipVar
 
   // create SCIP set packing constraint environment
-  private lazy val envConsSetppc = new JniScipConsSetppc
+  private val envConsSetppc = new JniScipConsSetppc
 
   // create the SCIP linear constraint environment
-  private lazy val envConsLinear = new JniScipConsLinear
+  private val envConsLinear = new JniScipConsLinear
 
   // initialization: create a SCIP instance, an array of variables
   private val scip: Long = env.create
