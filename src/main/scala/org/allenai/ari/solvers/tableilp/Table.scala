@@ -9,16 +9,18 @@ import java.io.FileReader
 import scala.collection.JavaConverters._
 
 class Table(fileName: String) extends Logging {
+  // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
+  val ignoreTableColumnFillers = true
+
+  // extract title row and the rest of the content matrix from a CSV file
   val (titleRow, contentMatrix) = readCSV(fileName)
 
-  // reading from csv: for future
-  def readCSV(file: String): (Array[String], Seq[Array[String]]) = {
+  private def readCSV(file: String): (Array[String], Seq[Array[String]]) = {
     val reader = new CSVReader(new FileReader(file))
     val fullContents: Seq[Array[String]] = reader.readAll.asScala
 
-    val REMOVE_FILLERS = true // TODO: move to the config file?
     val fullContentsFiltered = {
-      if (REMOVE_FILLERS) {
+      if (ignoreTableColumnFillers) {
         val indices = fullContents.head.zipWithIndex.filter(_._1 != "").map(_._2)
         fullContents.map(indices collect _)
       } else {
@@ -30,7 +32,7 @@ class Table(fileName: String) extends Logging {
 }
 
 object TableInterface extends Logging {
-  def loadAllTables(): Array[Table] = {
+  def loadAllTables(): Seq[Table] = {
     val files = new java.io.File("src/main/resources/allTables")
       .listFiles.filter(_.getName.endsWith(".csv"))
     logger.debug("Here are the table names:\n" + files.mkString("\n"))
@@ -40,12 +42,12 @@ object TableInterface extends Logging {
     tablesShortened
   }
 
-  def loadTables(): Array[Table] = {
+  def loadTables(): Seq[Table] = {
     val path = "src/main/resources/tables/"
     val files = Seq("SampleTable-Country-Hemisphere.csv", "SampleTable-Season-Month.csv")
     val tables = files.map((file) => new Table(path + file))
     if (internalLogger.isDebugEnabled) tables.foreach(t => logger.debug(t.titleRow.mkString(",")))
-    tables.toArray
+    tables
   }
 
   def printTableVariables(allVariables: AllVariables): Unit = {

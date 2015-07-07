@@ -110,11 +110,11 @@ case class QuestionTitleVariable(
 /** The ILP model for Table Inference.
   *
   * @param ilpSolver a ScipInterface object
-  * @param tables an array of tables as the knowledge base
+  * @param tables a seq of tables as the knowledge base
   * @param aligner a blackbox to align textual mentions
   */
 class IlpModel(
-    ilpSolver: ScipInterface, tables: Array[Table], aligner: AlignmentFunction
+    ilpSolver: ScipInterface, tables: Seq[Table], aligner: AlignmentFunction
 ) extends Logging {
 
   // config: minimum thresholds for alignment
@@ -181,7 +181,7 @@ class IlpModel(
   /** The main method to build the question independent aspects of the ILP model.
     * Note: using 'val' rather than 'def' makes this be computed only once.
     *
-    * @return an array of (a subset of) variables of interest whose values may be queried later
+    * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
   private val buildQuestionIndependentModel: AllVariables = {
     /** Intra-table variables */
@@ -238,7 +238,7 @@ class IlpModel(
     *
     * @param question a question
     * @param existingAllVars all variables currently in existence
-    * @return an array of (a subset of) variables of interest whose values may be queried later;
+    * @return a seq of (a subset of) variables of interest whose values may be queried later;
     * this will be a superset of existingAllVars
     */
   private def buildQuestionDependentModel(
@@ -516,7 +516,7 @@ class IlpModel(
   /** The main method to build an ILP model for a question.
     *
     * @param question a question
-    * @return an array of (a subset of) variables of interest whose values may be queried later
+    * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
   def buildModel(question: Question): AllVariables = {
     // set this up as a maximization problem
