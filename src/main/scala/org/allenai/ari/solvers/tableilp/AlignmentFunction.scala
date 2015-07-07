@@ -77,8 +77,8 @@ class AlignmentFunction(
       text1StemmedTokens <- text1StemmedTokens
       text2StemmedTokens <- text2StemmedTokens
     } yield {
-      entailmentServiceOpt.get.entail(text1StemmedTokens, text2StemmedTokens).confidence
-      -entailmentScoreOffset
+      entailmentServiceOpt.get.entail(text1StemmedTokens, text2StemmedTokens).confidence -
+        entailmentScoreOffset
     }
     scores.max
   }
@@ -91,11 +91,12 @@ class AlignmentFunction(
     coverage.toDouble / text2StemmedTokens.size
   }
 
+  // cosine distance between two pieces of text
+  private lazy val w2vModel = Word2VecModel.fromBinFile(new File(word2vecFile))
   private def getWord2VecScore(text1: String, text2: String): Double = {
-    val model = Word2VecModel.fromBinFile(new File(word2vecFile))
-    val text1Modified = if (model.forSearch().contains(text1)) text1 else "</s>"
-    val text2Modified = if (model.forSearch().contains(text2)) text2 else "</s>"
-    model.forSearch().cosineDistance(text1Modified, text2Modified)
+    val text1Modified = if (w2vModel.forSearch().contains(text1)) text1 else "</s>"
+    val text2Modified = if (w2vModel.forSearch().contains(text2)) text2 else "</s>"
+    w2vModel.forSearch().cosineDistance(text1Modified, text2Modified)
   }
 
   // turn a one-sided score into a symmetric one
