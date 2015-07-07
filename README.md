@@ -2,7 +2,15 @@
 
 ## Overview
 
-This solver implements an Integer Linear Programming (ILP) based method to answer Aristo questions. The input knowledge it uses is in the form of Tables. For solving the ILP model, it uses the SCIP solver (http://scip.zib.de).
+This solver implements an Integer Linear Programming (ILP; https://en.wikipedia.org/wiki/Integer_programming) based method to answer Aristo questions. The input knowledge it uses is in the form of Tables. For solving the ILP model, it uses the SCIP solver (http://scip.zib.de).
+
+The ILP model consists of a set of integer (mostly binary) variables, a set of constraints on them, and an objective function.
+
+* The *variables* encode similarity or entailment links between pairs of words (or chunks) in the question, answer choices, and KB tables (both cells and table titles). These links are weighted by the lexical similarity between the words they connect, and a link turns "on" if it is part of a reasoning subgraph that connects the question to the KB tables and an answer choice.
+
+* The *constraints* encode the conditions needed to create a "proper" reasoning chain between the question the the KB table, such as the reasoning chain being a connected subgraph, not having "dangling" connections that aren't on the path to the answer choice, at most *k* rows active per table, a cell having a higher priority to match if the corresponding table title matches, etc.
+
+* The *objective function* is a maximization function that seeks the most connected reasoning chain supported by words in the question. It also includes priorities for other desirables such as more question coverage. 
 
 
 ## Installing SCIP on Linux and Mac
