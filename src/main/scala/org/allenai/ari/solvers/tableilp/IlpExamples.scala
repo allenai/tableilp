@@ -10,7 +10,12 @@ object IlpExamples extends Logging {
   def example1(entailmentServiceOpt: Option[EntailmentService]): Unit = {
     val questionChunks = Seq("USA", "Brazil")
     val tables = TableInterface.loadTables()
-    val aligner = new AlignmentFunction(SimilarityType.Entailment, entailmentServiceOpt)
+    val alignmentType = if (entailmentServiceOpt.isDefined) {
+      SimilarityType.Entailment
+    } else {
+      SimilarityType.WordOverlap
+    }
+    val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt)
     val ilpSolver = new ScipInterface("sampleExample")
     val ilpModel = new IlpModel(ilpSolver, tables, aligner)
     val question = new Question(questionChunks)
@@ -25,7 +30,12 @@ object IlpExamples extends Logging {
     val questionChunks = Seq("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")
     val tables = TableInterface.loadAllTables()
-    val aligner = new AlignmentFunction(SimilarityType.Entailment, entailmentServiceOpt)
+    val alignmentType = if (entailmentServiceOpt.isDefined) {
+      SimilarityType.Entailment
+    } else {
+      SimilarityType.WordOverlap
+    }
+    val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt)
     val ilpSolver = new ScipInterface("sampleExample")
     val ilpModel = new IlpModel(ilpSolver, tables, aligner)
     val question = new Question(questionChunks)
