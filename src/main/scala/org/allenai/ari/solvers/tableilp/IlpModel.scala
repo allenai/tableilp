@@ -3,110 +3,6 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
 import org.allenai.common.Logging
 
-/** An index into a cell in a table */
-case class CellIdx(tableIdx: Int, rowIdx: Int, colIdx: Int)
-
-/** A title index in a table */
-case class TitleIdx(tableIdx: Int, colIdx: Int)
-
-/** All non-auxiliary variables in the ILP model.
-  *
-  * @param intraTableVariables variables involving two cells in the same table
-  * @param interTableVariables variables involving two cells in different tables
-  * @param questionTableVariables variables involving a question constituent and a table cell
-  * @param questionTitleVariables variables involving a question constituent and a table title cell
-  * @param qChoiceTableVariables variables involving an choice in a question constituent and a table
-  */
-case class AllVariables(
-    intraTableVariables: IndexedSeq[IntraTableVariable],
-    interTableVariables: IndexedSeq[InterTableVariable],
-    questionTableVariables: IndexedSeq[QuestionTableVariable],
-    questionTitleVariables: IndexedSeq[QuestionTitleVariable],
-    qChoiceTableVariables: IndexedSeq[QuestionTableVariable]
-) {
-  def ++(that: AllVariables): AllVariables = {
-    AllVariables(
-      intraTableVariables ++ that.intraTableVariables,
-      interTableVariables ++ that.interTableVariables,
-      questionTableVariables ++ that.questionTableVariables,
-      questionTitleVariables ++ that.questionTitleVariables,
-      qChoiceTableVariables ++ that.qChoiceTableVariables
-    )
-  }
-
-  lazy val getIlpVars: Seq[Long] = {
-    intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
-      questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
-      qChoiceTableVariables.map(_.variable)
-  }
-}
-
-/** Variables involving two cells within a single row of a table.
-  *
-  * @param tableIdx index identifying a table
-  * @param rowIdx index identifying a row in the table
-  * @param colIdx1 index identifying the first column
-  * @param colIdx2 index identifying the second column
-  * @param variable a pointer to the associated ILP variable
-  */
-case class IntraTableVariable(
-  tableIdx: Int,
-  rowIdx: Int,
-  colIdx1: Int,
-  colIdx2: Int,
-  variable: Long
-)
-
-/** Variables involving two cells in two different tables.
-  *
-  * @param tableIdx1 index identifying the first table
-  * @param tableIdx2 index identifying the second table
-  * @param rowIdx1 index identifying a row in the first table
-  * @param rowIdx2 index identifying a row in the second table
-  * @param colIdx1 index identifying a column in the first table
-  * @param colIdx2 index identifying a column in the second table
-  * @param variable a pointer to the associated ILP variable
-  */
-case class InterTableVariable(
-  tableIdx1: Int,
-  tableIdx2: Int,
-  rowIdx1: Int,
-  rowIdx2: Int,
-  colIdx1: Int,
-  colIdx2: Int,
-  variable: Long
-)
-
-/** Variables involving a question constituent and a table cell.
-  *
-  * @param qConsIdx index identifying a constitute in the question
-  * @param tableIdx index identifying a table
-  * @param rowIdx index identifying a row in the table
-  * @param colIdx index identifying a column in the table
-  * @param variable a pointer to the associated ILP variable
-  */
-case class QuestionTableVariable(
-  qConsIdx: Int,
-  tableIdx: Int,
-  rowIdx: Int,
-  colIdx: Int,
-  variable: Long
-)
-
-/** Variables involving a question constituent and a table title cell.
-  *
-  * @param qConsIdx index identifying a constitute in the question
-  * @param tableIdx index identifying a table
-  * @param colIdx index identifying a column in the table
-  * @param variable a pointer to the associated ILP variable
-  */
-case class QuestionTitleVariable(
-  qConsIdx: Int,
-  tableIdx: Int,
-  colIdx: Int,
-  variable: Long
-)
-
 /** The ILP model for Table Inference.
   *
   * @param ilpSolver a ScipInterface object
@@ -116,6 +12,12 @@ case class QuestionTitleVariable(
 class IlpModel(
     ilpSolver: ScipInterface, tables: Seq[Table], aligner: AlignmentFunction
 ) extends Logging {
+
+  /** An index into a cell in a table */
+  private case class CellIdx(tableIdx: Int, rowIdx: Int, colIdx: Int)
+
+  /** A title index in a table */
+  private case class TitleIdx(tableIdx: Int, colIdx: Int)
 
   // config: minimum thresholds for alignment
   private val minCellCellAlignmentThreshold = 0.2
@@ -128,6 +30,26 @@ class IlpModel(
 
   // these set of words in the question text will be ignored before alignment
   private val ignoredWords = Set("?", ":", ",")
+
+  /** The main method to build an ILP model for a question.
+    *
+    * @param question a question
+    * @return a seq of (a subset of) variables of interest whose values may be queried later
+    */
+  def buildModel(question: Question): AllVariables = {
+    // set this up as a maximization problem
+    ilpSolver.setAsMaximization()
+
+    // build the question independent part of the model
+    val allVarsQuestionIndependent = buildQuestionIndependentModel
+
+    // add the question dependent part of the model; allVars is guaranteed to be a superset of
+    // allVarsQuestionIndependent
+    val allVars = buildQuestionDependentModel(question, allVarsQuestionIndependent)
+
+    // return all variables
+    allVars
+  }
 
   /** Auxiliary variables: whether a cell within a given table is "active" */
   private val activeCellVars: Map[CellIdx, Long] = (for {
@@ -294,8 +216,6 @@ class IlpModel(
         val cellIdx2 = CellIdx(tableIdx, rowIdx, colIdx2)
         Seq(cellIdx1 -> x, cellIdx2 -> x)
     }
-    val cellToIntraTableVars = Utils.toMapUsingGroupByFirst(tmpIntraTriples)
-
     /** A convenient map from a cell to inter-table ILP variables associated with it */
     val tmpInterTriples = interTableVariables.flatMap {
       case InterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2, x) =>
@@ -303,40 +223,35 @@ class IlpModel(
         val cellIdx2 = CellIdx(tableIdx2, rowIdx2, colIdx2)
         Seq(cellIdx1 -> x, cellIdx2 -> x)
     }
-    val cellToInterTableVars = Utils.toMapUsingGroupByFirst(tmpInterTriples)
-
     /** A convenient map from a cell to question-table ILP variables associated with it */
     val tmpQuestionTriples = questionTableVariables.map {
       case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
-    val cellToQuestionTableVars = Utils.toMapUsingGroupByFirst(tmpQuestionTriples)
-
+    /** A convenient map from a cell to question-choice ILP variables associated with it */
     val tmpChoicesTriples = qChoiceTableVariables.map {
       case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
 
-    val tmpChoices = qChoiceTableVariables.map {
-      case QuestionTableVariable(qChoiceCons, _, _, _, x) =>
-        qChoiceCons -> x
-    }
-
-    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoices)
-
-    /** Collect all external alignment variables per cell; note: simply doing
-      * cellToInterTableVars ++ cellToInterTableVars may not work
-      */
+    // Collect all external alignment variables per cell; note: simply doing
+    // cellToInterTableVars ++ cellToInterTableVars may not work
     val cellToExtAlignmentVars = Utils.toMapUsingGroupByFirst(
       tmpInterTriples ++ tmpQuestionTriples ++ tmpChoicesTriples
     )
 
+    // Collect all external alignments per answer choice
+    val tmpChoices = qChoiceTableVariables.map {
+      case QuestionTableVariable(qChoiceCons, _, _, _, x) =>
+        qChoiceCons -> x
+    }
+    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoices)
+
+    // Collect all external alignments per title
     val tmpTitleToQuestionVars = questionTitleVariables.map {
       case QuestionTitleVariable(_, tableIdx, colIdx, x) =>
         TitleIdx(tableIdx, colIdx) -> x
     }
-
-    /** Collect all external alignments per title */
     val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars)
 
     // add question dependent activity constraints
@@ -434,7 +349,7 @@ class IlpModel(
   }
 
   /** An internal method to create an intra-table variable */
-  val enableIntraTableVars = false
+  private val enableIntraTableVars = false // TODO(ashish33) experiment to determine usefulness
   private def addIntraTableVariable(
     tableIdx: Int, rowIdx: Int, colIdx1: Int, colIdx2: Int
   ): Option[IntraTableVariable] = {
@@ -511,25 +426,5 @@ class IlpModel(
       ilpSolver.addVar(variable)
       Some(QuestionTableVariable(qConsIdx, tableIdx, rowIdx, colIdx, variable))
     }
-  }
-
-  /** The main method to build an ILP model for a question.
-    *
-    * @param question a question
-    * @return a seq of (a subset of) variables of interest whose values may be queried later
-    */
-  def buildModel(question: Question): AllVariables = {
-    // set this up as a maximization problem
-    ilpSolver.setAsMaximization()
-
-    // build the question independent part of the model
-    val allVarsQuestionIndependent = buildQuestionIndependentModel
-
-    // add the question dependent part of the model; allVars is guaranteed to be a superset of
-    // allVarsQuestionIndependent
-    val allVars = buildQuestionDependentModel(question, allVarsQuestionIndependent)
-
-    // return all variables
-    allVars
   }
 }
