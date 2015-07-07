@@ -7,8 +7,8 @@ import org.allenai.common.Logging
 object IlpExamples extends Logging {
 
   // just to check the alignment inside one table
-  def example2(entailmentServiceOpt: Option[EntailmentService]): Unit = {
-    val questionChunks = Array("USA", "Brazil")
+  def example1(entailmentServiceOpt: Option[EntailmentService]): Unit = {
+    val questionChunks = Seq("USA", "Brazil")
     val tables = TableInterface.loadTables()
     val aligner = new AlignmentFunction(SimilarityType.Entailment, entailmentServiceOpt)
     val ilpSolver = new ScipInterface("sampleExample")
@@ -17,11 +17,11 @@ object IlpExamples extends Logging {
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.getIlpVars
     ilpSolver.solve()
-    ilpSolver.printResult(vars.toArray)
+    ilpSolver.printResult(vars)
     TableInterface.printTableVariables(allVariables)
   }
 
-  def example1(entailmentServiceOpt: Option[EntailmentService]): Unit = {
+  def example2(entailmentServiceOpt: Option[EntailmentService]): Unit = {
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")
     val tables = TableInterface.loadAllTables()
@@ -32,12 +32,12 @@ object IlpExamples extends Logging {
     val allVariables = ilpModel.buildModel(question)
     ilpSolver.solve()
     val vars = allVariables.getIlpVars
-    ilpSolver.printResult(vars.toArray)
+    ilpSolver.printResult(vars)
     TableInterface.printTableVariables(allVariables)
   }
 
   def main(args: Array[String]): Unit = {
-    // example1(None)
-    example2(None)
+    example1(None)
+    // example2(None)
   }
 }
