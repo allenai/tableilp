@@ -22,7 +22,7 @@ object IlpExamples extends Logging {
   }
 
   def example2(entailmentServiceOpt: Option[EntailmentService]): Unit = {
-    val questionChunks = Array("In", "New York State", "the", "shortest", "period",
+    val questionChunks = Seq("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")
     val tables = TableInterface.loadAllTables()
     val aligner = new AlignmentFunction(SimilarityType.Entailment, entailmentServiceOpt)
