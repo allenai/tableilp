@@ -17,10 +17,10 @@ object ScipExample extends Logging {
   /** Build a simple ILP model: x0 + 2*x1 <= 2, objective function: - x0 - x1.
     *
     * @param scipSolver a ScipInterface object
-    * @return an array of (a subset of) variables of interest whose values may be queried later
+    * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
-  private def buildModel(scipSolver: ScipInterface): Array[Long] = {
-    // create an array of variables
+  private def buildModel(scipSolver: ScipInterface): Seq[Long] = {
+    // create a seq of variables
     val nvars = 2
 
     // create binary variables

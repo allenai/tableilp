@@ -28,7 +28,7 @@ class ScipInterface(probName: String) extends Logging {
   // create the SCIP linear constraint environment
   private val envConsLinear = new JniScipConsLinear
 
-  // initialization: create a SCIP instance, an array of variables
+  // initialization: create a SCIP instance
   private val scip: Long = env.create
 
   // initialization: set various parameters
@@ -87,8 +87,8 @@ class ScipInterface(probName: String) extends Logging {
   def getStatus: Int = env.getStatus(scip)
 
   /** get solution values */
-  def getSolVals(vars: Array[Long]): Array[Double] = {
-    env.getSolVals(scip, getBestSol, vars.length, vars)
+  def getSolVals(vars: Iterable[Long]): Iterable[Double] = {
+    env.getSolVals(scip, getBestSol, vars.size, vars.toArray)
   }
 
   /** get one solution value */
@@ -109,8 +109,8 @@ class ScipInterface(probName: String) extends Logging {
     * @see SCIPcreateConsLinear() for information about the basic constraint flag configuration
     *
     * @param name                  name of constraint
-    * @param vars                  array with variables of constraint entries
-    * @param coeffs                array with coefficients of constraint entries
+    * @param vars                  seq with variables of constraint entries
+    * @param coeffs                seq with coefficients of constraint entries
     * @param lhs                   left hand side of constraint
     * @param rhs                   right hand side of constraint
     */
@@ -138,12 +138,12 @@ class ScipInterface(probName: String) extends Logging {
     envConsLinear.addCoefLinear(scip, cons, x, coeff)
   }
 
-  /** Gets the array of coefficient values in the linear constraint; the user must not modify
-    * this array!
+  /** Gets the seq of coefficient values in the linear constraint; the user must not modify
+    * this seq!
     *
     * @param cons                  constraint data
     */
-  def getValsLinear(cons: Long): Array[Double] = {
+  def getValsLinear(cons: Long): Seq[Double] = {
     envConsLinear.getValsLinear(scip, cons)
   }
 
@@ -151,7 +151,7 @@ class ScipInterface(probName: String) extends Logging {
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
-    * @param vars                  array with variables of constraint entries
+    * @param vars                  seq with variables of constraint entries
     */
   def createConsBasicSetpart(name: String, vars: Seq[Long]): Long = {
     envConsSetppc.createConsSetpart(scip, name, vars.length, vars.toArray,
@@ -169,7 +169,7 @@ class ScipInterface(probName: String) extends Logging {
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
-    * @param vars                  array with variables of constraint entries
+    * @param vars                  seq with variables of constraint entries
     */
   def createConsBasicSetpack(name: String, vars: Seq[Long]): Long = {
     envConsSetppc.createConsSetpack(scip, name, vars.length, vars.toArray,
@@ -187,7 +187,7 @@ class ScipInterface(probName: String) extends Logging {
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
-    * @param vars                  array with variables of constraint entries
+    * @param vars                  seq with variables of constraint entries
     */
   def createConsBasicSetcover(name: String, vars: Seq[Long]): Long = {
     envConsSetppc.createConsSetcover(scip, name, vars.length, vars.toArray,
@@ -242,7 +242,7 @@ class ScipInterface(probName: String) extends Logging {
   }
 
   /** Print result of the call to solve(), along with solution values of vars */
-  def printResult(vars: Array[Long]): Unit = {
+  def printResult(vars: Seq[Long]): Unit = {
     // retrieve best solution found so far
     if (getStatus == JniScipStatus.SCIP_STATUS_OPTIMAL) {
       val values = getSolVals(vars)
