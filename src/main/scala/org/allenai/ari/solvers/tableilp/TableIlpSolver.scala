@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.MultipleChoiceQuestion
+import org.allenai.ari.models.Question
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.EntailmentService
 import org.allenai.common.Version
@@ -33,11 +33,11 @@ class TableIlpSolver @Inject() (
     * MultipleChoiceSelection in the question.
     */
   protected[ari] def handleQuestion(
-    question: MultipleChoiceQuestion
+    question: Question
   ): Future[Seq[SimpleAnswer]] = {
     // Run the solver asynchronously. This will help prevent your system from timing out or
     // freezing up if you send it lots of questions at once.
-    if (question.text.isEmpty) {
+    if (!question.isMultipleChoice || question.text.isEmpty) {
       Future.successful(Seq.empty[SimpleAnswer])
     } else {
       Future {
