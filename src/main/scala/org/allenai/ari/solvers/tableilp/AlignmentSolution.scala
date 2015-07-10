@@ -9,31 +9,33 @@ import spray.json._
 import scala.collection.mutable.ArrayBuffer
 
 /** All table cells and question constituent that a string aligns with in the solution. */
-case class StringAlignmentPair(
-  string: String,
-  alignment: ArrayBuffer[Int]
-)
+class StringAlignmentPair(
+    val string: String,
+    val alignment: ArrayBuffer[Int]
+) {
+  def this(str: String) = this(str, ArrayBuffer.empty)
+}
 /** This variable keeps the contents of a table, and how its cells are aligned with other
   * information in the problem, including other tables, the question definition and its choices.
   * Later we feed this into the visualizer. Talk to Daniel, if you want to change this definition!
   */
 case class TableAlignment(
-  titleRow: Array[StringAlignmentPair],
-  contentMatrix: Array[Array[StringAlignmentPair]]
+  titleRow: Seq[StringAlignmentPair],
+  contentMatrix: Seq[Seq[StringAlignmentPair]]
 )
 /** This variable keeps the contents of the question definiition and its choices, and how they are
   * aligned with other tables. Later we feed this into the visualizer. So talk to Daniel, if you
   * want to change this definition!
   */
 case class QuestionAlignment(
-  questionCons: Array[StringAlignmentPair],
-  choices: Array[StringAlignmentPair]
+  questionCons: Seq[StringAlignmentPair],
+  choices: Seq[StringAlignmentPair]
 )
 /** A complete set of alignments between multiple tables and between tables and question
   * constituents. This is the output of the ILP model.
   */
 case class AlignmentSolution(
-  tables: Array[TableAlignment],
+  tables: Seq[TableAlignment],
   question: QuestionAlignment,
   bestChoice: Int,
   bestChoiceScore: Double
@@ -43,7 +45,7 @@ object AlignmentSolution extends Logging {
   // JsonFormat doesn't seem to be available for ArrayBuffer; implement here
   implicit val stringAlignmentJsonFormat = new JsonFormat[StringAlignmentPair] {
     override def read(json: JsValue): StringAlignmentPair = {
-      // TODO: implement this!
+      // TODO: not needed but may want to implement this for completeness
       new StringAlignmentPair("", ArrayBuffer.empty)
     }
     override def write(stringAlignmentPair: StringAlignmentPair): JsValue = {
@@ -54,20 +56,26 @@ object AlignmentSolution extends Logging {
   implicit val questionJsonFormat = jsonFormat2(QuestionAlignment.apply)
   implicit val alignmentSolutionJsonFormat = jsonFormat4(AlignmentSolution.apply)
 
+  /** config: a threshold above which alignment is considered active */
   private val alignmentThreshold = 0.999
 
+  /** Process the solution found by SCIP to deduce which parts of the question + tables align with
+    * which other parts. This information can then be visualized or presented in another format.
+    * @param allVariables all core decision variables in the ILP model
+    * @param scipSolver a reference to the SCIP solver object
+    * @param question the question
+    * @param tables the tables used
+    * @return
+    */
   def generateAlignmentSolution(allVariables: AllVariables, scipSolver: ScipInterface,
-    question: Question, tables: Array[Table]): AlignmentSolution = {
-    val questionChunkAlignmentPair = question.questionCons
-      .map(StringAlignmentPair(_, ArrayBuffer.empty))
-    val choiceAlignmentPair = question.choices.map(StringAlignmentPair(_, ArrayBuffer.empty))
+    question: Question, tables: Seq[Table]): AlignmentSolution = {
+    val questionChunkAlignmentPair = question.questionCons.map(new StringAlignmentPair(_))
+    val choiceAlignmentPair = question.choices.map(new StringAlignmentPair(_))
     val tableAlignments = tables.map { table =>
-      val alignedTable = table.contentMatrix.map(_.map(StringAlignmentPair(_, ArrayBuffer.empty)))
-      val alignedTitle = table.titleRow.map(StringAlignmentPair(_, ArrayBuffer.empty))
-      TableAlignment(alignedTitle, alignedTable.toArray)
+      val alignedTable = table.contentMatrix.map(_.map(new StringAlignmentPair(_)))
+      val alignedTitle = table.titleRow.map(new StringAlignmentPair(_))
+      TableAlignment(alignedTitle, alignedTable)
     }
-
-    // add the alignment information
 
     // inter-table alignments
     val interTableAlignmentPairs = for {
@@ -147,33 +155,32 @@ object AlignmentSolution extends Logging {
       val idx = allVariables.qChoiceTableVariables.map { choice =>
         scipSolver.getSolVal(choice.variable)
       }.zipWithIndex.maxBy(_._1)._2
-      //      val score = scipSolver.getSolVal(
-      //        allVariables.qChoiceTableVariables(idx).variable
-      //      )
       val choiceIdx = allVariables.qChoiceTableVariables(idx).qConsIdx
       (choiceIdx, scipSolver.getPrimalbound)
     } else {
+      // The default, helpful for initial debugging
       (1, 1.0)
     }
 
-    // return an alignment solution
+    // return the alignment solution
     AlignmentSolution(tableAlignments, questionAlignmentPair, bestChoiceIdx, bestChoiceScore)
   }
 
-  val generateSampleAlignmentSolution: AlignmentSolution = {
+  /** Generate a random alignment solution object for visualizer testing */
+  def generateSampleAlignmentSolution: AlignmentSolution = {
     val r = scala.util.Random
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")
     val questionChunkAlignmentPair = questionChunks.map { chunk =>
       val randSize = r.nextInt(4)
       val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-      StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
+      new StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
     }
     val choices = Array("January", "December", "June", "July")
     val choicesAlignmentPair = choices.map { chunk =>
       val randSize = r.nextInt(4)
       val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-      StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
+      new StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
     }
     val questionAlignmentPair = new QuestionAlignment(
       questionChunkAlignmentPair,
@@ -186,19 +193,20 @@ object AlignmentSolution extends Logging {
         row.map { cell =>
           val randSize = r.nextInt(4)
           val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-          StringAlignmentPair(cell, randomAlignment.to[ArrayBuffer])
+          new StringAlignmentPair(cell, randomAlignment.to[ArrayBuffer])
         }
       }
       val alignedTitle = table.titleRow.map { cell =>
         val randSize = r.nextInt(4)
         val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-        StringAlignmentPair(cell, randomAlignment.to[ArrayBuffer])
+        new StringAlignmentPair(cell, randomAlignment.to[ArrayBuffer])
       }
-      TableAlignment(alignedTitle, alignedTable.toArray)
+      TableAlignment(alignedTitle, alignedTable)
     }
     AlignmentSolution(tablesAlignment, questionAlignmentPair, 1, 0.5)
   }
 
+  /** Main method to test the visualizer with a sample alignment solution */
   def main(args: Array[String]) {
     val alignment = generateSampleAlignmentSolution
     println(alignment.toJson)
