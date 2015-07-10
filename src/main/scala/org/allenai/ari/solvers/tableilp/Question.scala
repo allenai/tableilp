@@ -1,63 +1,71 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.models.MultipleChoiceQuestion
-import org.allenai.common.Logging
 import org.allenai.nlpstack.core.Chunker
-import org.allenai.nlpstack.tokenize.defaultTokenizer
 import org.allenai.nlpstack.chunk.OpenNlpChunker
 import org.allenai.nlpstack.postag.defaultPostagger
-
-object SplittingType extends Enumeration {
-  val Tokenize, Chunk, SpaceSplit = Value
-}
+import org.allenai.nlpstack.tokenize.defaultTokenizer
 
 /** This class contains the question raw string, its chunked format and some other processing on
   * them.
-  * @param questionRaw: the raw string of the question
-  * @param questionCons: the question, chunked to strings
+  * @param questionRaw the raw string of the question
+  * @param questionCons the question text, chunked into strings
+  * @param choices answer choices
   */
-class Question(
-    questionRaw: String,
-    val questionCons: Seq[String],
-    val choices: Seq[String],
-    aristoQuestion: MultipleChoiceQuestion,
-    splitType: SplittingType.Value
-) extends Logging {
+case class Question(
+  questionRaw: String,
+  questionCons: Seq[String],
+  choices: Seq[String]
+)
 
-  def this(questionRaw: String) {
-    // TODO: add chunker here
-    this(questionRaw, questionRaw.split(" "), Seq.empty, null, SplittingType.SpaceSplit)
+/** Various ways to build a Question instance */
+object QuestionFactory {
+  private val spaceSep = " "
+  private val defaultSplittingType = "SpaceSplit"
+
+  def makeQuestion(questionRaw: String): Question = {
+    // TODO: consider adding chunker here
+    Question(questionRaw, questionRaw.split(spaceSep), Seq.empty)
   }
 
-  def this(questionCons: Seq[String]) {
-    this("", questionCons, Seq.empty, null, SplittingType.SpaceSplit)
+  def makeQuestion(questionCons: Seq[String]): Question = {
+    Question("", questionCons, Seq.empty)
   }
 
-  def this(aristoQuestion: MultipleChoiceQuestion) {
-    this(aristoQuestion.rawQuestion, aristoQuestion.text.get.split(" "),
-      aristoQuestion.selections.map(_.focus), aristoQuestion, SplittingType.SpaceSplit)
+  def makeQuestion(aristoQuestion: MultipleChoiceQuestion): Question = {
+    Question(aristoQuestion.rawQuestion, aristoQuestion.text.get.split(spaceSep),
+      aristoQuestion.selections.map(_.focus))
   }
 
-  def this(aristoQuestion: MultipleChoiceQuestion, splittingType: SplittingType.Value) {
-    this(aristoQuestion.rawQuestion, splitMethods.split(aristoQuestion.text.get, splittingType),
-      aristoQuestion.selections.map(_.focus), aristoQuestion, splittingType)
+  def makeQuestion(aristoQuestion: MultipleChoiceQuestion, splittingType: String): Question = {
+    val splitter = splittingType match {
+      case "Tokenize" => new TokenSplitter
+      case "Chunk" => new ChunkSplitter
+      case "SpaceSplit" => new SpaceSplitter
+      case _: String =>
+        throw new IllegalArgumentException(s"Split type $splittingType not recognized")
+    }
+    Question(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
+      aristoQuestion.selections.map(_.focus))
   }
 }
 
-object splitMethods {
-  def split(str: String, splittingType: SplittingType.Value): Seq[String] = {
-    splittingType match {
-      case SplittingType.Chunk => chunk(str)
-      case SplittingType.Tokenize => tokenize(str)
-      case SplittingType.SpaceSplit => str.split(" ")
-    }
-  }
+/** Various ways of splitting text */
+sealed trait Splitter {
+  def split(str: String): Seq[String]
+}
 
-  private def chunk(str: String): Seq[String] = {
+/** Split text based on tokenization */
+private class TokenSplitter extends Splitter {
+  def split(str: String): Seq[String] = defaultTokenizer.tokenize(str).map(_.toString())
+}
+
+/** Split text based on chunking */
+private class ChunkSplitter extends Splitter {
+  private val chunker = new OpenNlpChunker()
+  def split(str: String): Seq[String] = {
     val tokens = defaultTokenizer.tokenize(str)
     val posTaggedTokens = defaultPostagger.postagTokenized(tokens)
-
-    val chunker = new OpenNlpChunker()
     val chunkedTokens = chunker.chunkPostagged(posTaggedTokens)
     val intervals = Chunker.intervals(chunkedTokens)
     intervals.map {
@@ -65,9 +73,10 @@ object splitMethods {
         chunkedTokens.map(_.string).slice(anInterval.start, anInterval.end).mkString(" ")
     }
   }
+}
 
-  private def tokenize(str: String): Seq[String] = {
-    val tokens = defaultTokenizer.tokenize(str)
-    tokens.map(_.toString())
-  }
+/** Split text based on empty space */
+private class SpaceSplitter extends Splitter {
+  private val spaceSep = " "
+  def split(str: String): Seq[String] = str.split(spaceSep)
 }

@@ -2,7 +2,7 @@ package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.models.MultipleChoiceQuestion
 import org.allenai.ari.solvers.SimpleSolver
-import org.allenai.ari.solvers.common.EntailmentService
+import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.common.Version
 
 import akka.actor.ActorSystem
@@ -17,10 +17,12 @@ import scala.concurrent.Future
   * inference chain of knowledge represented in the form of tables.
   *
   * @param entailmentService service for computing entailment score between two text sequences
+  * @param tokenizer keyword tokenizer, also does stemming
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
     entailmentService: EntailmentService,
+    tokenizer: KeywordTokenizer,
     @Named("useEntailment") useEntailment: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher

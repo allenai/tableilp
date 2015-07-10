@@ -25,7 +25,7 @@ case class AllVariables(
     )
   }
 
-  lazy val getIlpVars: Seq[Long] = {
+  lazy val ilpVars: Seq[Long] = {
     intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
       questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
       qChoiceTableVariables.map(_.variable)

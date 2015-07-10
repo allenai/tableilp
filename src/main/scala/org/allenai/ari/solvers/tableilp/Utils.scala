@@ -8,6 +8,6 @@ object Utils {
     * b -> (2,4)}
     */
   def toMapUsingGroupByFirst[T1, T2](x: Seq[(T1, T2)]): Map[T1, Seq[T2]] = {
-    x.groupBy(_._1).map { case (k, v) => k -> v.map(_._2) }
+    x.groupBy(_._1).mapValues(_.unzip._2)
   }
 }

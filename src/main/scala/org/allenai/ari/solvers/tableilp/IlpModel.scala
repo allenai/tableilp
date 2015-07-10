@@ -5,7 +5,7 @@ import org.allenai.common.Logging
 
 /** The ILP model for Table Inference.
   *
-  * @param ilpSolver a ScipInterface object
+  * @param ilpSolver a ScipInterface object; safest to create a new instance of it per question
   * @param tables a seq of tables as the knowledge base
   * @param aligner a blackbox to align textual mentions
   */
@@ -136,7 +136,7 @@ class IlpModel(
     interTableVariables.foreach { entry =>
       val table1Entry = tables(entry.tableIdx1).titleRow(entry.colIdx1)
       val table2Entry = tables(entry.tableIdx2).titleRow(entry.colIdx2)
-      if (aligner.title_title(table1Entry, table2Entry) < 0.5) {
+      if (aligner.scoreTitleTitle(table1Entry, table2Entry) < 0.5) {
         // no good alignment between the titles; disallow inter table alignment
         ilpSolver.chgVarUb(entry.variable, 0d)
       }
@@ -360,7 +360,7 @@ class IlpModel(
       ilpSolver.addVar(variable)
       Some(IntraTableVariable(tableIdx, rowIdx, colIdx1, colIdx2, variable))
     } else {
-      None
+      None // intra-table variables not enabled
     }
   }
 
@@ -368,7 +368,7 @@ class IlpModel(
   private def addInterTableVariable(
     tableIdx1: Int, tableIdx2: Int, rowIdx1: Int, rowIdx2: Int, colIdx1: Int, colIdx2: Int
   ): Option[InterTableVariable] = {
-    val objCoeff = aligner.cell_cell(
+    val objCoeff = aligner.scoreCellCell(
       tables(tableIdx1).contentMatrix(rowIdx1)(colIdx1),
       tables(tableIdx2).contentMatrix(rowIdx2)(colIdx2)
     )
@@ -387,7 +387,7 @@ class IlpModel(
   private def addQuestionTableVariable(
     qCons: String, qConsIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
   ): Option[QuestionTableVariable] = {
-    val objCoeff = aligner.cell_qCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qCons)
+    val objCoeff = aligner.scoreCellQCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qCons)
     if (objCoeff < minCellQConstituentAlignmentThreshold) {
       None
     } else {
@@ -402,7 +402,7 @@ class IlpModel(
   private def addQuestionTitleVariable(
     qCons: String, qConsIdx: Int, tableIdx: Int, colIdx: Int
   ): Option[QuestionTitleVariable] = {
-    val objCoeff = aligner.title_qCons(tables(tableIdx).titleRow(colIdx), qCons)
+    val objCoeff = aligner.scoreTitleQCons(tables(tableIdx).titleRow(colIdx), qCons)
     if (objCoeff < minTitleQConstituentAlignmentThreshold) {
       None
     } else {
@@ -417,7 +417,7 @@ class IlpModel(
   private def addQChoiceTableVariable(
     qChoiceCons: String, qConsIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
   ): Option[QuestionTableVariable] = {
-    val objCoeff = aligner.cell_qCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qChoiceCons)
+    val objCoeff = aligner.scoreCellQCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qChoiceCons)
     if (objCoeff < minCellQConstituentAlignmentThreshold) {
       None
     } else {
