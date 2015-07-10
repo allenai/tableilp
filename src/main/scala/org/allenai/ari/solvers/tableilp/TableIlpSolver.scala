@@ -2,7 +2,8 @@ package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.models.MultipleChoiceQuestion
 import org.allenai.ari.solvers.SimpleSolver
-import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
+import org.allenai.ari.solvers.common.EntailmentService
+import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
 import org.allenai.common.Version
 
 import akka.actor.ActorSystem
@@ -17,12 +18,10 @@ import scala.concurrent.Future
   * inference chain of knowledge represented in the form of tables.
   *
   * @param entailmentService service for computing entailment score between two text sequences
-  * @param tokenizer keyword tokenizer, also does stemming
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
     entailmentService: EntailmentService,
-    tokenizer: KeywordTokenizer,
     @Named("useEntailment") useEntailment: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
@@ -45,10 +44,39 @@ class TableIlpSolver @Inject() (
       Future {
         logger.info(question.toString)
 
-        // TODO(ashish33) Dummy answers for splitting the PR into multiple smaller ones;
-        // will be replaced with an actual call to an ILP solver in a PR to follow.
-        val answers = for {
+        val USE_REALSOLVER = true
+        val alignmentSolution = {
+          if (USE_REALSOLVER) {
+            val tables = TableInterface.loadAllTables()
+            val scipSolver = new ScipInterface("aristo-tableilp-solver")
+            val aligner = if (useEntailment) {
+              new AlignmentFunction(SimilarityType.Entailment, Some(entailmentService))
+            } else {
+              new AlignmentFunction(SimilarityType.Word2Vec, None)
+            }
+            val ilpModel = new IlpModel(scipSolver, tables, aligner)
+            val questionIlp = new Question(question, SplittingType.Chunk)
+            val allVariables = ilpModel.buildModel(questionIlp)
+            scipSolver.solve()
+            AlignmentSolution.generateAlignmentSolution(allVariables, scipSolver, questionIlp,
+              tables)
+          } else {
+            AlignmentSolution.generateSampleAlignmentSolution
+          }
+        }
+
+        val alignmentJson = alignmentSolution.toJson
+        logger.debug(alignmentJson.toString())
+
+        val alignmentAnswer = SimpleAnswer(
+          question.selections(alignmentSolution.bestChoice),
+          alignmentSolution.bestChoiceScore,
+          Some(Map("alignment" -> alignmentJson))
+        )
+
+        val otherAnswers = for {
           choiceIdx <- question.selections.indices
+          if choiceIdx != alignmentSolution.bestChoice
         } yield {
           SimpleAnswer(
             question.selections(choiceIdx),
@@ -57,7 +85,7 @@ class TableIlpSolver @Inject() (
           )
         }
 
-        answers
+        alignmentAnswer +: otherAnswers
       }
     }
   }
