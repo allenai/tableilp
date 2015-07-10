@@ -46,7 +46,7 @@ object AlignmentSolution extends Logging {
   implicit val stringAlignmentJsonFormat = new JsonFormat[StringAlignmentPair] {
     override def read(json: JsValue): StringAlignmentPair = {
       // TODO: not needed but may want to implement this for completeness
-      new StringAlignmentPair("", ArrayBuffer.empty)
+      new StringAlignmentPair("")
     }
     override def write(stringAlignmentPair: StringAlignmentPair): JsValue = {
       (stringAlignmentPair.string, stringAlignmentPair.alignment.toSeq).toJson

@@ -86,10 +86,10 @@ private class EntailmentSimilarity(
 
   // an entailment score below this value is considered to have negative correlation
   private val entailmentScoreOffset = 0.2
-  private val sep = ';'
+  private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
-    val text1StemmedTokens = text1.split(sep).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-    val text2StemmedTokens = text2.split(sep).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+    val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+    val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
     val scores = for {
       text1StemmedTokens <- text1StemmedTokens
       text2StemmedTokens <- text2StemmedTokens

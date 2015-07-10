@@ -20,12 +20,12 @@ case class Question(
 
 /** Various ways to build a Question instance */
 object QuestionFactory {
-  private val spaceSep = " "
+  private val spaceSep = " ".r
   private val defaultSplittingType = "SpaceSplit"
 
   def makeQuestion(questionRaw: String): Question = {
     // TODO: consider adding chunker here
-    Question(questionRaw, questionRaw.split(spaceSep), Seq.empty)
+    Question(questionRaw, spaceSep.split(questionRaw), Seq.empty)
   }
 
   def makeQuestion(questionCons: Seq[String]): Question = {
@@ -33,7 +33,7 @@ object QuestionFactory {
   }
 
   def makeQuestion(aristoQuestion: MultipleChoiceQuestion): Question = {
-    Question(aristoQuestion.rawQuestion, aristoQuestion.text.get.split(spaceSep),
+    Question(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
       aristoQuestion.selections.map(_.focus))
   }
 
@@ -77,6 +77,6 @@ private class ChunkSplitter extends Splitter {
 
 /** Split text based on empty space */
 private class SpaceSplitter extends Splitter {
-  private val spaceSep = " "
-  def split(str: String): Seq[String] = str.split(spaceSep)
+  private val spaceSep = " ".r
+  def split(str: String): Seq[String] = spaceSep.split(str)
 }
