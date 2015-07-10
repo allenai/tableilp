@@ -27,21 +27,25 @@ class AlignmentFunction(
     tokenizer: KeywordTokenizer
 ) extends Logging {
   private val similarityFunction: SimilarityType = alignmentType match {
-    case "Entailment" =>
+    case "Entailment" => {
       logger.info("Using entailment service for alignment score computation")
       val teService = entailmentServiceOpt match {
         case Some(entailmentService) => entailmentService
         case None => throw new IllegalStateException("No entailment service available")
       }
       new EntailmentSimilarity(teService, tokenizer)
-    case "Word2Vec" =>
+    }
+    case "Word2Vec" => {
       logger.info("Using word2vec for alignment score computation")
       new Word2VecSimilarity
-    case "WordOverlap" =>
+    }
+    case "WordOverlap" => {
       logger.info("Using word overlap for alignment score computation")
       new WordOverlapSimilarity(tokenizer)
-    case _: String =>
+    }
+    case _: String => {
       throw new IllegalArgumentException(s"Alignment type $alignmentType not recognized")
+    }
   }
 
   /** Alignment score between two titles of tables */
@@ -51,17 +55,17 @@ class AlignmentFunction(
 
   /** Alignment score between cells of two tables */
   def scoreCellCell(cellStr1: String, cellStr2: String): Double = {
-    scoreCellCell(cellStr1, cellStr2)
+    similarityFunction.scoreCellCell(cellStr1, cellStr2)
   }
 
   /** Alignment score between a cell of a table, and a question constituent */
   def scoreCellQCons(cellStr: String, qConsStr: String): Double = {
-    scoreCellQCons(cellStr, qConsStr)
+    similarityFunction.scoreCellQCons(cellStr, qConsStr)
   }
 
   /** Alignment score between a title of a table, and a question constituent */
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double = {
-    scoreTitleQCons(titleStr, qConsStr)
+    similarityFunction.scoreTitleQCons(titleStr, qConsStr)
   }
 
 }
@@ -82,9 +86,10 @@ private class EntailmentSimilarity(
 
   // an entailment score below this value is considered to have negative correlation
   private val entailmentScoreOffset = 0.2
+  private val sep = ';'
   private def getEntailmentScore(text1: String, text2: String): Double = {
-    val text1StemmedTokens = text1.split(';').map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-    val text2StemmedTokens = text2.split(';').map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+    val text1StemmedTokens = text1.split(sep).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+    val text2StemmedTokens = text2.split(sep).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
     val scores = for {
       text1StemmedTokens <- text1StemmedTokens
       text2StemmedTokens <- text2StemmedTokens
