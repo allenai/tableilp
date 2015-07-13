@@ -19,6 +19,9 @@ class IlpModel(
   /** A title index in a table */
   private case class TitleIdx(tableIdx: Int, colIdx: Int)
 
+  /** A constituent index in a question */
+  private case class QuestionIdx(qConsIdx: Int)
+
   // config: minimum thresholds for alignment
   private val minCellCellAlignmentThreshold = 0.2
   private val minCellQConstituentAlignmentThreshold = 0.2
@@ -200,13 +203,23 @@ class IlpModel(
     } yield x
 
     /** Auxiliary variables: whether a title column of a given table is "active" */
-    val ativeChoiceVars: Map[Int, Long] = (for {
+    val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
       objCoeff = 1 // doesn't matter what this is
       x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", objCoeff)
     } yield {
       ilpSolver.addVar(x)
       choiceIdx -> x
+    }).toMap
+
+    /** Auxiliary variables: whether a constituent of a given question is "active" */
+    val activeQuestionVars: Map[Int, Long] = (for {
+      questionConsIdx <- question.questionCons.indices
+      objCoeff = 0.3 // TODO: tune this!
+      x = ilpSolver.createBinaryVar(s"activeQuestion_t=$questionConsIdx", objCoeff)
+    } yield {
+      ilpSolver.addVar(x)
+      questionConsIdx -> x
     }).toMap
 
     /** A convenient map from a cell to intra-table ILP variables associated with it */
@@ -253,6 +266,18 @@ class IlpModel(
         TitleIdx(tableIdx, colIdx) -> x
     }
     val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars)
+
+    // Collect all external alignments per question constituent
+    val tmpQuestionToTitleVars = questionTitleVariables.map {
+      case QuestionTitleVariable(qConsIdx, _, _, x) =>
+        QuestionIdx(qConsIdx) -> x
+    }
+    val tmpQuestionToTableVars = questionTableVariables.map {
+      case QuestionTableVariable(qConsIdx, _, _, _, x) =>
+        QuestionIdx(qConsIdx) -> x
+    }
+    val questionToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpQuestionToTableVars ++
+      tmpQuestionToTitleVars)
 
     // add question dependent activity constraints
     tables.indices.foreach { tableIdx =>
@@ -327,7 +352,7 @@ class IlpModel(
     // if the question choice is active, there is at least one ative thing connected to it.
     // i.e. Sum(incomingToChoice) <= ChoiceVariable
     question.choices.indices.foreach { choiceIdx =>
-      val choiceVar = ativeChoiceVars(choiceIdx)
+      val choiceVar = activeChoiceVars(choiceIdx)
       val extChoiceToExtAlignmentVars = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
       val vars = extChoiceToExtAlignmentVars :+ choiceVar
       val coeffs = Seq.fill(extChoiceToExtAlignmentVars.size)(1d) :+ (-1d)
@@ -340,8 +365,22 @@ class IlpModel(
     }
 
     // make sure only one choice is choosen
-    val choiceVars = question.choices.indices.map { ativeChoiceVars(_) }
+    val choiceVars = question.choices.indices.map { activeChoiceVars(_) }
     ilpSolver.addConsBasicSetpack("atMostOneChoice", choiceVars)
+
+    // active question variables
+    question.questionCons.indices.foreach { qIdx =>
+      val questionIdx = QuestionIdx(qIdx)
+      val activeQuestionVar = activeQuestionVars(qIdx)
+      val questionToExtAlignmentVar = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
+      val vars = questionToExtAlignmentVar :+ activeQuestionVar
+      val coeffs = Seq.fill(questionToExtAlignmentVar.size)(1d) :+ (-1d)
+      ilpSolver.addConsBasicLinear("activeQuestionBiggerThanItsAlignments", vars, coeffs, 0d,
+        largeDbl)
+      questionToExtAlignmentVar.foreach {
+        ilpSolver.addConsXLeqY("activeQuestionCons", _, activeQuestionVar)
+      }
+    }
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables, questionTableVariables,
@@ -417,7 +456,10 @@ class IlpModel(
   private def addQChoiceTableVariable(
     qChoiceCons: String, qConsIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
   ): Option[QuestionTableVariable] = {
-    val objCoeff = aligner.scoreCellQCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qChoiceCons)
+    val objCoeff = aligner.scoreCellQCons(
+      tables(tableIdx).contentMatrix(rowIdx)(colIdx),
+      qChoiceCons
+    )
     if (objCoeff < minCellQConstituentAlignmentThreshold) {
       None
     } else {

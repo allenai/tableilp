@@ -108,7 +108,9 @@ private class Word2VecSimilarity extends SimilarityType {
   def scoreCellQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
   def scoreTitleQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
 
-  private val word2vecFile = new File("main/resources/vectors/GoogleNews-vectors-negative300_size=200000.bin")
+  private val word2vecFile = new File(
+    "main/resources/vectors/GoogleNews-vectors-negative300_size=200000.bin"
+  )
   private val w2vModel = Word2VecModel.fromBinFile(word2vecFile)
   private val w2vNoMatchStr = "</s>" // string used by word2vec when there is no match
   private def getWord2VecScore(text1: String, text2: String): Double = {
