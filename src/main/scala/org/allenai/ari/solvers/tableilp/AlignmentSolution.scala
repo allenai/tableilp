@@ -9,9 +9,9 @@ import spray.json._
 import scala.collection.mutable.ArrayBuffer
 
 /** All table cells and question constituent that a string aligns with in the solution. */
-class StringAlignmentPair(
-    val string: String,
-    val alignment: ArrayBuffer[Int]
+case class StringAlignmentPair(
+    string: String,
+    alignment: ArrayBuffer[Int]
 ) {
   def this(str: String) = this(str, ArrayBuffer.empty)
 }
@@ -42,16 +42,12 @@ case class AlignmentSolution(
 )
 
 object AlignmentSolution extends Logging {
-  // JsonFormat doesn't seem to be available for ArrayBuffer; implement here
-  implicit val stringAlignmentJsonFormat = new JsonFormat[StringAlignmentPair] {
-    override def read(json: JsValue): StringAlignmentPair = {
-      // TODO: not needed but may want to implement this for completeness
-      new StringAlignmentPair("")
-    }
-    override def write(stringAlignmentPair: StringAlignmentPair): JsValue = {
-      (stringAlignmentPair.string, stringAlignmentPair.alignment.toSeq).toJson
-    }
-  }
+  // JsonFormat doesn't seem to be available for ArrayBuffer; implement here;
+  // Note: lift turns a one-sided converter (Writer or Reader) into a symmetric format that throws
+  // an exception if an unimplemented method is called.
+  implicit val stringAlignmentJsonFormat: JsonFormat[StringAlignmentPair] = lift(
+    { pair: StringAlignmentPair => (pair.string, pair.alignment.toSeq).toJson }
+  )
   implicit val tableJsonFormat = jsonFormat2(TableAlignment.apply)
   implicit val questionJsonFormat = jsonFormat2(QuestionAlignment.apply)
   implicit val alignmentSolutionJsonFormat = jsonFormat4(AlignmentSolution.apply)
@@ -65,7 +61,7 @@ object AlignmentSolution extends Logging {
     * @param scipSolver a reference to the SCIP solver object
     * @param question the question
     * @param tables the tables used
-    * @return
+    * @return an AlignmentSolution object
     */
   def generateAlignmentSolution(allVariables: AllVariables, scipSolver: ScipInterface,
     question: Question, tables: Seq[Table]): AlignmentSolution = {
@@ -78,7 +74,7 @@ object AlignmentSolution extends Logging {
     }
 
     // inter-table alignments
-    val interTableAlignmentPairs = for {
+    val interTableAlignmentPairs: IndexedSeq[(StringAlignmentPair, StringAlignmentPair)] = for {
       entry <- allVariables.interTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -88,7 +84,7 @@ object AlignmentSolution extends Logging {
     }
 
     // intra-table alignments
-    val intraTableAlignmentPairs = for {
+    val intraTableAlignmentPairs: IndexedSeq[(StringAlignmentPair, StringAlignmentPair)] = for {
       entry <- allVariables.intraTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -98,7 +94,7 @@ object AlignmentSolution extends Logging {
     }
 
     // question table alignments
-    val questionTableAlignmentPairs = for {
+    val questionTableAlignmentPairs: IndexedSeq[(StringAlignmentPair, StringAlignmentPair)] = for {
       entry <- allVariables.questionTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -108,7 +104,7 @@ object AlignmentSolution extends Logging {
     }
 
     // question title alignments
-    val questionTitleAlignmentPairs = for {
+    val questionTitleAlignmentPairs: IndexedSeq[(StringAlignmentPair, StringAlignmentPair)] = for {
       entry <- allVariables.questionTitleVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -118,7 +114,7 @@ object AlignmentSolution extends Logging {
     }
 
     // choice table alignments
-    val choiceTableAlignmentPairs = for {
+    val choiceTableAlignmentPairs: IndexedSeq[(StringAlignmentPair, StringAlignmentPair)] = for {
       entry <- allVariables.qChoiceTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -174,13 +170,13 @@ object AlignmentSolution extends Logging {
     val questionChunkAlignmentPair = questionChunks.map { chunk =>
       val randSize = r.nextInt(4)
       val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-      new StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
+      StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
     }
     val choices = Array("January", "December", "June", "July")
     val choicesAlignmentPair = choices.map { chunk =>
       val randSize = r.nextInt(4)
       val randomAlignment = (0 until randSize).map(_ => r.nextInt(13))
-      new StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
+      StringAlignmentPair(chunk, randomAlignment.to[ArrayBuffer])
     }
     val questionAlignmentPair = new QuestionAlignment(
       questionChunkAlignmentPair,
