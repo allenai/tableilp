@@ -42,7 +42,8 @@ case class AlignmentSolution(
 )
 
 object AlignmentSolution extends Logging {
-  // JsonFormat doesn't seem to be available for ArrayBuffer; implement here;
+  // The default json protocol has JsonFormat implemented only for immutable collections. Add it
+  // for ArrayBuffer here.
   // Note: lift turns a one-sided converter (Writer or Reader) into a symmetric format that throws
   // an exception if an unimplemented method is called.
   implicit val stringAlignmentJsonFormat: JsonFormat[StringAlignmentPair] = lift(
