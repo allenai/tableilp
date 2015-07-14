@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.{ MultipleChoiceSelection. Question }
+import org.allenai.ari.models.{ MultipleChoiceSelection, Question }
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
@@ -40,9 +40,7 @@ class TableIlpSolver @Inject() (
   }
 
   /** The entry point for the solver */
-  protected[ari] def handleQuestion(
-    question: Question
-  ): Future[Seq[SimpleAnswer]] = {
+  protected[ari] def handleQuestion(question: Question): Future[Seq[SimpleAnswer]] = {
     // Run the solver asynchronously. This will help prevent your system from timing out or
     // freezing up if you send it lots of questions at once.
     if (!question.isMultipleChoice || question.text.isEmpty) {

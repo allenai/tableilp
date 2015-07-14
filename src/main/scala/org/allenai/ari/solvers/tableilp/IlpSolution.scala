@@ -88,8 +88,8 @@ object IlpSolutionFactory extends Logging {
     * @param tables the tables used
     * @return an AlignmentSolution object
     */
-  def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface, question: Question,
-    tables: Seq[Table]): IlpSolution = {
+  def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface,
+    question: TableQuestion, tables: Seq[Table]): IlpSolution = {
     val qConsAlignments = question.questionCons.map(new UnitAlignment(_))
     val choiceAlignments = question.choices.map(new UnitAlignment(_))
     val tableAlignments = tables.map { table =>
