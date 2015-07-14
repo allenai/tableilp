@@ -11,6 +11,9 @@ class ScipInterface(probName: String) extends Logging {
   /** config: local log file where SCIP output is stored for debugging purposes */
   private val ScipLogFile = "scip.log"
 
+  /** config: overall time limit for SCIP in seconds once it starts solving the model */
+  private val ScipTimeLimit = 60d
+
   // initialization: load JNI library
   logger.debug("Java library path = " + System.getProperty("java.library.path"))
   JniScipLibraryLoader.loadLibrary()
@@ -36,6 +39,7 @@ class ScipInterface(probName: String) extends Logging {
   env.setMessagehdlrQuiet(scip, false) // set message handler of SCIP to quiet or not
   env.setMessagehdlrLogfile(scip, ScipLogFile) // write all SCIP output to the log file
   env.includeDefaultPlugins(scip) // include default plugins of SCIP
+  env.setRealParam(scip, "limits/time", ScipTimeLimit) // set SCIP's overall time limit
 
   // initialization: create empty problem tied to the given problem name
   env.createProbBasic(scip, probName)
