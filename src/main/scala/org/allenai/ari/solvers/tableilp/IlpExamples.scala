@@ -21,7 +21,7 @@ object IlpExamples extends Logging {
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, tokenizer)
     val ilpSolver = new ScipInterface("sampleExample")
     val ilpModel = new IlpModel(ilpSolver, tables, aligner)
-    val question = QuestionFactory.makeQuestion(questionChunks)
+    val question = TableQuestionFactory.makeQuestion(questionChunks)
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.ilpVars
     ilpSolver.solve()
@@ -44,7 +44,7 @@ object IlpExamples extends Logging {
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, tokenizer)
     val ilpSolver = new ScipInterface("sampleExample")
     val ilpModel = new IlpModel(ilpSolver, tables, aligner)
-    val question = QuestionFactory.makeQuestion(questionChunks)
+    val question = TableQuestionFactory.makeQuestion(questionChunks)
     val allVariables = ilpModel.buildModel(question)
     ilpSolver.solve()
     val vars = allVariables.ilpVars

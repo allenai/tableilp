@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.MultipleChoiceQuestion
+import org.allenai.ari.models.Question
 import org.allenai.nlpstack.core.Chunker
 import org.allenai.nlpstack.chunk.OpenNlpChunker
 import org.allenai.nlpstack.postag.defaultPostagger
@@ -12,32 +12,32 @@ import org.allenai.nlpstack.tokenize.defaultTokenizer
   * @param questionCons the question text, chunked into strings
   * @param choices answer choices
   */
-case class Question(
+case class TableQuestion(
   questionRaw: String,
   questionCons: Seq[String],
   choices: Seq[String]
 )
 
-/** Various ways to build a Question instance */
-object QuestionFactory {
+/** Various ways to build a TableQuestion instance */
+object TableQuestionFactory {
   private val spaceSep = " ".r
   private val defaultSplittingType = "SpaceSplit"
 
-  def makeQuestion(questionRaw: String): Question = {
+  def makeQuestion(questionRaw: String): TableQuestion = {
     // TODO: consider adding chunker here
-    Question(questionRaw, spaceSep.split(questionRaw), Seq.empty)
+    TableQuestion(questionRaw, spaceSep.split(questionRaw), Seq.empty)
   }
 
-  def makeQuestion(questionCons: Seq[String]): Question = {
-    Question("", questionCons, Seq.empty)
+  def makeQuestion(questionCons: Seq[String]): TableQuestion = {
+    TableQuestion("", questionCons, Seq.empty)
   }
 
-  def makeQuestion(aristoQuestion: MultipleChoiceQuestion): Question = {
-    Question(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
+  def makeQuestion(aristoQuestion: Question): TableQuestion = {
+    TableQuestion(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
       aristoQuestion.selections.map(_.focus))
   }
 
-  def makeQuestion(aristoQuestion: MultipleChoiceQuestion, splittingType: String): Question = {
+  def makeQuestion(aristoQuestion: Question, splittingType: String): TableQuestion = {
     val splitter = splittingType match {
       case "Tokenize" => new TokenSplitter
       case "Chunk" => new ChunkSplitter
@@ -45,7 +45,7 @@ object QuestionFactory {
       case _: String =>
         throw new IllegalArgumentException(s"Split type $splittingType not recognized")
     }
-    Question(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
+    TableQuestion(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
       aristoQuestion.selections.map(_.focus))
   }
 }

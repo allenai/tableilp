@@ -65,7 +65,7 @@ object AlignmentSolution extends Logging {
     * @return an AlignmentSolution object
     */
   def generateAlignmentSolution(allVariables: AllVariables, scipSolver: ScipInterface,
-    question: Question, tables: Seq[Table]): AlignmentSolution = {
+    question: TableQuestion, tables: Seq[Table]): AlignmentSolution = {
     val questionChunkAlignmentPair = question.questionCons.map(new StringAlignmentPair(_))
     val choiceAlignmentPair = question.choices.map(new StringAlignmentPair(_))
     val tableAlignments = tables.map { table =>

@@ -54,7 +54,7 @@ class TableIlpSolver @Inject() (
           val alignmentType = if (useEntailment) "Entailment" else "Word2Vec"
           val aligner = new AlignmentFunction(alignmentType, Some(entailmentService), tokenizer)
           val ilpModel = new IlpModel(scipSolver, tables, aligner)
-          val questionIlp = QuestionFactory.makeQuestion(question, "Chunk")
+          val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
           AlignmentSolution.generateAlignmentSolution(allVariables, scipSolver, questionIlp,

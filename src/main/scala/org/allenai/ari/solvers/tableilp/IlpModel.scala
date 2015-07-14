@@ -39,7 +39,7 @@ class IlpModel(
     * @param question a question
     * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
-  def buildModel(question: Question): AllVariables = {
+  def buildModel(question: TableQuestion): AllVariables = {
     // set this up as a maximization problem
     ilpSolver.setAsMaximization()
 
@@ -167,7 +167,7 @@ class IlpModel(
     * this will be a superset of existingAllVars
     */
   private def buildQuestionDependentModel(
-    question: Question, existingAllVars: AllVariables
+    question: TableQuestion, existingAllVars: AllVariables
   ): AllVariables = {
     val intraTableVariables = existingAllVars.intraTableVariables
     val interTableVariables = existingAllVars.interTableVariables
