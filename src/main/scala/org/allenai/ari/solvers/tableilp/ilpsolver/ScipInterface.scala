@@ -4,6 +4,13 @@ import org.allenai.common.Logging
 
 import de.zib.jscip.nativ.jni._
 
+/** Various relevant status values after an ILP is solved */
+sealed trait IlpStatus
+case object IlpStatusUnknown extends IlpStatus { override def toString = "Unknown" }
+case object IlpStatusOptimal extends IlpStatus { override def toString = "Optimal" }
+case object IlpStatusFeasible extends IlpStatus { override def toString = "Feasible" }
+case object IlpStatusInfeasible extends IlpStatus { override def toString = "Infeasible" }
+
 /** This is a generic interface to the SCIP ILP solver providing a number of common initialization
   * steps and access to the SCIP environment. This class is NOT guaranteed to be thread-safe!
   */
@@ -88,7 +95,14 @@ class ScipInterface(probName: String) extends Logging {
   def getPrimalbound: Double = env.getPrimalbound(scip)
 
   /** get solution status */
-  def getStatus: Int = env.getStatus(scip)
+  def getStatus: IlpStatus = {
+    env.getStatus(scip) match {
+      case JniScipStatus.SCIP_STATUS_OPTIMAL => IlpStatusOptimal
+      case JniScipStatus.SCIP_STATUS_INFEASIBLE => IlpStatusInfeasible
+      case _ if getBestSol != 0 => IlpStatusFeasible
+      case _ => IlpStatusUnknown
+    }
+  }
 
   /** get solution values */
   def getSolVals(vars: Iterable[Long]): Iterable[Double] = {
@@ -248,7 +262,7 @@ class ScipInterface(probName: String) extends Logging {
   /** Print result of the call to solve(), along with solution values of vars */
   def printResult(vars: Seq[Long]): Unit = {
     // retrieve best solution found so far
-    if (getStatus == JniScipStatus.SCIP_STATUS_OPTIMAL) {
+    if (getStatus == IlpStatusOptimal || getStatus == IlpStatusFeasible) {
       val values = getSolVals(vars)
       val solution = vars.zip(values) map { case (x, v) => varGetName(x) + " : " + v }
       logger.info("Solution found:\n\t" + solution.mkString("\n\t"))
