@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.Question
+import org.allenai.ari.models.{ MultipleChoiceSelection. Question }
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
@@ -10,7 +10,6 @@ import akka.actor.ActorSystem
 import com.google.inject.Inject
 import com.google.inject.name.Named
 import spray.json._
-import spray.json.DefaultJsonProtocol._
 
 import scala.concurrent.Future
 
@@ -35,6 +34,11 @@ class TableIlpSolver @Inject() (
   /** config: run actual solver or simply generate a random alignement for debugging */
   private val useActualSolver = true
 
+  private val defaultScore = 0d
+  private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
+    SimpleAnswer(selection, defaultScore, Some(Map("reasoning" -> JsString("incorrect"))))
+  }
+
   /** The entry point for the solver */
   protected[ari] def handleQuestion(
     question: Question
@@ -48,7 +52,7 @@ class TableIlpSolver @Inject() (
       Future {
         logger.info(question.toString)
 
-        val alignmentSolution = if (useActualSolver) {
+        val ilpSolution = if (useActualSolver) {
           val tables = TableInterface.loadAllTables()
           val scipSolver = new ScipInterface("aristo-tableilp-solver")
           val alignmentType = if (useEntailment) "Entailment" else "Word2Vec"
@@ -57,33 +61,24 @@ class TableIlpSolver @Inject() (
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
-          AlignmentSolution.generateAlignmentSolution(allVariables, scipSolver, questionIlp,
-            tables)
+          IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables)
         } else {
-          AlignmentSolution.generateSampleAlignmentSolution
+          IlpSolutionFactory.makeRandomIlpSolution
         }
 
-        val alignmentJson = alignmentSolution.toJson
-        logger.debug(alignmentJson.toString())
+        val ilpSolutionJson = ilpSolution.toJson
+        logger.debug(ilpSolutionJson.toString())
 
-        val alignmentAnswer = SimpleAnswer(
-          question.selections(alignmentSolution.bestChoice),
-          alignmentSolution.bestChoiceScore,
-          Some(Map("alignment" -> alignmentJson))
+        val ilpBestAnswer = SimpleAnswer(
+          question.selections(ilpSolution.bestChoice),
+          ilpSolution.bestChoiceScore,
+          Some(Map("alignment" -> ilpSolutionJson))
         )
 
-        val otherAnswers = for {
-          choiceIdx <- question.selections.indices
-          if choiceIdx != alignmentSolution.bestChoice
-        } yield {
-          SimpleAnswer(
-            question.selections(choiceIdx),
-            0.0,
-            Some(Map("reasoning" -> "this option is not good! ".toJson))
-          )
-        }
+        val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
+          .map(defaultIlpAnswer)
 
-        alignmentAnswer +: otherAnswers
+        ilpBestAnswer +: otherAnswers
       }
     }
   }
