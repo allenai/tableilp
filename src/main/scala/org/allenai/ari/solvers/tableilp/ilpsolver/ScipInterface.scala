@@ -88,12 +88,6 @@ class ScipInterface(probName: String) extends Logging {
   /** get the name of a variable */
   def varGetName(l: Long): String = envVar.varGetName(l)
 
-  /** get pointer to the best solution found */
-  def getBestSol: Long = env.getBestSol(scip)
-
-  /** get objective value (primal bound) */
-  def getPrimalbound: Double = env.getPrimalbound(scip)
-
   /** get solution status */
   def getStatus: IlpStatus = {
     env.getStatus(scip) match {
@@ -103,6 +97,18 @@ class ScipInterface(probName: String) extends Logging {
       case _ => IlpStatusUnknown
     }
   }
+
+  /** get pointer to the best solution found */
+  def getBestSol: Long = env.getBestSol(scip)
+
+  /** get objective value (primal bound) */
+  def getPrimalbound: Double = env.getPrimalbound(scip)
+
+  /** get objective value (dual bound) */
+  def getDualbound: Double = env.getDualbound(scip)
+
+  /** get optimality gap */
+  def getGap: Double = env.getGap(scip)
 
   /** get solution values */
   def getSolVals(vars: Iterable[Long]): Iterable[Double] = {

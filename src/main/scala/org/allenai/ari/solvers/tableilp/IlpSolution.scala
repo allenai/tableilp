@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusFeasible, IlpStatus, ScipInterface }
 import org.allenai.common.Logging
 
 import spray.json.DefaultJsonProtocol._
@@ -40,19 +40,34 @@ case class QuestionAlignment(
   choiceAlignments: Seq[TermAlignment]
 )
 
-/** A complete set of alignments between multiple tables and between tables and question
-  * constituents. This is the output of the ILP model.
+/** Metrics to capture ILP solution values and solution quality
   *
-  * @param tableAlignments A sequence of alignment information, one per table
-  * @param questionAlignment Alignments for the question (including constituents and choices)
+  * @param status Whether the solution is optimal, feasible, infeasible, etc.
+  * @param lb The best found lower bound on the objective value.
+  * @param ub The best found upper bound on the objective value.
+  * @param optgap Optimality gap, defined as (ub - lb) / lb for a maximization problem
+  */
+case class SolutionQuality(
+  status: IlpStatus,
+  lb: Double,
+  ub: Double,
+  optgap: Double
+)
+
+/** The output of the ILP model; includes best answer choice, its score, the corresponding
+  * alignments, solution quality stats, and timing stats.
+  *
   * @param bestChoice The best choice determined by the ILP model
   * @param bestChoiceScore The score for the best choice (the ILP objective value)
+  * @param tableAlignments A sequence of alignment information, one per table
+  * @param questionAlignment Alignments for the question (including constituents and choices)
   */
 case class IlpSolution(
+  bestChoice: Int,
+  bestChoiceScore: Double,
   tableAlignments: Seq[TableAlignment],
   questionAlignment: QuestionAlignment,
-  bestChoice: Int,
-  bestChoiceScore: Double
+  solutionQuality: SolutionQuality
 )
 
 /** A container object to define Json protocol and have a main testing routine */
@@ -66,7 +81,11 @@ object IlpSolution {
   )
   implicit val tableAlignmentJsonFormat = jsonFormat2(TableAlignment.apply)
   implicit val questionAlignmentJsonFormat = jsonFormat2(QuestionAlignment.apply)
-  implicit val ilpSolutionJsonFormat = jsonFormat4(IlpSolution.apply)
+  implicit val ilpStatusJsonFormat: JsonFormat[IlpStatus] = lift(
+    { status: IlpStatus => JsString(status.toString) }
+  )
+  implicit val solutionQualityJsonFormat = jsonFormat4(SolutionQuality.apply)
+  implicit val ilpSolutionJsonFormat = jsonFormat5(IlpSolution.apply)
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
@@ -180,8 +199,11 @@ object IlpSolutionFactory extends Logging {
       (0, 0d)
     }
 
+    val solutionQuality = SolutionQuality(scipSolver.getStatus, scipSolver.getPrimalbound,
+      scipSolver.getDualbound, scipSolver.getGap)
+
     // return the alignment solution
-    IlpSolution(tableAlignments, questionAlignment, bestChoiceIdx, bestChoiceScore)
+    IlpSolution(bestChoiceIdx, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality)
   }
 
   /** Load all tables, if and when needed */
@@ -225,7 +247,10 @@ object IlpSolutionFactory extends Logging {
     val bestChoice = 1
     val bestChoiceScore = 0.5
 
+    // Instantiate an arbitrary solution quality metric
+    val solutionQuality = SolutionQuality(IlpStatusFeasible, 0.5d, 1d, 1d)
+
     // Return the solution with random alignments
-    IlpSolution(tablesAlignments, questionAlignment, bestChoice, bestChoiceScore)
+    IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality)
   }
 }
