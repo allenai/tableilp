@@ -38,6 +38,7 @@ class TableIlpSolver @Inject() (
     // Run the solver asynchronously. This will help prevent your system from timing out or
     // freezing up if you send it lots of questions at once.
     if (!question.isMultipleChoice || question.text.isEmpty) {
+      // Return an empty response if this isn't a multiple choice question
       Future.successful(Seq.empty[SimpleAnswer])
     } else {
       Future {
