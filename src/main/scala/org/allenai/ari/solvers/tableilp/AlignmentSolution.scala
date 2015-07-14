@@ -8,36 +8,36 @@ import spray.json._
 
 import scala.collection.mutable.ArrayBuffer
 
-/** The alignment of a basic alignment unit in the ILP solution.
+/** The alignment of a basic textual alignment unit (a term) in the ILP solution.
   *
-  * @param unit A basic alignment unit (a word, a chunk, a string associated with a cell, etc)
-  * @param alignments A sequence of alignments of the above unit
+  * @param term A basic alignment unit (a word, a chunk, a string associated with a cell, etc)
+  * @param alignmentIds A sequence of alignment IDs that connect this term with other terms
   */
-case class UnitAlignment(
-    unit: String,
-    alignments: ArrayBuffer[Int]
+case class TermAlignment(
+    term: String,
+    alignmentIds: ArrayBuffer[Int]
 ) {
   def this(str: String) = this(str, ArrayBuffer.empty)
 }
 
 /** All alignments of each cell in a table's title row and content matrix to everything else.
   *
-  * @param titleAlignments A UnitAlignment for each cell in the title row
-  * @param contentAlignments A UnitAlignment for each cell in the content matrix
+  * @param titleAlignments A TermAlignment for each cell in the title row
+  * @param contentAlignments A TermAlignment for each cell in the content matrix
   */
 case class TableAlignment(
-  titleAlignments: Seq[UnitAlignment],
-  contentAlignments: Seq[Seq[UnitAlignment]]
+  titleAlignments: Seq[TermAlignment],
+  contentAlignments: Seq[Seq[TermAlignment]]
 )
 
 /** All alignments of each question constituent and each choice to everything else.
   *
-  * @param qConsAlignments A UnitAlignment for each question constituent
-  * @param choiceAlignments A UnitAlignment for each answer choice
+  * @param qConsAlignments A TermAlignment for each question constituent
+  * @param choiceAlignments A TermAlignment for each answer choice
   */
 case class QuestionAlignment(
-  qConsAlignments: Seq[UnitAlignment],
-  choiceAlignments: Seq[UnitAlignment]
+  qConsAlignments: Seq[TermAlignment],
+  choiceAlignments: Seq[TermAlignment]
 )
 
 /** A complete set of alignments between multiple tables and between tables and question
@@ -61,8 +61,8 @@ object IlpSolution {
   // for ArrayBuffer here.
   // Note: lift turns a one-sided converter (Writer or Reader) into a symmetric format that throws
   // an exception if an unimplemented method is called.
-  implicit val unitAlignmentJsonFormat: JsonFormat[UnitAlignment] = lift(
-    { pair: UnitAlignment => (pair.unit, pair.alignments.toSeq).toJson }
+  implicit val termAlignmentJsonFormat: JsonFormat[TermAlignment] = lift(
+    { pair: TermAlignment => (pair.term, pair.alignmentIds.toSeq).toJson }
   )
   implicit val tableAlignmentJsonFormat = jsonFormat2(TableAlignment.apply)
   implicit val questionAlignmentJsonFormat = jsonFormat2(QuestionAlignment.apply)
@@ -90,16 +90,16 @@ object IlpSolutionFactory extends Logging {
     */
   def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface,
     question: TableQuestion, tables: Seq[Table]): IlpSolution = {
-    val qConsAlignments = question.questionCons.map(new UnitAlignment(_))
-    val choiceAlignments = question.choices.map(new UnitAlignment(_))
+    val qConsAlignments = question.questionCons.map(new TermAlignment(_))
+    val choiceAlignments = question.choices.map(new TermAlignment(_))
     val tableAlignments = tables.map { table =>
-      val titleAlignments = table.titleRow.map(new UnitAlignment(_))
-      val contentAlignments = table.contentMatrix.map(_.map(new UnitAlignment(_)))
+      val titleAlignments = table.titleRow.map(new TermAlignment(_))
+      val contentAlignments = table.contentMatrix.map(_.map(new TermAlignment(_)))
       TableAlignment(titleAlignments, contentAlignments)
     }
 
     // inter-table alignments
-    val interTableAlignmentPairs: IndexedSeq[(UnitAlignment, UnitAlignment)] = for {
+    val interTableAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.interTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -109,7 +109,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // intra-table alignments
-    val intraTableAlignmentPairs: IndexedSeq[(UnitAlignment, UnitAlignment)] = for {
+    val intraTableAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.intraTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -119,7 +119,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // question table alignments
-    val questionTableAlignmentPairs: IndexedSeq[(UnitAlignment, UnitAlignment)] = for {
+    val questionTableAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.questionTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -129,7 +129,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // question title alignments
-    val questionTitleAlignmentPairs: IndexedSeq[(UnitAlignment, UnitAlignment)] = for {
+    val questionTitleAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.questionTitleVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -139,7 +139,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // choice table alignments
-    val choiceTableAlignmentPairs: IndexedSeq[(UnitAlignment, UnitAlignment)] = for {
+    val choiceTableAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.qChoiceTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -161,7 +161,7 @@ object IlpSolutionFactory extends Logging {
     // rather than a joint pair, StringAlignmentPair.
     cellToAlignmentId.groupBy(c => System.identityHashCode(c._1)).foreach {
       case (_, cellWithAlignmentIds) =>
-        cellWithAlignmentIds.head._1.alignments ++= cellWithAlignmentIds.map(_._2)
+        cellWithAlignmentIds.head._1.alignmentIds ++= cellWithAlignmentIds.map(_._2)
     }
 
     // create a new question alignment object
@@ -177,7 +177,7 @@ object IlpSolutionFactory extends Logging {
       (choiceIdx, scipSolver.getPrimalbound)
     } else {
       // The default, helpful for initial debugging
-      (1, 1.0)
+      (0, 0d)
     }
 
     // return the alignment solution
@@ -187,35 +187,46 @@ object IlpSolutionFactory extends Logging {
   /** Load all tables, if and when needed */
   private lazy val tables = TableInterface.loadTables()
 
-  /** Generate up to maxNVals random integers, each less than maxVal */
+  /** Object to generate random values */
   private val r = scala.util.Random
-  private val maxNVals = 4
-  private val maxVal = 13
-  private def nextRandInts(): Seq[Int] = {
+
+  /** Generate up to maxNVals random integers, each less than maxVal */
+  private def nextRandInts(maxNVals: Int, maxVal: Int): Seq[Int] = {
     val nvals = r.nextInt(maxNVals)
     (0 until nvals).map(_ => r.nextInt(maxVal))
   }
 
-  /** A sample question */
-  private val questionChunks = Array("In", "New York State", "the", "shortest", "period",
-    "of", "daylight", "occurs", "during", "which", "month")
-  /** Sample answer choices */
-  private val choices = Array("January", "December", "June", "July")
-
   /** Generate a random alignment solution object for visualizer testing */
   def makeRandomIlpSolution: IlpSolution = {
-    val qConsAlignments = questionChunks.map(UnitAlignment(_, nextRandInts().to[ArrayBuffer]))
-    val choiceAlignments = choices.map(UnitAlignment(_, nextRandInts().to[ArrayBuffer]))
+    // A sample question
+    val questionChunks = Array("In", "New York State", "the", "shortest", "period",
+      "of", "daylight", "occurs", "during", "which", "month")
+    // Sample answer choices
+    val choices = Array("January", "December", "June", "July")
+
+    // Parameterize random integer generator
+    val maxNVals = 4
+    val maxVal = 13
+    def getRandInts = nextRandInts(maxNVals, maxVal)
+
+    // Create random alignments
+    val qConsAlignments = questionChunks.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
+    val choiceAlignments = choices.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
     val tablesAlignments = tables.map { table =>
       val titleAlignments = table.titleRow.map { cell =>
-        UnitAlignment(cell, nextRandInts().to[ArrayBuffer])
+        TermAlignment(cell, getRandInts.to[ArrayBuffer])
       }
       val contentAlignments = table.contentMatrix.map { row =>
-        row.map(UnitAlignment(_, nextRandInts().to[ArrayBuffer]))
+        row.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
       }
       TableAlignment(titleAlignments, contentAlignments)
     }
-    IlpSolution(tablesAlignments, questionAlignment, 1, 0.5)
+    // Select arbitrary best choice and corresponding score
+    val bestChoice = 1
+    val bestChoiceScore = 0.5
+
+    // Return the solution with random alignments
+    IlpSolution(tablesAlignments, questionAlignment, bestChoice, bestChoiceScore)
   }
 }
