@@ -151,7 +151,7 @@ object IlpSolutionFactory extends Logging {
     // populate `alignment' fields of alignment pairs with a unique alignmentId
     val allAlignmentPairs = interTableAlignmentPairs ++ intraTableAlignmentPairs ++
       questionTableAlignmentPairs ++ questionTitleAlignmentPairs ++ choiceTableAlignmentPairs
-    val cellToAlignmentId = allAlignmentPairs.zipWithIndex.flatMap {
+    val termToAlignmentId = allAlignmentPairs.zipWithIndex.flatMap {
       case ((strAlign1, strAlign2), alignmentId) =>
         Seq((strAlign1, alignmentId), (strAlign2, alignmentId))
     }
@@ -159,9 +159,9 @@ object IlpSolutionFactory extends Logging {
     // Note that it is assigned a value exactly once, with the "++=" below.
     // One way could be to keep separate matrices for strings and for alignment IDs
     // rather than a joint pair, StringAlignmentPair.
-    cellToAlignmentId.groupBy(c => System.identityHashCode(c._1)).foreach {
-      case (_, cellWithAlignmentIds) =>
-        cellWithAlignmentIds.head._1.alignmentIds ++= cellWithAlignmentIds.map(_._2)
+    termToAlignmentId.groupBy(t => System.identityHashCode(t._1)).foreach {
+      case (_, termWithAlignmentIds) =>
+        termWithAlignmentIds.head._1.alignmentIds ++= termWithAlignmentIds.map(_._2)
     }
 
     // create a new question alignment object
@@ -214,15 +214,14 @@ object IlpSolutionFactory extends Logging {
     val choiceAlignments = choices.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
     val tablesAlignments = tables.map { table =>
-      val titleAlignments = table.titleRow.map { cell =>
-        TermAlignment(cell, getRandInts.to[ArrayBuffer])
-      }
+      val titleAlignments = table.titleRow.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
       val contentAlignments = table.contentMatrix.map { row =>
         row.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
       }
       TableAlignment(titleAlignments, contentAlignments)
     }
-    // Select arbitrary best choice and corresponding score
+
+    // Select an arbitrary best choice and corresponding score
     val bestChoice = 1
     val bestChoiceScore = 0.5
 
