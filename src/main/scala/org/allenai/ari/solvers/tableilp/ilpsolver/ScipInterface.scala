@@ -139,6 +139,15 @@ class ScipInterface(probName: String) extends Logging {
   /** get total time spent by SCIP */
   def getTotalTime: Double = env.getTotalTime(scip)
 
+  /** get the number of search nodes explored during branch and bound */
+  def getNNodes: Long = env.getNNodes(scip)
+
+  /** get the number of simplex iterations used when solving LP relaxations */
+  def getNLPIterations: Long = env.getNLPIterations(scip)
+
+  /** get the maximal depth of nodes explored during branch and bound */
+  def getMaxDepth: Int = env.getMaxDepth(scip)
+
   /** Sets the lower bound for a variable */
   def chgVarLb(x: Long, newBound: Double): Unit = env.chgVarLb(scip, x, newBound)
 

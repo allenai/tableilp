@@ -63,6 +63,18 @@ case class SolutionQuality(
   */
 case class ProblemStats(nOrigVars: Int, nOrigCons: Int, nVars: Int, nCons: Int)
 
+/** Metrics to capture branch and bound search stats.
+  *
+  * @param nNodes Number of search nodes explored during branch and bound.
+  * @param nLPIterations Number of simplex iterations when solving LP relaxations.
+  * @param maxDepth Maximal depth of all nodes processed during branch and bound.
+  */
+case class SearchStats(
+  nNodes: Long,
+  nLPIterations: Long,
+  maxDepth: Int
+)
+
 /** Metrics to capture timing stats for the ILP solver run.
   *
   * @param modelCreationTime Time to create the ILP model.
@@ -95,6 +107,7 @@ case class IlpSolution(
   questionAlignment: QuestionAlignment,
   solutionQuality: SolutionQuality,
   problemStats: ProblemStats,
+  searchStats: SearchStats,
   timingStats: TimingStats
 )
 
@@ -114,8 +127,9 @@ object IlpSolution extends Logging {
   )
   implicit val solutionQualityJsonFormat = jsonFormat4(SolutionQuality.apply)
   implicit val problemStatsJsonFormat = jsonFormat4(ProblemStats.apply)
+  implicit val searchStatsJsonFormat = jsonFormat3(SearchStats.apply)
   implicit val timingStatsJsonFormat = jsonFormat4(TimingStats.apply)
-  implicit val ilpSolutionJsonFormat = jsonFormat7(IlpSolution.apply)
+  implicit val ilpSolutionJsonFormat = jsonFormat8(IlpSolution.apply)
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
@@ -237,13 +251,17 @@ object IlpSolutionFactory extends Logging {
     val problemStats = ProblemStats(scipSolver.getNOrigVars, scipSolver.getNOrigConss,
       scipSolver.getNVars, scipSolver.getNConss)
 
+    // populate search stats
+    val searchStats = SearchStats(scipSolver.getNNodes, scipSolver.getNLPIterations,
+      scipSolver.getMaxDepth)
+
     // populate timing stats
     val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
       scipSolver.getTotalTime)
 
     // return the alignment solution
     IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
-      problemStats, timingStats)
+      problemStats, searchStats, timingStats)
   }
 
   /** Load all tables, if and when needed */
@@ -290,14 +308,17 @@ object IlpSolutionFactory extends Logging {
     // Instantiate an arbitrary solution quality metric
     val solutionQuality = SolutionQuality(IlpStatusFeasible, 0.5d, 1d, 1d)
 
-    // Populate arbitrary problem stats
+    // Populate dummy problem stats
     val problemStats = ProblemStats(10, 12, 4, 5)
 
-    // Populate arbitrary timing stats
+    // Populate dummy search stats
+    val searchStats = SearchStats(1L, 5L, 0)
+
+    // Populate dummy timing stats
     val timingStats = new TimingStats(0d, 1d, 1.5d)
 
     // Return the solution with random alignments
     IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,
-      problemStats, timingStats)
+      problemStats, searchStats, timingStats)
   }
 }
