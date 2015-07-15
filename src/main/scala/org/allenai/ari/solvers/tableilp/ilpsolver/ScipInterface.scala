@@ -88,12 +88,24 @@ class ScipInterface(probName: String) extends Logging {
   /** get the name of a variable */
   def varGetName(l: Long): String = envVar.varGetName(l)
 
+  /** get number of variables in the original ILP */
+  def getNOrigVars: Int = env.getNOrigVars(scip)
+
+  /** get number of constraints in the original ILP */
+  def getNOrigConss: Int = env.getNOrigConss(scip)
+
+  /** get number of active variables, after presolve */
+  def getNVars: Int = env.getNVars(scip)
+
+  /** get number of active variables, after presolve */
+  def getNConss: Int = env.getNConss(scip)
+
   /** get solution status */
   def getStatus: IlpStatus = {
     env.getStatus(scip) match {
       case JniScipStatus.SCIP_STATUS_OPTIMAL => IlpStatusOptimal
       case JniScipStatus.SCIP_STATUS_INFEASIBLE => IlpStatusInfeasible
-      case _ if getBestSol != 0 => IlpStatusFeasible
+      case _ if getBestSol != 0 => IlpStatusFeasible // best solution isn't null
       case _ => IlpStatusUnknown
     }
   }

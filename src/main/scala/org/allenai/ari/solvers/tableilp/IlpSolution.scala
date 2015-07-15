@@ -54,21 +54,31 @@ case class SolutionQuality(
   optgap: Double
 )
 
+/** Metrics to capture ILP problem complexity.
+  *
+  * @param nOrigVars Number of variables in the original ILP.
+  * @param nOrigCons Number of constraints in the original ILP.
+  * @param nVars Number of variables after presolve.
+  * @param nCons Number of constraints after presolve.
+  */
+case class ProblemStats(nOrigVars: Int, nOrigCons: Int, nVars: Int, nCons: Int)
+
 /** Metrics to capture timing stats for the ILP solver run.
   *
   * @param modelCreationTime Time to create the ILP model.
   * @param presolveTime Time spent in SCIP's presolve routine.
-  * @param solveTime Time spent in SCIP's main solve routine.
-  * @param totalIlpTime Total time spent by the SCIP solver.
-  * @param solnExtractionTime Time spent extracting the solution.
+  * @param solveTime Total time spent in SCIP's solve routines; includes presolve time.
+  * @param totalTime Total time spent since the SCIP object was created.
   */
 case class TimingStats(
-  modelCreationTime: Double,
-  presolveTime: Double,
-  solveTime: Double,
-  totalIlpTime: Double,
-  solnExtractionTime: Double
-)
+    modelCreationTime: Double,
+    presolveTime: Double,
+    solveTime: Double,
+    totalTime: Double
+) {
+  /* If model creation time isn't specified, use totalTime minus solveTime */
+  def this(p: Double, s: Double, t: Double) = this(t - s, p, s, t)
+}
 
 /** The output of the ILP model; includes best answer choice, its score, the corresponding
   * alignments, solution quality stats, and timing stats.
@@ -84,11 +94,12 @@ case class IlpSolution(
   tableAlignments: Seq[TableAlignment],
   questionAlignment: QuestionAlignment,
   solutionQuality: SolutionQuality,
+  problemStats: ProblemStats,
   timingStats: TimingStats
 )
 
 /** A container object to define Json protocol and have a main testing routine */
-object IlpSolution {
+object IlpSolution extends Logging {
   // The default json protocol has JsonFormat implemented only for immutable collections. Add it
   // for ArrayBuffer here.
   // Note: lift turns a one-sided converter (Writer or Reader) into a symmetric format that throws
@@ -102,13 +113,14 @@ object IlpSolution {
     { status: IlpStatus => JsString(status.toString) }
   )
   implicit val solutionQualityJsonFormat = jsonFormat4(SolutionQuality.apply)
-  implicit val timingStatsJsonFormat = jsonFormat5(TimingStats.apply)
-  implicit val ilpSolutionJsonFormat = jsonFormat6(IlpSolution.apply)
+  implicit val problemStatsJsonFormat = jsonFormat4(ProblemStats.apply)
+  implicit val timingStatsJsonFormat = jsonFormat4(TimingStats.apply)
+  implicit val ilpSolutionJsonFormat = jsonFormat7(IlpSolution.apply)
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
     val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    println(ilpSolution.toJson)
+    logger.debug(ilpSolution.toJson.toString())
   }
 }
 
@@ -221,13 +233,17 @@ object IlpSolutionFactory extends Logging {
     val solutionQuality = SolutionQuality(scipSolver.getStatus, scipSolver.getPrimalbound,
       scipSolver.getDualbound, scipSolver.getGap)
 
+    // populate problem stats
+    val problemStats = ProblemStats(scipSolver.getNOrigVars, scipSolver.getNOrigConss,
+      scipSolver.getNVars, scipSolver.getNConss)
+
     // populate timing stats
-    val timingStats = TimingStats(0d, scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
-      scipSolver.getTotalTime, 0d)
+    val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
+      scipSolver.getTotalTime)
 
     // return the alignment solution
     IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
-      timingStats)
+      problemStats, timingStats)
   }
 
   /** Load all tables, if and when needed */
@@ -274,11 +290,14 @@ object IlpSolutionFactory extends Logging {
     // Instantiate an arbitrary solution quality metric
     val solutionQuality = SolutionQuality(IlpStatusFeasible, 0.5d, 1d, 1d)
 
+    // Populate arbitrary problem stats
+    val problemStats = ProblemStats(10, 12, 4, 5)
+
     // Populate arbitrary timing stats
-    val timingStats = TimingStats(0d, 0d, 1d, 1d, 0d)
+    val timingStats = new TimingStats(0d, 1d, 1.5d)
 
     // Return the solution with random alignments
     IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,
-      timingStats)
+      problemStats, timingStats)
   }
 }
