@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusFeasible, IlpStatus, ScipInterface }
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatus, IlpStatusFeasible, ScipInterface }
 import org.allenai.common.Logging
 
 import spray.json.DefaultJsonProtocol._
@@ -54,6 +54,22 @@ case class SolutionQuality(
   optgap: Double
 )
 
+/** Metrics to capture timing stats for the ILP solver run.
+  *
+  * @param modelCreationTime Time to create the ILP model.
+  * @param presolveTime Time spent in SCIP's presolve routine.
+  * @param solveTime Time spent in SCIP's main solve routine.
+  * @param totalIlpTime Total time spent by the SCIP solver.
+  * @param solnExtractionTime Time spent extracting the solution.
+  */
+case class TimingStats(
+  modelCreationTime: Double,
+  presolveTime: Double,
+  solveTime: Double,
+  totalIlpTime: Double,
+  solnExtractionTime: Double
+)
+
 /** The output of the ILP model; includes best answer choice, its score, the corresponding
   * alignments, solution quality stats, and timing stats.
   *
@@ -67,7 +83,8 @@ case class IlpSolution(
   bestChoiceScore: Double,
   tableAlignments: Seq[TableAlignment],
   questionAlignment: QuestionAlignment,
-  solutionQuality: SolutionQuality
+  solutionQuality: SolutionQuality,
+  timingStats: TimingStats
 )
 
 /** A container object to define Json protocol and have a main testing routine */
@@ -85,7 +102,8 @@ object IlpSolution {
     { status: IlpStatus => JsString(status.toString) }
   )
   implicit val solutionQualityJsonFormat = jsonFormat4(SolutionQuality.apply)
-  implicit val ilpSolutionJsonFormat = jsonFormat5(IlpSolution.apply)
+  implicit val timingStatsJsonFormat = jsonFormat5(TimingStats.apply)
+  implicit val ilpSolutionJsonFormat = jsonFormat6(IlpSolution.apply)
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
@@ -188,7 +206,7 @@ object IlpSolutionFactory extends Logging {
 
     // choose answer choice and its score
     logger.debug("the number of the choices = " + allVariables.qChoiceTableVariables.length)
-    val (bestChoiceIdx, bestChoiceScore) = if (allVariables.qChoiceTableVariables.nonEmpty) {
+    val (bestChoice, bestChoiceScore) = if (allVariables.qChoiceTableVariables.nonEmpty) {
       val idx = allVariables.qChoiceTableVariables.map { choice =>
         scipSolver.getSolVal(choice.variable)
       }.zipWithIndex.maxBy(_._1)._2
@@ -199,11 +217,17 @@ object IlpSolutionFactory extends Logging {
       (0, 0d)
     }
 
+    // extract solution quality
     val solutionQuality = SolutionQuality(scipSolver.getStatus, scipSolver.getPrimalbound,
       scipSolver.getDualbound, scipSolver.getGap)
 
+    // populate timing stats
+    val timingStats = TimingStats(0d, scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
+      scipSolver.getTotalTime, 0d)
+
     // return the alignment solution
-    IlpSolution(bestChoiceIdx, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality)
+    IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
+      timingStats)
   }
 
   /** Load all tables, if and when needed */
@@ -250,7 +274,11 @@ object IlpSolutionFactory extends Logging {
     // Instantiate an arbitrary solution quality metric
     val solutionQuality = SolutionQuality(IlpStatusFeasible, 0.5d, 1d, 1d)
 
+    // Populate arbitrary timing stats
+    val timingStats = TimingStats(0d, 0d, 1d, 1d, 0d)
+
     // Return the solution with random alignments
-    IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality)
+    IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,
+      timingStats)
   }
 }

@@ -116,9 +116,16 @@ class ScipInterface(probName: String) extends Logging {
   }
 
   /** get one solution value */
-  def getSolVal(variable: Long): Double = {
-    env.getSolVal(scip, getBestSol, variable)
-  }
+  def getSolVal(variable: Long): Double = env.getSolVal(scip, getBestSol, variable)
+
+  /** get time spent in presolve routine */
+  def getPresolvingTime: Double = env.getPresolvingTime(scip)
+
+  /** get time spent in main solve routine */
+  def getSolvingTime: Double = env.getSolvingTime(scip)
+
+  /** get total time spent by SCIP */
+  def getTotalTime: Double = env.getTotalTime(scip)
 
   /** Sets the lower bound for a variable */
   def chgVarLb(x: Long, newBound: Double): Unit = env.chgVarLb(scip, x, newBound)
