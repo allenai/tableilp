@@ -36,7 +36,7 @@ class TableIlpSolver @Inject() (
 
   private val defaultScore = 0d
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
-    SimpleAnswer(selection, defaultScore, Some(Map("reasoning" -> JsString("incorrect"))))
+    SimpleAnswer(selection, defaultScore, Some(Map("ilpsolution" -> JsNull)))
   }
 
   /** The entry point for the solver */
@@ -70,7 +70,7 @@ class TableIlpSolver @Inject() (
         val ilpBestAnswer = SimpleAnswer(
           question.selections(ilpSolution.bestChoice),
           ilpSolution.bestChoiceScore,
-          Some(Map("alignment" -> ilpSolutionJson))
+          Some(Map("ilpsolution" -> ilpSolutionJson))
         )
 
         val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
