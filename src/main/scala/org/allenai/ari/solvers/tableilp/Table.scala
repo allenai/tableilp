@@ -54,10 +54,11 @@ object TableInterface extends Logging {
     val tables = loadAllTables()
     val informationTable = new Table("src/main/resources/table-question-information.csv")
     val questionTableMapExactMatch = informationTable.contentMatrix.find(_(1) == question)
-    val questionTableMap = if (questionTableMapExactMatch.isDefined)
+    val questionTableMap = if (questionTableMapExactMatch.isDefined) {
       questionTableMapExactMatch
-    else
+    } else {
       informationTable.contentMatrix.find(_(1).trim == question.trim)
+    }
     questionTableMap match {
       case Some(qMap) =>
         qMap(2).split('-').map { idx =>
