@@ -53,15 +53,12 @@ object TableInterface extends Logging {
   def loadTableForQuestion(question: String): Seq[Table] = {
     val allTables = loadAllTables()
     val informationTable = new Table("src/main/resources/table-question-information.csv")
-    val questionToTablesOpt = informationTable.contentMatrix.find(_(1) == question) match {
-      case qToTablesOpt => qToTablesOpt
-      case None => informationTable.contentMatrix.find(_(1).trim == question.trim)
-    }
-    val tables = questionToTablesOpt match {
-      case Some(qToTables) => qToTables(2).split('-').map(idx => allTables(idx.toInt)).toSeq
-      case None => Seq.empty
-    }
-    tables
+    val questionToTablesOpt = informationTable.contentMatrix.find(_(1) == question) orElse
+      informationTable.contentMatrix.find(_(1).trim == question.trim)
+    val tables = questionToTablesOpt map { qToTables =>
+      qToTables(2).split('-').map(idx => allTables(idx.toInt)).toSeq
+    } orElse { Some(Seq.empty) }
+    tables.get
   }
 
   def printTableVariables(allVariables: AllVariables): Unit = {
