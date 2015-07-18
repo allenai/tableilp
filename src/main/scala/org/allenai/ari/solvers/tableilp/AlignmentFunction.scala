@@ -28,7 +28,7 @@ class AlignmentFunction(
 ) extends Logging {
   private val similarityFunction: SimilarityType = alignmentType match {
     case "Entailment" => {
-      logger.info("Using entailment service for alignment score computation")
+      logger.info("Using entailment for alignment score computation")
       val teService = entailmentServiceOpt match {
         case Some(entailmentService) => entailmentService
         case None => throw new IllegalStateException("No entailment service available")

@@ -7,54 +7,30 @@ import org.allenai.common.Logging
 object IlpExamples extends Logging {
 
   // just to check the alignment inside one table
-  def example1(
+  private def runExample(
+    questionChunks: Seq[String],
     entailmentServiceOpt: Option[EntailmentService],
     tokenizer: KeywordTokenizer
   ): Unit = {
-    val questionChunks = Seq("USA", "Brazil")
-    val tables = TableInterface.loadTables()
-    val alignmentType = if (entailmentServiceOpt.isDefined) {
-      "Entailment"
-    } else {
-      "WordOverlap"
-    }
+    val question = TableQuestionFactory.makeQuestion(questionChunks)
+    val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
+    val tables = tableInterface.allTables.slice(0, 2)
+    val alignmentType = if (entailmentServiceOpt.isDefined) "Entailment" else "WordOverlap"
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, tokenizer)
     val ilpSolver = new ScipInterface("sampleExample")
-    val ilpModel = new IlpModel(ilpSolver, tables, aligner)
-    val question = TableQuestionFactory.makeQuestion(questionChunks)
+    val weights = new IlpWeights(0.2, 0.2, 0.2)
+    val ilpModel = new IlpModel(ilpSolver, tables, aligner, weights)
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.ilpVars
     ilpSolver.solve()
     ilpSolver.printResult(vars)
-    TableInterface.printTableVariables(allVariables)
-  }
-
-  def example2(
-    entailmentServiceOpt: Option[EntailmentService],
-    tokenizer: KeywordTokenizer
-  ): Unit = {
-    val questionChunks = Seq("In", "New York State", "the", "shortest", "period",
-      "of", "daylight", "occurs", "during", "which", "month")
-    val tables = TableInterface.loadAllTables()
-    val alignmentType = if (entailmentServiceOpt.isDefined) {
-      "Entailment"
-    } else {
-      "WordOverlap"
-    }
-    val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, tokenizer)
-    val ilpSolver = new ScipInterface("sampleExample")
-    val ilpModel = new IlpModel(ilpSolver, tables, aligner)
-    val question = TableQuestionFactory.makeQuestion(questionChunks)
-    val allVariables = ilpModel.buildModel(question)
-    ilpSolver.solve()
-    val vars = allVariables.ilpVars
-    ilpSolver.printResult(vars)
-    TableInterface.printTableVariables(allVariables)
+    tableInterface.printTableVariables(allVariables)
   }
 
   def main(args: Array[String]): Unit = {
-    val tokenizer = KeywordTokenizer.Default
-    example1(None, tokenizer)
-    // example2(None, tokenizer)
+    val questionChunks1 = Seq("USA", "Brazil")
+    val questionChunks2 = Seq("In", "New York State", "the", "shortest", "period",
+      "of", "daylight", "occurs", "during", "which", "month")
+    runExample(questionChunks1, None, KeywordTokenizer.Default)
   }
 }

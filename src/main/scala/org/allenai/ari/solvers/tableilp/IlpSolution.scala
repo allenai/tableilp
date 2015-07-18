@@ -265,7 +265,7 @@ object IlpSolutionFactory extends Logging {
   }
 
   /** Load all tables, if and when needed */
-  private lazy val tables = TableInterface.loadTables()
+  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
 
   /** Object to generate random values */
   private val r = scala.util.Random
@@ -293,7 +293,7 @@ object IlpSolutionFactory extends Logging {
     val qConsAlignments = questionChunks.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val choiceAlignments = choices.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
-    val tablesAlignments = tables.map { table =>
+    val tablesAlignments = tableInterface.allTables.slice(0, 2).map { table =>
       val titleAlignments = table.titleRow.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
       val contentAlignments = table.contentMatrix.map { row =>
         row.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))

@@ -8,9 +8,10 @@ import org.allenai.common.Logging
   * @param ilpSolver a ScipInterface object; safest to create a new instance of it per question
   * @param tables a seq of tables as the knowledge base
   * @param aligner a blackbox to align textual mentions
+  * @param weights various weights for the ILP model
   */
 class IlpModel(
-    ilpSolver: ScipInterface, tables: Seq[Table], aligner: AlignmentFunction
+    ilpSolver: ScipInterface, tables: Seq[Table], aligner: AlignmentFunction, weights: IlpWeights
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -21,15 +22,6 @@ class IlpModel(
 
   /** A constituent index in a question */
   private case class QuestionIdx(qConsIdx: Int)
-
-  // config: minimum thresholds for alignment
-  private val minCellCellAlignmentThreshold = 0.2
-  private val minCellQConstituentAlignmentThreshold = 0.2
-  private val minTitleQConstituentAlignmentThreshold = 0.2
-
-  // large positive double value to use in constraints
-  // TODO(ashish33) consider using SCIP's built-in infinity value, if available
-  private val largeDbl = 10000d
 
   // these set of words in the question text will be ignored before alignment
   private val ignoredWords = Set("?", ":", ",")
@@ -61,7 +53,10 @@ class IlpModel(
     rowIdx <- table.contentMatrix.indices
     row = table.contentMatrix(rowIdx)
     colIdx <- row.indices
-    x = ilpSolver.createBinaryVar(s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx", 0d)
+    x = ilpSolver.createBinaryVar(
+      s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx",
+      weights.activeCellObjCoeff
+    )
   } yield {
     ilpSolver.addVar(x)
     CellIdx(tableIdx, rowIdx, colIdx) -> x
@@ -72,7 +67,10 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     rowIdx <- table.contentMatrix.indices
-    x = ilpSolver.createBinaryVar(s"activeRow_t=${tableIdx}_r=$rowIdx", 0d)
+    x = ilpSolver.createBinaryVar(
+      s"activeRow_t=${tableIdx}_r=$rowIdx",
+      weights.activeRowObjCoeff
+    )
   } yield {
     ilpSolver.addVar(x)
     (tableIdx, rowIdx) -> x
@@ -84,7 +82,8 @@ class IlpModel(
     table = tables(tableIdx)
     if table.contentMatrix.indices.nonEmpty
     colIdx <- table.contentMatrix.head.indices
-    objCoeff = 1d / table.contentMatrix.head.indices.size // prefer more columns matching
+    // prefer larger fraction of columns matching
+    objCoeff = weights.activeColObjCoeff / table.contentMatrix.head.indices.size
     x = ilpSolver.createBinaryVar(s"activeCol_t=${tableIdx}_r=$colIdx", objCoeff)
   } yield {
     ilpSolver.addVar(x)
@@ -96,8 +95,10 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     colIdx <- table.titleRow.indices
-    objCoeff = 0.3 // TODO: tune this!
-    x = ilpSolver.createBinaryVar(s"activeTitle_t=${tableIdx}_r=$colIdx", objCoeff)
+    x = ilpSolver.createBinaryVar(
+      s"activeTitle_t=${tableIdx}_r=$colIdx",
+      weights.activeTitleObjCoeff
+    )
   } yield {
     ilpSolver.addVar(x)
     (tableIdx, colIdx) -> x
@@ -139,7 +140,7 @@ class IlpModel(
     interTableVariables.foreach { entry =>
       val table1Entry = tables(entry.tableIdx1).titleRow(entry.colIdx1)
       val table2Entry = tables(entry.tableIdx2).titleRow(entry.colIdx2)
-      if (aligner.scoreTitleTitle(table1Entry, table2Entry) < 0.5) {
+      if (aligner.scoreTitleTitle(table1Entry, table2Entry) < weights.minTitleTitleAlignment) {
         // no good alignment between the titles; disallow inter table alignment
         ilpSolver.chgVarUb(entry.variable, 0d)
       }
@@ -205,8 +206,7 @@ class IlpModel(
     /** Auxiliary variables: whether a title column of a given table is "active" */
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
-      objCoeff = 1 // doesn't matter what this is
-      x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", objCoeff)
+      x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", weights.activeChoiceObjCoeff)
     } yield {
       ilpSolver.addVar(x)
       choiceIdx -> x
@@ -214,12 +214,11 @@ class IlpModel(
 
     /** Auxiliary variables: whether a constituent of a given question is "active" */
     val activeQuestionVars: Map[Int, Long] = (for {
-      questionConsIdx <- question.questionCons.indices
-      objCoeff = 0.3 // TODO: tune this!
-      x = ilpSolver.createBinaryVar(s"activeQuestion_t=$questionConsIdx", objCoeff)
+      qConsIdx <- question.questionCons.indices
+      x = ilpSolver.createBinaryVar(s"activeQuestion_t=$qConsIdx", weights.activeQConsObjCoeff)
     } yield {
       ilpSolver.addVar(x)
-      questionConsIdx -> x
+      qConsIdx -> x
     }).toMap
 
     /** A convenient map from a cell to intra-table ILP variables associated with it */
@@ -295,9 +294,8 @@ class IlpModel(
           // if an activeCellVar is 1, at least one external cell alignment variable must be 1;
           // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
           // 0 <= sum(extAlignmentVarsForCell) - activeCellVar
-          val vars = extAlignmentVarsForCell :+ activeCellVar
-          val coeffs = Seq.fill(extAlignmentVarsForCell.size)(1d) :+ (-1d)
-          ilpSolver.addConsBasicLinear("activeCellImpliesAtLeastOne", vars, coeffs, 0d, largeDbl)
+          ilpSolver.addConsSumImpliesY("activeCellImpliesAtLeastOne", extAlignmentVarsForCell,
+            activeCellVar)
           // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
           ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
           ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
@@ -307,9 +305,8 @@ class IlpModel(
         // non-redundant use of tables: if a row is active, at least TWO of its cells must be
         // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
-        val vars = activeCellVarsInRow :+ activeRowVar
-        val coeffs = Seq.fill(activeCellVarsInRow.size)(1d) :+ (-2d)
-        ilpSolver.addConsBasicLinear("activeVarImpliesAtLeastTwo", vars, coeffs, 0d, largeDbl)
+        ilpSolver.addConsSumImpliesY("activeVarImpliesAtLeastTwo", activeCellVarsInRow,
+          activeRowVar, 2d)
       }
 
       table.titleRow.indices.foreach { colIdx =>
@@ -322,9 +319,8 @@ class IlpModel(
         // non-redundant use of tables: if a col is active, at least ONE of its cells must be
         // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
-        val vars = activeCellVarsInCol :+ activeColVar
-        val coeffs = Seq.fill(activeCellVarsInCol.size)(1d) :+ (-1d)
-        ilpSolver.addConsBasicLinear("activeVarImpliesAtLeastOne", vars, coeffs, 0d, largeDbl)
+        ilpSolver.addConsSumImpliesY("activeVarImpliesAtLeastOne", activeCellVarsInCol,
+          activeColVar)
       }
 
       table.titleRow.indices.foreach { colIdx =>
@@ -340,9 +336,8 @@ class IlpModel(
         val titleIdx = TitleIdx(tableIdx, colIdx)
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
-        val vars = extAlignmentVarsForTitle :+ activeTitleVar
-        val coeffs = Seq.fill(extAlignmentVarsForTitle.size)(1d) :+ (-1d)
-        ilpSolver.addConsBasicLinear("activeTitleImpliesAlignments", vars, coeffs, 0d, largeDbl)
+        ilpSolver.addConsSumImpliesY("activeTitleImpliesAlignments", extAlignmentVarsForTitle,
+          activeTitleVar)
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
         }
@@ -354,9 +349,8 @@ class IlpModel(
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
       val extChoiceToExtAlignmentVars = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
-      val vars = extChoiceToExtAlignmentVars :+ choiceVar
-      val coeffs = Seq.fill(extChoiceToExtAlignmentVars.size)(1d) :+ (-1d)
-      ilpSolver.addConsBasicLinear("activeTitleImpliesAlignments", vars, coeffs, 0d, largeDbl)
+      ilpSolver.addConsSumImpliesY("activeTitleImpliesAlignments", extChoiceToExtAlignmentVars,
+        choiceVar)
       // activate the choice variables, whens there is anything aligned to them
       // for any cell connected to the choice: cell <= choice
       extChoiceToExtAlignmentVars.foreach {
@@ -373,10 +367,10 @@ class IlpModel(
       val questionIdx = QuestionIdx(qIdx)
       val activeQuestionVar = activeQuestionVars(qIdx)
       val questionToExtAlignmentVar = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
-      val vars = questionToExtAlignmentVar :+ activeQuestionVar
-      val coeffs = Seq.fill(questionToExtAlignmentVar.size)(1d) :+ (-1d)
-      ilpSolver.addConsBasicLinear("activeQuestionBiggerThanItsAlignments", vars, coeffs, 0d,
-        largeDbl)
+      ilpSolver.addConsSumImpliesY(
+        "activeQuestionBiggerThanItsAlignments",
+        questionToExtAlignmentVar, activeQuestionVar
+      )
       questionToExtAlignmentVar.foreach {
         ilpSolver.addConsXLeqY("activeQuestionCons", _, activeQuestionVar)
       }
@@ -411,7 +405,7 @@ class IlpModel(
       tables(tableIdx1).contentMatrix(rowIdx1)(colIdx1),
       tables(tableIdx2).contentMatrix(rowIdx2)(colIdx2)
     )
-    if (objCoeff < minCellCellAlignmentThreshold) {
+    if (objCoeff < weights.minCellCellAlignment) {
       None
     } else {
       val name = s"T1=$tableIdx1-T2=$tableIdx2-R1=$rowIdx1-R2=$rowIdx2-C1=$colIdx1-" +
@@ -427,7 +421,7 @@ class IlpModel(
     qCons: String, qConsIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
   ): Option[QuestionTableVariable] = {
     val objCoeff = aligner.scoreCellQCons(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qCons)
-    if (objCoeff < minCellQConstituentAlignmentThreshold) {
+    if (objCoeff < weights.minCellQConsAlignment) {
       None
     } else {
       val name = s"T=$tableIdx-Con=$qConsIdx-R=$rowIdx-C=$colIdx"
@@ -442,7 +436,7 @@ class IlpModel(
     qCons: String, qConsIdx: Int, tableIdx: Int, colIdx: Int
   ): Option[QuestionTitleVariable] = {
     val objCoeff = aligner.scoreTitleQCons(tables(tableIdx).titleRow(colIdx), qCons)
-    if (objCoeff < minTitleQConstituentAlignmentThreshold) {
+    if (objCoeff < weights.minTitleQConsAlignment) {
       None
     } else {
       val name = s"T=$tableIdx-Title=$qConsIdx-C=$colIdx"
@@ -460,7 +454,7 @@ class IlpModel(
       tables(tableIdx).contentMatrix(rowIdx)(colIdx),
       qChoiceCons
     )
-    if (objCoeff < minCellQConstituentAlignmentThreshold) {
+    if (objCoeff < weights.minCellQConsAlignment) {
       None
     } else {
       val name = s"T=$tableIdx-QChoice=$qConsIdx-R=$rowIdx-C=$colIdx"

@@ -18,11 +18,16 @@ import scala.concurrent.Future
   *
   * @param entailmentService service for computing entailment score between two text sequences
   * @param tokenizer keyword tokenizer, also does stemming
+  * @param tableInterface interface to access CSV tables from files
+  * @param weights various weights for the ILP model
+  * @param useEntailment whether to use entailment service for lexical matching
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
     entailmentService: EntailmentService,
     tokenizer: KeywordTokenizer,
+    tableInterface: TableInterface,
+    weights: IlpWeights,
     @Named("useEntailment") useEntailment: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
@@ -48,14 +53,13 @@ class TableIlpSolver @Inject() (
       Future.successful(Seq.empty[SimpleAnswer])
     } else {
       Future {
-        logger.info(question.toString)
-
+        logger.info(s"Question: ${question.rawQuestion}")
         val ilpSolution = if (useActualSolver) {
-          val tables = TableInterface.loadAllTables()
+          val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
           val scipSolver = new ScipInterface("aristo-tableilp-solver")
           val alignmentType = if (useEntailment) "Entailment" else "Word2Vec"
           val aligner = new AlignmentFunction(alignmentType, Some(entailmentService), tokenizer)
-          val ilpModel = new IlpModel(scipSolver, tables, aligner)
+          val ilpModel = new IlpModel(scipSolver, tables, aligner, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
