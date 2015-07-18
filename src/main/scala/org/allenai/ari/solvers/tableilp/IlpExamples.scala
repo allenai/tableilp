@@ -6,7 +6,7 @@ import org.allenai.common.Logging
 
 object IlpExamples extends Logging {
 
-  // just to check the alignment inside one table
+  // a small test to check alignments in a table
   private def runExample(
     questionChunks: Seq[String],
     entailmentServiceOpt: Option[EntailmentService],
@@ -18,7 +18,7 @@ object IlpExamples extends Logging {
     val alignmentType = if (entailmentServiceOpt.isDefined) "Entailment" else "WordOverlap"
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, tokenizer)
     val ilpSolver = new ScipInterface("sampleExample")
-    val weights = new IlpWeights(0.2, 0.2, 0.2)
+    val weights = IlpWeights.Default
     val ilpModel = new IlpModel(ilpSolver, tables, aligner, weights)
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.ilpVars
