@@ -58,7 +58,8 @@ class TableInterface @Inject() (
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
   private def getMatchingTablesForQuestion(question: String): Seq[Table] = {
     // TODO(daniel) implement
-    throw new IllegalStateException("Not yet implemented!")
+    logger.warn("Not yet properly implemented!")
+    allTables.slice(0, 4)
   }
 
   /** Print all variables relevant to tables */
