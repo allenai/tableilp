@@ -358,8 +358,12 @@ class IlpModel(
       }
     }
 
-    // make sure only one choice is choosen
-    val choiceVars = question.choices.indices.map { activeChoiceVars(_) }
+    // align at least one question constituent
+    val qConsVars = question.questionCons.indices.map(activeQuestionVars)
+    ilpSolver.addConsBasicSetcover("atLeastOneQCons", qConsVars)
+
+    // choose at most one answer choice
+    val choiceVars = question.choices.indices.map(activeChoiceVars)
     ilpSolver.addConsBasicSetpack("atMostOneChoice", choiceVars)
 
     // active question variables
