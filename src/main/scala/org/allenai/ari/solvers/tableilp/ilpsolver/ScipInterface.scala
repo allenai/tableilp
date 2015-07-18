@@ -21,6 +21,10 @@ class ScipInterface(probName: String) extends Logging {
   /** config: overall time limit for SCIP in seconds once it starts solving the model */
   private val ScipTimeLimit = 60d
 
+  /** A large positive double value to use in constraints */
+  // TODO(ashish33) consider using SCIP's built-in infinity value, if available
+  val largeDbl = 10000d
+
   // initialization: load JNI library
   logger.debug("Java library path = " + System.getProperty("java.library.path"))
   JniScipLibraryLoader.loadLibrary()
@@ -284,6 +288,13 @@ class ScipInterface(probName: String) extends Logging {
   /** Adds the constraint x = y */
   def addConsXEqY(name: String, x: Long, y: Long): Unit = {
     addConsXEqYPlusC(name, x, y, 0d)
+  }
+
+  /** Adds the constraint sum(X) => k * y; default k = 1 */
+  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double = 1d): Unit = {
+    val vars = X :+ y
+    val coeffs = Seq.fill(X.size)(1d) :+ (-k)
+    addConsBasicLinear(name, vars, coeffs, 0d, largeDbl)
   }
 
   /** Solve the ILP model and report the result */
