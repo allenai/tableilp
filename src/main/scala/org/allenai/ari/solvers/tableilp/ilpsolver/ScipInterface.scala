@@ -56,14 +56,10 @@ class ScipInterface(probName: String) extends Logging {
   env.createProbBasic(scip, probName)
 
   /** set objective function as minimization */
-  def setAsMinimization() {
-    env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MINIMIZE)
-  }
+  def setAsMinimization(): Unit = env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MINIMIZE)
 
   /** set objective function as maximization */
-  def setAsMaximization() {
-    env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MAXIMIZE)
-  }
+  def setAsMaximization(): Unit = env.setObjsense(scip, JniScipObjsense.SCIP_OBJSENSE_MAXIMIZE)
 
   /** create a binary variable */
   def createBinaryVar(name: String, obj: Double): Long = {
@@ -199,9 +195,7 @@ class ScipInterface(probName: String) extends Logging {
     *
     * @param cons                  constraint data
     */
-  def getValsLinear(cons: Long): Seq[Double] = {
-    envConsLinear.getValsLinear(scip, cons)
-  }
+  def getValsLinear(cons: Long): Seq[Double] = envConsLinear.getValsLinear(scip, cons)
 
   /** Creates and captures a basic Set Partitioning constraint, \sum_i x_i = 1, emulating C++ API's
     * createConsBasicSetpack constraint which is not provided in the Java API.
@@ -262,9 +256,7 @@ class ScipInterface(probName: String) extends Logging {
     * @param cons                  constraint data
     * @param x                     variable to add to the constraint
     */
-  def addCoefSetppc(cons: Long, x: Long): Unit = {
-    envConsSetppc.addCoefSetppc(scip, cons, x)
-  }
+  def addCoefSetppc(cons: Long, x: Long): Unit = envConsSetppc.addCoefSetppc(scip, cons, x)
 
   /** Adds the constraint x <= y + c */
   def addConsXLeqYPlusC(name: String, x: Long, y: Long, c: Double): Unit = {
@@ -274,9 +266,7 @@ class ScipInterface(probName: String) extends Logging {
   }
 
   /** Adds the constraint x <= y */
-  def addConsXLeqY(name: String, x: Long, y: Long): Unit = {
-    addConsXLeqYPlusC(name, x, y, 0d)
-  }
+  def addConsXLeqY(name: String, x: Long, y: Long): Unit = addConsXLeqYPlusC(name, x, y, 0d)
 
   /** Adds the constraint x = y + c */
   def addConsXEqYPlusC(name: String, x: Long, y: Long, c: Double): Unit = {
@@ -286,9 +276,7 @@ class ScipInterface(probName: String) extends Logging {
   }
 
   /** Adds the constraint x = y */
-  def addConsXEqY(name: String, x: Long, y: Long): Unit = {
-    addConsXEqYPlusC(name, x, y, 0d)
-  }
+  def addConsXEqY(name: String, x: Long, y: Long): Unit = addConsXEqYPlusC(name, x, y, 0d)
 
   /** Adds the constraint sum(X) => k * y; default k = 1 */
   def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double = 1d): Unit = {
