@@ -294,7 +294,7 @@ class IlpModel(
           // if an activeCellVar is 1, at least one external cell alignment variable must be 1;
           // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
           // 0 <= sum(extAlignmentVarsForCell) - activeCellVar
-          ilpSolver.addConsSumImpliesY("activeCellImpliesAtLeastOne", extAlignmentVarsForCell,
+          ilpSolver.addConsSumImpliesY("activeCellImpliesAtLeastOneExt", extAlignmentVarsForCell,
             activeCellVar)
           // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
           ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
@@ -305,7 +305,7 @@ class IlpModel(
         // non-redundant use of tables: if a row is active, at least TWO of its cells must be
         // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
-        ilpSolver.addConsSumImpliesY("activeVarImpliesAtLeastTwo", activeCellVarsInRow,
+        ilpSolver.addConsSumImpliesY("activeRowImpliesAtLeastTwoCells", activeCellVarsInRow,
           activeRowVar, 2d)
       }
 
@@ -319,7 +319,7 @@ class IlpModel(
         // non-redundant use of tables: if a col is active, at least ONE of its cells must be
         // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
-        ilpSolver.addConsSumImpliesY("activeVarImpliesAtLeastOne", activeCellVarsInCol,
+        ilpSolver.addConsSumImpliesY("activeColImpliesAtLeastOneCell", activeCellVarsInCol,
           activeColVar)
       }
 
@@ -349,7 +349,7 @@ class IlpModel(
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
       val extChoiceToExtAlignmentVars = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
-      ilpSolver.addConsSumImpliesY("activeTitleImpliesAlignments", extChoiceToExtAlignmentVars,
+      ilpSolver.addConsSumImpliesY("activeChoiceImpliesAlignments", extChoiceToExtAlignmentVars,
         choiceVar)
       // activate the choice variables, whens there is anything aligned to them
       // for any cell connected to the choice: cell <= choice
@@ -372,7 +372,7 @@ class IlpModel(
       val activeQuestionVar = activeQuestionVars(qIdx)
       val questionToExtAlignmentVar = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
       ilpSolver.addConsSumImpliesY(
-        "activeQuestionBiggerThanItsAlignments",
+        "activeQuestionImpliesAlignments",
         questionToExtAlignmentVar, activeQuestionVar
       )
       questionToExtAlignmentVar.foreach {
