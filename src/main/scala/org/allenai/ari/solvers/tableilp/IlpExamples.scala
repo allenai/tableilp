@@ -1,7 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipParams, ScipInterface }
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipInterface, ScipParams }
 import org.allenai.common.Logging
 
 object IlpExamples extends Logging {
