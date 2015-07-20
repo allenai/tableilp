@@ -3,7 +3,7 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.models.{ MultipleChoiceSelection, Question }
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
-import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipParams, ScipInterface }
 import org.allenai.common.Version
 
 import akka.actor.ActorSystem
@@ -20,7 +20,8 @@ import scala.concurrent.Future
   * @param tokenizer keyword tokenizer, also does stemming
   * @param tableInterface interface to access CSV tables from files
   * @param weights various weights for the ILP model
-  * @param useEntailment whether to use entailment service for lexical matching
+  * @param alignmentType whether to use Entailment, WordOverlap, or Word2Vec for alignment scores
+  * @param entailmentScoreOffset amount to subtract from the raw score returned by entailment
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
@@ -28,7 +29,9 @@ class TableIlpSolver @Inject() (
     tokenizer: KeywordTokenizer,
     tableInterface: TableInterface,
     weights: IlpWeights,
-    @Named("useEntailment") useEntailment: Boolean
+    scipParams: ScipParams,
+    @Named("alignmentType") alignmentType: String,
+    @Named("entailmentScoreOffset") entailmentScoreOffset: Double
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -56,9 +59,9 @@ class TableIlpSolver @Inject() (
         logger.info(s"Question: ${question.rawQuestion}")
         val ilpSolution = if (useActualSolver) {
           val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
-          val scipSolver = new ScipInterface("aristo-tableilp-solver")
-          val alignmentType = if (useEntailment) "Entailment" else "Word2Vec"
-          val aligner = new AlignmentFunction(alignmentType, Some(entailmentService), tokenizer)
+          val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
+          val aligner = new AlignmentFunction(alignmentType, Some(entailmentService),
+            entailmentScoreOffset, tokenizer)
           val ilpModel = new IlpModel(scipSolver, tables, aligner, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)

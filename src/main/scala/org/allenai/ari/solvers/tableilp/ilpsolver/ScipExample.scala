@@ -8,7 +8,7 @@ object ScipExample extends Logging {
 
   /** Main method to run an ILP model from the command line. */
   def main(args: Array[String]): Unit = {
-    val scipSolver = new ScipInterface("example")
+    val scipSolver = new ScipInterface("example", ScipParams.Default)
     val varsOfInterest = buildModel(scipSolver)
     scipSolver.solve()
     scipSolver.printResult(varsOfInterest)

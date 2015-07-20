@@ -7,7 +7,7 @@ import com.medallia.word2vec.Word2VecModel
 
 import java.io.File
 
-// Various options for computing similarity
+/** Various options for computing similarity */
 sealed trait SimilarityType {
   def scoreTitleTitle(titleStr1: String, titleStr2: String): Double // should be symmetric
   def scoreCellCell(cellStr1: String, cellStr2: String): Double // should be symmetric
@@ -21,9 +21,17 @@ sealed trait SimilarityType {
   }
 }
 
+/** A function to compute alignment scores between paris of cells, title, question constituent, etc.
+  *
+  * @param alignmentType Must be one of Entailment, WordOverlap, or Word2Vec
+  * @param entailmentServiceOpt Entailment service to use
+  * @param entailmentScoreOffset The value to subtract from raw entailment score to get the score
+  * @param tokenizer A keyword tokenizer
+  */
 class AlignmentFunction(
     alignmentType: String,
     entailmentServiceOpt: Option[EntailmentService],
+    entailmentScoreOffset: Double,
     tokenizer: KeywordTokenizer
 ) extends Logging {
   private val similarityFunction: SimilarityType = alignmentType match {
@@ -33,7 +41,7 @@ class AlignmentFunction(
         case Some(entailmentService) => entailmentService
         case None => throw new IllegalStateException("No entailment service available")
       }
-      new EntailmentSimilarity(teService, tokenizer)
+      new EntailmentSimilarity(teService, entailmentScoreOffset, tokenizer)
     }
     case "Word2Vec" => {
       logger.info("Using word2vec for alignment score computation")
@@ -70,9 +78,11 @@ class AlignmentFunction(
 
 }
 
-// how much does text1 entail text2? (directional)
+// how much does text1 entail text2? (directional); an entailment score below the offset value is
+// considered negative correlation.
 private class EntailmentSimilarity(
     entailmentService: EntailmentService,
+    entailmentScoreOffset: Double,
     tokenizer: KeywordTokenizer
 ) extends SimilarityType {
   def scoreTitleTitle(text1: String, text2: String): Double = {
@@ -84,8 +94,6 @@ private class EntailmentSimilarity(
   def scoreCellQCons(text1: String, text2: String): Double = getEntailmentScore(text2, text1)
   def scoreTitleQCons(text1: String, text2: String): Double = getEntailmentScore(text2, text1)
 
-  // an entailment score below this value is considered to have negative correlation
-  private val entailmentScoreOffset = 0.2
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))

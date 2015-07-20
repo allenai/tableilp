@@ -14,13 +14,7 @@ case object IlpStatusInfeasible extends IlpStatus { override def toString = "Inf
 /** This is a generic interface to the SCIP ILP solver providing a number of common initialization
   * steps and access to the SCIP environment. This class is NOT guaranteed to be thread-safe!
   */
-class ScipInterface(probName: String) extends Logging {
-  /** config: local log file where SCIP output is stored for debugging purposes */
-  private val ScipLogFile = "scip.log"
-
-  /** config: overall time limit for SCIP in seconds once it starts solving the model */
-  private val ScipTimeLimit = 60d
-
+class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** A large positive double value to use in constraints */
   // TODO(ashish33) consider using SCIP's built-in infinity value, if available
   val largeDbl = 10000d
@@ -46,11 +40,11 @@ class ScipInterface(probName: String) extends Logging {
   private val scip: Long = env.create
 
   // initialization: set various parameters
-  env.printVersion(scip, 0) // print SCIP version to stdout
-  env.setMessagehdlrQuiet(scip, false) // set message handler of SCIP to quiet or not
-  env.setMessagehdlrLogfile(scip, ScipLogFile) // write all SCIP output to the log file
+  env.printVersion(scip, scipParams.printVersion)
+  env.setMessagehdlrQuiet(scip, scipParams.messagehdlrQuiet)
+  env.setMessagehdlrLogfile(scip, scipParams.logFile)
   env.includeDefaultPlugins(scip) // include default plugins of SCIP
-  env.setRealParam(scip, "limits/time", ScipTimeLimit) // set SCIP's overall time limit
+  env.setRealParam(scip, "limits/time", scipParams.timeLimit) // set SCIP's overall time limit
 
   // initialization: create empty problem tied to the given problem name
   env.createProbBasic(scip, probName)
@@ -260,7 +254,7 @@ class ScipInterface(probName: String) extends Logging {
 
   /** Adds the constraint x <= y + c */
   def addConsXLeqYPlusC(name: String, x: Long, y: Long, c: Double): Unit = {
-    val cons = createConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), -1000d, c)
+    val cons = createConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), -largeDbl, c)
     env.addCons(scip, cons)
     env.releaseCons(scip, cons)
   }
@@ -278,7 +272,7 @@ class ScipInterface(probName: String) extends Logging {
   /** Adds the constraint x = y */
   def addConsXEqY(name: String, x: Long, y: Long): Unit = addConsXEqYPlusC(name, x, y, 0d)
 
-  /** Adds the constraint sum(X) => k * y; default k = 1 */
+  /** Adds the constraint sum(X) >= k * y; default k = 1 */
   def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double = 1d): Unit = {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
