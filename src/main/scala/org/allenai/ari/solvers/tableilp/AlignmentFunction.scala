@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import com.redis.RedisClient
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.common.Logging
 
@@ -85,6 +86,7 @@ private class EntailmentSimilarity(
     entailmentScoreOffset: Double,
     tokenizer: KeywordTokenizer
 ) extends SimilarityType {
+  val redis = new RedisClient("localhost", 6379)
   def scoreTitleTitle(text1: String, text2: String): Double = {
     getSymmetricScore(text1, text2, getEntailmentScore)
   }
@@ -96,16 +98,23 @@ private class EntailmentSimilarity(
 
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
-    val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-    val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-    val scores = for {
-      text1StemmedTokens <- text1StemmedTokens
-      text2StemmedTokens <- text2StemmedTokens
-    } yield {
-      entailmentService.entail(text1StemmedTokens, text2StemmedTokens).confidence -
-        entailmentScoreOffset
+    var key = text1 + "----" + text2
+    var score = if (redis.exists(key))
+      redis.get(key).get.toString.toDouble
+    else {
+      val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+      val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+      val scores = for {
+        text1StemmedTokensSeq <- text1StemmedTokens
+        text2StemmedTokensSeq <- text2StemmedTokens
+      } yield {
+          entailmentService.entail(text1StemmedTokensSeq, text2StemmedTokensSeq).confidence
+        }
+      val scoreMax = scores.max
+      redis.set(key, scoreMax)
+      scoreMax
     }
-    scores.max
+    score - entailmentScoreOffset
   }
 }
 
