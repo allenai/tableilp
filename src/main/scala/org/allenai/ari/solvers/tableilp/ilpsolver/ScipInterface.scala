@@ -184,10 +184,8 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     */
   def createConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
     lhsOpt: Option[Double], rhsOpt: Option[Double]): Long = {
-    val lhs = if (lhsOpt.isDefined) lhsOpt.get else ScipMin
-    val rhs = if (rhsOpt.isDefined) rhsOpt.get else ScipMax
     envConsLinear.createConsBasicLinear(scip, name, vars.length, vars.toArray, coeffs.toArray,
-      lhs, rhs)
+      lhsOpt.getOrElse(ScipMin), rhsOpt.getOrElse(ScipMax))
   }
 
   /** Calls createConsBasicLinear and adds the constraint to the solver */
