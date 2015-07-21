@@ -158,6 +158,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** If triggered, imposes a lower bound for a variable; trigger is binary variable */
   def chgVarLb(x: Long, bound: Double, trigger: Long): Unit = {
+    // TODO Find a way to require that 'trigger' is a binary variable
     addConsBasicLinear("VarLb", Seq(x), Seq(1d), Some(bound), None, trigger)
   }
 
