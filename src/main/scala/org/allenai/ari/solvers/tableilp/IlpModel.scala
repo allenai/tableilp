@@ -295,7 +295,7 @@ class IlpModel(
           // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
           // 0 <= sum(extAlignmentVarsForCell) - activeCellVar
           ilpSolver.addConsSumImpliesY("activeCellImpliesAtLeastOneExt", extAlignmentVarsForCell,
-            activeCellVar)
+            activeCellVar, 1d)
           // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
           ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
           ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
@@ -320,7 +320,7 @@ class IlpModel(
         // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
         ilpSolver.addConsSumImpliesY("activeColImpliesAtLeastOneCell", activeCellVarsInCol,
-          activeColVar)
+          activeColVar, 1d)
       }
 
       table.titleRow.indices.foreach { colIdx =>
@@ -337,7 +337,7 @@ class IlpModel(
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
         ilpSolver.addConsSumImpliesY("activeTitleImpliesAlignments", extAlignmentVarsForTitle,
-          activeTitleVar)
+          activeTitleVar, 1d)
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
         }
@@ -350,7 +350,7 @@ class IlpModel(
       val choiceVar = activeChoiceVars(choiceIdx)
       val extChoiceToExtAlignmentVars = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
       ilpSolver.addConsSumImpliesY("activeChoiceImpliesAlignments", extChoiceToExtAlignmentVars,
-        choiceVar)
+        choiceVar, 1d)
       // activate the choice variables, whens there is anything aligned to them
       // for any cell connected to the choice: cell <= choice
       extChoiceToExtAlignmentVars.foreach {
@@ -373,7 +373,7 @@ class IlpModel(
       val questionToExtAlignmentVar = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
       ilpSolver.addConsSumImpliesY(
         "activeQuestionImpliesAlignments",
-        questionToExtAlignmentVar, activeQuestionVar
+        questionToExtAlignmentVar, activeQuestionVar, 1d
       )
       questionToExtAlignmentVar.foreach {
         ilpSolver.addConsXLeqY("activeQuestionCons", _, activeQuestionVar)

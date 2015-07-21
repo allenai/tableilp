@@ -41,7 +41,7 @@ object ScipExample extends Logging {
     val coeffs = (0 until nvars).map(_ + 1d)
 
     // create a linear constraint
-    val consLinear = scipSolver.createConsBasicLinear("test-linear", vars, coeffs, 0d, 2d)
+    val consLinear = scipSolver.createConsBasicLinear("test", vars, coeffs, Some(0d), Some(2d))
 
     // add constraints to problem
     scipSolver.addCons(consLinear)

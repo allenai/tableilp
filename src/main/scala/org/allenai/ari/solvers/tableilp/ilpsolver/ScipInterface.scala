@@ -15,9 +15,10 @@ case object IlpStatusInfeasible extends IlpStatus { override def toString = "Inf
   * steps and access to the SCIP environment. This class is NOT guaranteed to be thread-safe!
   */
 class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
-  /** A large positive double value to use in constraints */
-  // TODO(ashish33) consider using SCIP's built-in infinity value, if available
-  val largeDbl = 10000d
+  // Min and max values to use when defining the model
+  // TODO(ashish33) check how to access SCIP's built-in SCIP_REAL_MAX, etc.
+  private val ScipMin = -1e+20
+  private val ScipMax = 1e+20
 
   // initialization: load JNI library
   logger.debug("Java library path = " + System.getProperty("java.library.path"))
@@ -146,11 +147,27 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** get the maximal depth of nodes explored during branch and bound */
   def getMaxDepth: Int = env.getMaxDepth(scip)
 
+  /** Adds a constraint to SCIP and "release" it */
+  def addReleaseCons(cons: Long): Unit = {
+    env.addCons(scip, cons)
+    env.releaseCons(scip, cons)
+  }
+
   /** Sets the lower bound for a variable */
-  def chgVarLb(x: Long, newBound: Double): Unit = env.chgVarLb(scip, x, newBound)
+  def chgVarLb(x: Long, bound: Double): Unit = env.chgVarLb(scip, x, bound)
+
+  /** If triggered, imposes a lower bound for a variable; trigger is binary variable */
+  def chgVarLb(x: Long, bound: Double, trigger: Long): Unit = {
+    addConsBasicLinear("VarLb", Seq(x), Seq(1d), Some(bound), None, trigger)
+  }
 
   /** Sets the upper bound for a variable */
-  def chgVarUb(x: Long, newBound: Double): Unit = env.chgVarUb(scip, x, newBound)
+  def chgVarUb(x: Long, bound: Double): Unit = env.chgVarUb(scip, x, bound)
+
+  /** If triggered, imposes a upper bound for a variable; trigger is binary variable */
+  def chgVarUb(x: Long, bound: Double, trigger: Long): Unit = {
+    addConsBasicLinear("VarUb", Seq(x), Seq(1d), None, Some(bound), trigger)
+  }
 
   /** Creates and captures a linear constraint in its most basic version; all constraint flags are
     * set to their basic value as explained for the method SCIPcreateConsLinear(); all flags can
@@ -161,21 +178,29 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     * @param name                  name of constraint
     * @param vars                  seq with variables of constraint entries
     * @param coeffs                seq with coefficients of constraint entries
-    * @param lhs                   left hand side of constraint
-    * @param rhs                   right hand side of constraint
+    * @param lhsOpt                left hand side of constraint, optional
+    * @param rhsOpt                right hand side of constraint, optional
     */
   def createConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
-    lhs: Double, rhs: Double): Long = {
+    lhsOpt: Option[Double], rhsOpt: Option[Double]): Long = {
+    val lhs = if (lhsOpt.isDefined) lhsOpt.get else ScipMin
+    val rhs = if (rhsOpt.isDefined) rhsOpt.get else ScipMax
     envConsLinear.createConsBasicLinear(scip, name, vars.length, vars.toArray, coeffs.toArray,
       lhs, rhs)
   }
 
   /** Calls createConsBasicLinear and adds the constraint to the solver */
   def addConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
-    lhs: Double, rhs: Double): Unit = {
-    val cons = createConsBasicLinear(name, vars, coeffs, lhs, rhs)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    lhsOpt: Option[Double], rhsOpt: Option[Double]): Unit = {
+    addReleaseCons(createConsBasicLinear(name, vars, coeffs, lhsOpt, rhsOpt))
+  }
+
+  /** If triggered, imposes a basic linear constraint to the solver; trigger is binary variable */
+  def addConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
+    lhsOpt: Option[Double], rhsOpt: Option[Double], trigger: Long): Unit = {
+    val largeDbl = 1000000d // a very large value, compared to sum_i var[i] * coeffs[i]
+    addReleaseCons(createConsBasicLinear(name, vars :+ trigger, coeffs :+ largeDbl, lhsOpt, None))
+    addReleaseCons(createConsBasicLinear(name, vars :+ trigger, coeffs :+ -largeDbl, None, rhsOpt))
   }
 
   /** Adds coefficient to a linear constraint (if it is not zero)
@@ -195,7 +220,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     */
   def getValsLinear(cons: Long): Seq[Double] = envConsLinear.getValsLinear(scip, cons)
 
-  /** Creates and captures a basic Set Partitioning constraint, \sum_i x_i = 1, emulating C++ API's
+  /** Creates and captures a basic Set Partitioning constraint, sum_i x_i = 1, emulating C++ API's
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
@@ -208,12 +233,15 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Calls createConsBasicSetpart and adds the constraint to the solver */
   def addConsBasicSetpart(name: String, vars: Seq[Long]): Unit = {
-    val cons = createConsBasicSetpart(name, vars)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    addReleaseCons(createConsBasicSetpart(name, vars))
   }
 
-  /** Creates and captures a basic Set Packing constraint, \sum_i x_i <= 1, emulating C++ API's
+  /** If triggered, imposes a set partitioning constraint, sum_i x_i = 1; trigger is binary var */
+  def addConsBasicSetpart(name: String, vars: Seq[Long], trigger: Long): Unit = {
+    addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), Some(1d), Some(1d), trigger)
+  }
+
+  /** Creates and captures a basic Set Packing constraint, sum_i x_i <= 1, emulating C++ API's
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
@@ -226,12 +254,15 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Calls createConsBasicSetpack and adds the constraint to the solver */
   def addConsBasicSetpack(name: String, vars: Seq[Long]): Unit = {
-    val cons = createConsBasicSetpack(name, vars)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    addReleaseCons(createConsBasicSetpack(name, vars))
   }
 
-  /** Creates and captures a basic Set covering constraint, \sum_i x_i >= 1, emulating C++ API's
+  /** If triggered, imposes a set packing constraint, sum_i x_i <= 1; trigger is binary variable */
+  def addConsBasicSetpack(name: String, vars: Seq[Long], trigger: Long): Unit = {
+    addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), None, Some(1d), trigger)
+  }
+
+  /** Creates and captures a basic Set covering constraint, sum_i x_i >= 1, emulating C++ API's
     * createConsBasicSetpack constraint which is not provided in the Java API.
     *
     * @param name                  name of constraint
@@ -244,9 +275,12 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Calls createConsBasicSetcover and adds the constraint to the solver */
   def addConsBasicSetcover(name: String, vars: Seq[Long]): Unit = {
-    val cons = createConsBasicSetcover(name, vars)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    addReleaseCons(createConsBasicSetcover(name, vars))
+  }
+
+  /** If triggered, imposes a set covering constraint, sum_i x_i >= 1; trigger is binary variable */
+  def addConsBasicSetcover(name: String, vars: Seq[Long], trigger: Long): Unit = {
+    addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), Some(1d), None, trigger)
   }
 
   /** Adds coefficient in set partitioning / packing / covering constraint
@@ -258,29 +292,56 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Adds the constraint x <= y + c */
   def addConsXLeqYPlusC(name: String, x: Long, y: Long, c: Double): Unit = {
-    val cons = createConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), -largeDbl, c)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    addConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), None, Some(c))
+  }
+
+  /** If triggered, imposes the constraint x <= y + c; trigger is binary variable */
+  def addConsXLeqYPlusC(name: String, x: Long, y: Long, c: Double, trigger: Long): Unit = {
+    addConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), None, Some(c), trigger)
   }
 
   /** Adds the constraint x <= y */
-  def addConsXLeqY(name: String, x: Long, y: Long): Unit = addConsXLeqYPlusC(name, x, y, 0d)
+  def addConsXLeqY(name: String, x: Long, y: Long): Unit = {
+    addConsXLeqYPlusC(name, x, y, 0d)
+  }
+
+  /** If triggered, imposes the constraint x <= y; trigger is binary variable */
+  def addConsXLeqY(name: String, x: Long, y: Long, trigger: Long): Unit = {
+    addConsXLeqYPlusC(name, x, y, 0d, trigger)
+  }
 
   /** Adds the constraint x = y + c */
   def addConsXEqYPlusC(name: String, x: Long, y: Long, c: Double): Unit = {
-    val cons = createConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), c, c)
-    env.addCons(scip, cons)
-    env.releaseCons(scip, cons)
+    addConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), Some(c), Some(c))
+  }
+
+  /** If triggered, imposes the constraint x = y + c; trigger is binary variable */
+  def addConsXEqYPlusC(name: String, x: Long, y: Long, c: Double, trigger: Long): Unit = {
+    addConsBasicLinear(name, Seq(x, y), Seq(1d, -1d), Some(c), Some(c), trigger)
   }
 
   /** Adds the constraint x = y */
-  def addConsXEqY(name: String, x: Long, y: Long): Unit = addConsXEqYPlusC(name, x, y, 0d)
+  def addConsXEqY(name: String, x: Long, y: Long): Unit = {
+    addConsXEqYPlusC(name, x, y, 0d)
+  }
 
-  /** Adds the constraint sum(X) >= k * y; default k = 1 */
-  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double = 1d): Unit = {
+  /** If triggered, imposes the constraint x = y; trigger is binary variable */
+  def addConsXEqY(name: String, x: Long, y: Long, trigger: Long): Unit = {
+    addConsXEqYPlusC(name, x, y, 0d, trigger)
+  }
+
+  /** Adds the constraint sum(X) >= k * y */
+  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double): Unit = {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
-    addConsBasicLinear(name, vars, coeffs, 0d, largeDbl)
+    addConsBasicLinear(name, vars, coeffs, Some(0d), None)
+  }
+
+  /** If triggered, imposes the constraint sum(X) >= k * y; trigger is binary variable */
+  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double, trigger: Long): Unit = {
+    val vars = X :+ y
+    val coeffs = Seq.fill(X.size)(1d) :+ (-k)
+    addConsBasicLinear(name, vars, coeffs, Some(0d), None, trigger)
   }
 
   /** Solve the ILP model and report the result */
