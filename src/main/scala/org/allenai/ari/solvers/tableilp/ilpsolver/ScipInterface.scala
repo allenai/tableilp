@@ -302,9 +302,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   }
 
   /** Adds the constraint x <= y */
-  def addConsXLeqY(name: String, x: Long, y: Long): Unit = {
-    addConsXLeqYPlusC(name, x, y, 0d)
-  }
+  def addConsXLeqY(name: String, x: Long, y: Long): Unit = addConsXLeqYPlusC(name, x, y, 0d)
 
   /** If triggered, imposes the constraint x <= y; trigger is binary variable */
   def addConsXLeqY(name: String, x: Long, y: Long, trigger: Long): Unit = {
@@ -322,9 +320,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   }
 
   /** Adds the constraint x = y */
-  def addConsXEqY(name: String, x: Long, y: Long): Unit = {
-    addConsXEqYPlusC(name, x, y, 0d)
-  }
+  def addConsXEqY(name: String, x: Long, y: Long): Unit = addConsXEqYPlusC(name, x, y, 0d)
 
   /** If triggered, imposes the constraint x = y; trigger is binary variable */
   def addConsXEqY(name: String, x: Long, y: Long, trigger: Long): Unit = {
