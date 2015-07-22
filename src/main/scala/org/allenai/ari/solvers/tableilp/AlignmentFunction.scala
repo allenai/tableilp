@@ -1,10 +1,10 @@
 package org.allenai.ari.solvers.tableilp
 
-import com.redis.RedisClient
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.common.Logging
 
 import com.medallia.word2vec.Word2VecModel
+import com.redis.RedisClient
 
 import java.io.File
 
