@@ -99,9 +99,9 @@ private class EntailmentSimilarity(
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
     var key = text1 + "----" + text2
-    var score = if (redis.exists(key))
+    var score = if (redis.exists(key)) {
       redis.get(key).get.toDouble
-    else {
+    } else {
       val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
       val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
       val scores = for {
