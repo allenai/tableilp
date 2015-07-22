@@ -43,7 +43,11 @@ class TableInterface @Inject() (
     tables
   }
 
-  /** Get a subset of tables relevant for a given question, by looking up a cheat sheet */
+  /** Get a subset of tables relevant for a given question, by looking up a cheat sheet
+    * Here we removed table 18, which contains a large dump of WordNet
+    * The index 18 gets converted to 15. Here is the list of tables and their indices
+    * https://docs.google.com/spreadsheets/d/1YTPuMOX8EB4YnCrKnQXOV99zZC8QYSkfbCDN3rsfcYM/edit#gid=506523592
+    * */
   private def getCachedTablesForQuestion(question: String): Seq[Table] = {
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
