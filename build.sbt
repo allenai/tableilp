@@ -1,4 +1,5 @@
 import Dependencies._
+import NativePackagerHelper.directory
 
 name := "tableilp-solver"
 
@@ -20,6 +21,9 @@ libraryDependencies ++= Seq(
   nlpstack("core"),
   "net.debasishg" %% "redisclient" % "3.0"
 )
+
+// Copy local data files to the staging directory.
+mappings in Universal ++= directory(baseDirectory.value / "data")
 
 // You can increase the solver memory settings here, if you need to.
 javaOptions ++= Seq(s"-Dlogback.appname=${name.value}", "-Djava.library.path=lib")

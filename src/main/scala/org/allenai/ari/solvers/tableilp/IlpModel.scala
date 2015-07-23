@@ -110,7 +110,7 @@ class IlpModel(
     * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
   private val buildQuestionIndependentModel: AllVariables = {
-    /** Intra-table variables */
+    // Intra-table variables
     val intraTableVariables = for {
       tableIdx <- tables.indices
       table = tables(tableIdx)
@@ -121,7 +121,7 @@ class IlpModel(
       x <- addIntraTableVariable(tableIdx, rowIdx, colIdx1, colIdx2)
     } yield x
 
-    /** Inter-table variables */
+    // Inter-table variables
     val interTableVariables = for {
       tableIdx1 <- tables.indices
       tableIdx2 <- tableIdx1 + 1 until tables.length
@@ -203,7 +203,7 @@ class IlpModel(
       x <- addQChoiceTableVariable(qChoiceCons, qChoiceConsIdx, tableIdx, rowIdx, colIdx)
     } yield x
 
-    /** Auxiliary variables: whether a title column of a given table is "active" */
+    // Auxiliary variables: whether a title column of a given table is "active"
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
       x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", weights.activeChoiceObjCoeff)
@@ -212,7 +212,7 @@ class IlpModel(
       choiceIdx -> x
     }).toMap
 
-    /** Auxiliary variables: whether a constituent of a given question is "active" */
+    // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
       qConsIdx <- question.questionCons.indices
       x = ilpSolver.createBinaryVar(s"activeQuestion_t=$qConsIdx", weights.activeQConsObjCoeff)
@@ -221,26 +221,26 @@ class IlpModel(
       qConsIdx -> x
     }).toMap
 
-    /** A convenient map from a cell to intra-table ILP variables associated with it */
+    // A convenient map from a cell to intra-table ILP variables associated with it
     val tmpIntraTriples = intraTableVariables.flatMap {
       case IntraTableVariable(tableIdx, rowIdx, colIdx1, colIdx2, x) =>
         val cellIdx1 = CellIdx(tableIdx, rowIdx, colIdx1)
         val cellIdx2 = CellIdx(tableIdx, rowIdx, colIdx2)
         Seq(cellIdx1 -> x, cellIdx2 -> x)
     }
-    /** A convenient map from a cell to inter-table ILP variables associated with it */
+    // A convenient map from a cell to inter-table ILP variables associated with it
     val tmpInterTriples = interTableVariables.flatMap {
       case InterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2, x) =>
         val cellIdx1 = CellIdx(tableIdx1, rowIdx1, colIdx1)
         val cellIdx2 = CellIdx(tableIdx2, rowIdx2, colIdx2)
         Seq(cellIdx1 -> x, cellIdx2 -> x)
     }
-    /** A convenient map from a cell to question-table ILP variables associated with it */
+    // A convenient map from a cell to question-table ILP variables associated with it
     val tmpQuestionTriples = questionTableVariables.map {
       case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
-    /** A convenient map from a cell to question-choice ILP variables associated with it */
+    // A convenient map from a cell to question-choice ILP variables associated with it
     val tmpChoicesTriples = qChoiceTableVariables.map {
       case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x

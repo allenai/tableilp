@@ -52,7 +52,7 @@ class TableInterface @Inject() (
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qToTables =>
-      qToTables(2).split('-').filter(idx => idx.toInt != 15).map(idx => allTables(idx.toInt)).toSeq
+      qToTables(2).split('-').filterNot(_.toInt == 15).map(idx => allTables(idx.toInt)).toSeq
     } orElse {
       Some(Seq.empty)
     }
