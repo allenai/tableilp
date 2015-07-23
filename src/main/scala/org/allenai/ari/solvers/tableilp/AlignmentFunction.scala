@@ -99,20 +99,19 @@ private class EntailmentSimilarity(
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
-    val score = if (redis.exists(key)) {
-      redis.get(key).get.toDouble
-    } else {
-      val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-      val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-      val scores = for {
-        text1StemmedTokensSeq <- text1StemmedTokens
-        text2StemmedTokensSeq <- text2StemmedTokens
-      } yield {
-        entailmentService.entail(text1StemmedTokensSeq, text2StemmedTokensSeq).confidence
+    val score = redis.get(key) match {
+      case Some(value) => value.toDouble
+      case None => {
+        val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+        val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+        val scores = for {
+          text1Seq <- text1StemmedTokens
+          text2Seq <- text2StemmedTokens
+        } yield entailmentService.entail(text1Seq, text2Seq).confidence
+        val scoreMax = scores.max
+        redis.set(key, scoreMax)
+        scoreMax
       }
-      val scoreMax = scores.max
-      redis.set(key, scoreMax)
-      scoreMax
     }
     score - entailmentScoreOffset
   }
