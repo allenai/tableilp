@@ -242,9 +242,9 @@ object IlpSolutionFactory extends Logging {
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
 
     // choose answer choice and its score
-    val nQChoices = allVariables.qChoiceTableVariables.length + allVariables.qChoiceTitleVariables.length
-    logger.debug(s"number of potentially aligning choices = $nQChoices")
-    val (bestChoice, bestChoiceScore) = if (nQChoices > 0 && scipSolver.hasSolution) {
+    val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length + allVariables.qChoiceTitleVariables.length
+    logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
+    val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0 && scipSolver.hasSolution) {
       val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
         (variable.qConsIdx, scipSolver.getSolVal(variable.variable))
       } ++ allVariables.qChoiceTitleVariables.map { variable =>
