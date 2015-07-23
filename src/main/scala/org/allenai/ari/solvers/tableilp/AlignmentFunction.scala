@@ -72,11 +72,20 @@ class AlignmentFunction(
     similarityFunction.scoreCellQCons(cellStr, qConsStr)
   }
 
+  /** Alignment score between a cell of a table, and a question constituent */
+  def scoreCellQChoice(cellStr: String, qConsStr: String): Double = {
+    similarityFunction.scoreCellQCons(cellStr, qConsStr)
+  }
+
   /** Alignment score between a title of a table, and a question constituent */
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double = {
     similarityFunction.scoreTitleQCons(titleStr, qConsStr)
   }
 
+  /** Alignment score between a title of a table, and a question option */
+  def scoreTitleQChoice(titleStr: String, qOptStr: String): Double = {
+    similarityFunction.scoreTitleQCons(titleStr, qOptStr)
+  }
 }
 
 // how much does text1 entail text2? (directional); an entailment score below the offset value is

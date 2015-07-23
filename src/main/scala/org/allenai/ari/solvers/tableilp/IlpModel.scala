@@ -157,7 +157,7 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables,
-      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty)
+      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty)
   }
 
   /** The main method to build the question dependent aspects of the ILP model.
@@ -201,6 +201,14 @@ class IlpModel(
       row = tables(tableIdx).contentMatrix(rowIdx)
       colIdx <- row.indices
       x <- addQChoiceTableVariable(qChoiceCons, qChoiceConsIdx, tableIdx, rowIdx, colIdx)
+    } yield x
+    val qChoiceTitleVariables = for {
+      tableIdx <- tables.indices
+      qChoiceIdx <- question.choices.indices
+      qChoiceCons = question.choices(qChoiceIdx)
+      table = tables(tableIdx)
+      colIdx <- table.titleRow.indices
+      x <- addQChoiceTitleVariable(qChoiceCons, qChoiceIdx, tableIdx, colIdx)
     } yield x
 
     // Auxiliary variables: whether a title column of a given table is "active"
@@ -253,11 +261,15 @@ class IlpModel(
     )
 
     // Collect all external alignments per answer choice
-    val tmpChoices = qChoiceTableVariables.map {
+    val tmpChoiceTables = qChoiceTableVariables.map {
       case QuestionTableVariable(qChoiceCons, _, _, _, x) =>
         qChoiceCons -> x
     }
-    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoices)
+    val tmpChoiceTitle = qChoiceTitleVariables.map {
+      case QuestionTitleVariable(qChoiceCons, _, _, x) =>
+        qChoiceCons -> x
+    }
+    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceTables ++ tmpChoiceTitle)
 
     // Collect all external alignments per title
     val tmpTitleToQuestionVars = questionTitleVariables.map {
@@ -344,7 +356,7 @@ class IlpModel(
       }
     }
 
-    // if the question choice is active, there is at least one ative thing connected to it.
+    // if the question choice is active, there is at least one active thing connected to it.
     // i.e. Sum(incomingToChoice) <= ChoiceVariable
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
@@ -382,7 +394,7 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables, questionTableVariables,
-      questionTitleVariables, qChoiceTableVariables)
+      questionTitleVariables, qChoiceTitleVariables, qChoiceTableVariables)
   }
 
   /** An internal method to create an intra-table variable */
@@ -447,6 +459,21 @@ class IlpModel(
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(QuestionTitleVariable(qConsIdx, tableIdx, colIdx, variable))
+    }
+  }
+
+  /** An internal method to create a question choice-to-title variable */
+  private def addQChoiceTitleVariable(
+    qChoice: String, qChoiceIdx: Int, tableIdx: Int, colIdx: Int
+  ): Option[QuestionTitleVariable] = {
+    val objCoeff = aligner.scoreTitleQCons(tables(tableIdx).titleRow(colIdx), qChoice)
+    if (objCoeff < weights.minTitleQConsAlignment) {
+      None
+    } else {
+      val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx"
+      val variable = ilpSolver.createBinaryVar(name, objCoeff)
+      ilpSolver.addVar(variable)
+      Some(QuestionTitleVariable(qChoiceIdx, tableIdx, colIdx, variable))
     }
   }
 

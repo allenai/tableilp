@@ -13,6 +13,7 @@ case class AllVariables(
     interTableVariables: IndexedSeq[InterTableVariable],
     questionTableVariables: IndexedSeq[QuestionTableVariable],
     questionTitleVariables: IndexedSeq[QuestionTitleVariable],
+    qChoiceTitleVariables: IndexedSeq[QuestionTitleVariable],
     qChoiceTableVariables: IndexedSeq[QuestionTableVariable]
 ) {
   def ++(that: AllVariables): AllVariables = {
@@ -21,6 +22,7 @@ case class AllVariables(
       interTableVariables ++ that.interTableVariables,
       questionTableVariables ++ that.questionTableVariables,
       questionTitleVariables ++ that.questionTitleVariables,
+      qChoiceTitleVariables ++ that.qChoiceTitleVariables,
       qChoiceTableVariables ++ that.qChoiceTableVariables
     )
   }
@@ -28,7 +30,7 @@ case class AllVariables(
   lazy val ilpVars: Seq[Long] = {
     intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
       questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
-      qChoiceTableVariables.map(_.variable)
+      qChoiceTitleVariables.map(_.variable) ++ qChoiceTableVariables.map(_.variable)
   }
 }
 

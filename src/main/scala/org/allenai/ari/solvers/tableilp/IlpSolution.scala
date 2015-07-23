@@ -201,6 +201,16 @@ object IlpSolutionFactory extends Logging {
       (cell, qCons)
     }
 
+    // choice title alignments
+    val choiceTitleAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
+      entry <- allVariables.qChoiceTitleVariables
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+    } yield {
+      val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
+      val qChoiceCons = choiceAlignments(entry.qConsIdx)
+      (cell, qChoiceCons)
+    }
+
     // choice table alignments
     val choiceTableAlignmentPairs: IndexedSeq[(TermAlignment, TermAlignment)] = for {
       entry <- allVariables.qChoiceTableVariables
@@ -213,7 +223,8 @@ object IlpSolutionFactory extends Logging {
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
     val allAlignmentPairs = interTableAlignmentPairs ++ intraTableAlignmentPairs ++
-      questionTableAlignmentPairs ++ questionTitleAlignmentPairs ++ choiceTableAlignmentPairs
+      questionTableAlignmentPairs ++ questionTitleAlignmentPairs ++ choiceTitleAlignmentPairs ++
+      choiceTableAlignmentPairs
     val termToAlignmentId = allAlignmentPairs.zipWithIndex.flatMap {
       case ((strAlign1, strAlign2), alignmentId) =>
         Seq((strAlign1, alignmentId), (strAlign2, alignmentId))
@@ -231,13 +242,15 @@ object IlpSolutionFactory extends Logging {
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
 
     // choose answer choice and its score
-    val nQChoices = allVariables.qChoiceTableVariables.length
+    val nQChoices = allVariables.qChoiceTableVariables.length + allVariables.qChoiceTitleVariables.length
     logger.debug(s"number of potentially aligning choices = $nQChoices")
     val (bestChoice, bestChoiceScore) = if (nQChoices > 0 && scipSolver.hasSolution) {
-      val idx = allVariables.qChoiceTableVariables.map { choice =>
-        scipSolver.getSolVal(choice.variable)
-      }.zipWithIndex.maxBy(_._1)._2
-      val choiceIdx = allVariables.qChoiceTableVariables(idx).qConsIdx
+      val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
+        (variable.qConsIdx, scipSolver.getSolVal(variable.variable))
+      } ++ allVariables.qChoiceTitleVariables.map { variable =>
+        (variable.qConsIdx, scipSolver.getSolVal(variable.variable))
+      }
+      val choiceIdx = choiceScorePair.maxBy(_._2)._1
       (choiceIdx, scipSolver.getPrimalbound)
     } else {
       // The default, helpful for initial debugging
