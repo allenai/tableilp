@@ -17,7 +17,8 @@ libraryDependencies ++= Seq(
   nlpstack("chunk"),
   nlpstack("tokenize"),
   nlpstack("postag"),
-  nlpstack("core")
+  nlpstack("core"),
+  "net.debasishg" %% "redisclient" % "3.0"
 )
 
 // You can increase the solver memory settings here, if you need to.
