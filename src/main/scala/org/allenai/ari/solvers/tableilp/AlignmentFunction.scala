@@ -134,10 +134,10 @@ private class EntailmentSimilarity(
 private class Word2VecSimilarity extends SimilarityType {
   def scoreTitleTitle(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
   def scoreCellCell(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
-  def scoreCellQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
-  def scoreTitleQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
-  def scoreCellQChoice(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
-  def scoreTitleQChoice(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
+  def scoreCellQCons(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
+  def scoreTitleQCons(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
+  def scoreCellQChoice(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
+  def scoreTitleQChoice(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
 
   private val word2vecFile = new File(
     "main/resources/vectors/GoogleNews-vectors-negative300_size=200000.bin"
@@ -158,8 +158,8 @@ private class WordOverlapSimilarity(tokenizer: KeywordTokenizer) extends Similar
   def scoreCellCell(text1: String, text2: String): Double = {
     getSymmetricScore(text1, text2, getWordOverlap)
   }
-  def scoreCellQCons(text1: String, text2: String): Double = getWordOverlap(text1, text2)
-  def scoreTitleQCons(text1: String, text2: String): Double = getWordOverlap(text1, text2)
+  def scoreCellQCons(text1: String, text2: String): Double = getWordOverlap(text2, text1)
+  def scoreTitleQCons(text1: String, text2: String): Double = getWordOverlap(text2, text1)
   def scoreCellQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
   def scoreTitleQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
 
