@@ -21,7 +21,7 @@ class IlpWeights @Inject() (
   @Named("weights.minCellQConsAlignment") val minCellQConsAlignment: Double = 0.2,
   @Named("weights.minTitleQConsAlignment") val minTitleQConsAlignment: Double = 0.2,
   @Named("weights.minCellQChoiceAlignment") val minCellQChoiceAlignment: Double = 0.1,
-  @Named("weights.minTitleQChoiceAlignment") val minTitleQChoiceAlignment: Double = 0.02,
+  @Named("weights.minTitleQChoiceAlignment") val minTitleQChoiceAlignment: Double = 0.1,
   @Named("weights.minTitleTitleAlignment") val minTitleTitleAlignment: Double = 0.2,
   @Named("weights.activeCellObjCoeff") val activeCellObjCoeff: Double = 0d,
   @Named("weights.activeRowObjCoeff") val activeRowObjCoeff: Double = 0d,
