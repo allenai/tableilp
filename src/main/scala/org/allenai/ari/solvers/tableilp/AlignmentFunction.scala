@@ -12,8 +12,10 @@ import java.io.File
 sealed trait SimilarityType {
   def scoreTitleTitle(titleStr1: String, titleStr2: String): Double // should be symmetric
   def scoreCellCell(cellStr1: String, cellStr2: String): Double // should be symmetric
-  def scoreCellQCons(cellStr: String, qConsStr: String): Double // directional: qCons to cell
+  def scoreCellQCons(cellStr: String, qConsStr: String): Double // directional: cell to qCons
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double // directional: title to qCons
+  def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double // directional: cell to qChoice
+  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double // directional: title to qChoice
 
   // turn a one-sided score into a symmetric one
   protected def getSymmetricScore(text1: String, text2: String,
@@ -67,24 +69,24 @@ class AlignmentFunction(
     similarityFunction.scoreCellCell(cellStr1, cellStr2)
   }
 
-  /** Alignment score between a cell of a table, and a question constituent */
-  def scoreCellQCons(cellStr: String, qConsStr: String): Double = {
-    similarityFunction.scoreCellQCons(cellStr, qConsStr)
-  }
-
-  /** Alignment score between a cell of a table, and a question constituent */
-  def scoreCellQChoice(cellStr: String, qConsStr: String): Double = {
-    similarityFunction.scoreCellQCons(cellStr, qConsStr)
-  }
-
   /** Alignment score between a title of a table, and a question constituent */
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double = {
     similarityFunction.scoreTitleQCons(titleStr, qConsStr)
   }
 
+  /** Alignment score between a cell of a table, and a question constituent */
+  def scoreCellQCons(cellStr: String, qConsStr: String): Double = {
+    similarityFunction.scoreCellQCons(cellStr, qConsStr)
+  }
+
   /** Alignment score between a title of a table, and a question option */
-  def scoreTitleQChoice(titleStr: String, qOptStr: String): Double = {
-    similarityFunction.scoreTitleQCons(titleStr, qOptStr)
+  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = {
+    similarityFunction.scoreTitleQCons(titleStr, qChoiceStr)
+  }
+
+  /** Alignment score between a cell of a table, and a question option */
+  def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = {
+    similarityFunction.scoreCellQCons(cellStr, qChoiceStr)
   }
 }
 
@@ -96,14 +98,16 @@ private class EntailmentSimilarity(
     tokenizer: KeywordTokenizer
 ) extends SimilarityType {
   val redis = new RedisClient("localhost", 6379)
-  def scoreTitleTitle(text1: String, text2: String): Double = {
-    getSymmetricScore(text1, text2, getEntailmentScore)
+  def scoreTitleTitle(titleStr1: String, titleStr2: String): Double = {
+    getSymmetricScore(titleStr1, titleStr2, getEntailmentScore)
   }
-  def scoreCellCell(text1: String, text2: String): Double = {
-    getSymmetricScore(text1, text2, getEntailmentScore)
+  def scoreCellCell(cellStr1: String, cellStr2: String): Double = {
+    getSymmetricScore(cellStr1, cellStr2, getEntailmentScore)
   }
-  def scoreCellQCons(text1: String, text2: String): Double = getEntailmentScore(text2, text1)
-  def scoreTitleQCons(text1: String, text2: String): Double = getEntailmentScore(text2, text1)
+  def scoreCellQCons(cellStr: String, qConsStr: String): Double = getEntailmentScore(qConsStr, cellStr)
+  def scoreTitleQCons(titleStr: String, qConsStr: String): Double = getEntailmentScore(qConsStr, titleStr)
+  def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = getEntailmentScore(cellStr, qChoiceStr)
+  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = getEntailmentScore(titleStr, qChoiceStr)
 
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
@@ -132,6 +136,8 @@ private class Word2VecSimilarity extends SimilarityType {
   def scoreCellCell(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
   def scoreCellQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
   def scoreTitleQCons(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
+  def scoreCellQChoice(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
+  def scoreTitleQChoice(text1: String, text2: String): Double = getWord2VecScore(text2, text1)
 
   private val word2vecFile = new File(
     "main/resources/vectors/GoogleNews-vectors-negative300_size=200000.bin"
@@ -154,6 +160,8 @@ private class WordOverlapSimilarity(tokenizer: KeywordTokenizer) extends Similar
   }
   def scoreCellQCons(text1: String, text2: String): Double = getWordOverlap(text1, text2)
   def scoreTitleQCons(text1: String, text2: String): Double = getWordOverlap(text1, text2)
+  def scoreCellQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
+  def scoreTitleQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
 
   private def getWordOverlap(text1: String, text2: String): Double = {
     val text1StemmedTokens = tokenizer.stemmedKeywordTokenize(text1)
