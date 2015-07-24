@@ -12,8 +12,8 @@ import java.io.File
 sealed trait SimilarityType {
   def scoreTitleTitle(titleStr1: String, titleStr2: String): Double // should be symmetric
   def scoreCellCell(cellStr1: String, cellStr2: String): Double // should be symmetric
-  def scoreCellQCons(cellStr: String, qConsStr: String): Double // directional: cell to qCons
-  def scoreTitleQCons(titleStr: String, qConsStr: String): Double // directional: title to qCons
+  def scoreCellQCons(cellStr: String, qConsStr: String): Double // directional: qCons to cell
+  def scoreTitleQCons(titleStr: String, qConsStr: String): Double // directional: qCons to title
   def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double // directional: cell to qChoice
   def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double // directional: title to qChoice
 
