@@ -467,7 +467,7 @@ class IlpModel(
     qChoice: String, qChoiceIdx: Int, tableIdx: Int, colIdx: Int
   ): Option[QuestionTitleVariable] = {
     val objCoeff = aligner.scoreTitleQChoice(tables(tableIdx).titleRow(colIdx), qChoice)
-    if (objCoeff < weights.minTitleQConsAlignment) {
+    if (objCoeff < weights.minTitleQChoiceAlignment) {
       None
     } else {
       val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx"
@@ -485,7 +485,7 @@ class IlpModel(
       tables(tableIdx).contentMatrix(rowIdx)(colIdx),
       qChoiceCons
     )
-    if (objCoeff < weights.minCellQConsAlignment) {
+    if (objCoeff < weights.minCellQChoiceAlignment) {
       None
     } else {
       val name = s"T=$tableIdx-QChoice=$qConsIdx-R=$rowIdx-C=$colIdx"
