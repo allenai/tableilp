@@ -81,12 +81,12 @@ class AlignmentFunction(
 
   /** Alignment score between a title of a table, and a question option */
   def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = {
-    similarityFunction.scoreTitleQCons(titleStr, qChoiceStr)
+    similarityFunction.scoreTitleQChoice(titleStr, qChoiceStr)
   }
 
   /** Alignment score between a cell of a table, and a question option */
   def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = {
-    similarityFunction.scoreCellQCons(cellStr, qChoiceStr)
+    similarityFunction.scoreCellQChoice(cellStr, qChoiceStr)
   }
 }
 
