@@ -118,7 +118,7 @@ case class IlpSolution(
   problemStats: ProblemStats,
   searchStats: SearchStats,
   timingStats: TimingStats,
-  alignmentWeights: Seq[AlignmentWeight]
+  alignmentWeights: Seq[(Int, Double)]
 )
 
 /** A container object to define Json protocol and have a main testing routine */
@@ -175,68 +175,62 @@ object IlpSolutionFactory extends Logging {
     // inter-table alignments
     val interTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.interTableVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell1 = tableAlignments(entry.tableIdx1).contentAlignments(entry.rowIdx1)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx2).contentAlignments(entry.rowIdx2)(entry.colIdx2)
-      (cell1, cell2, score)
+      (cell1, cell2, scipSolver.getVarObj(entry.variable))
     }
 
     // intra-table alignments
     val intraTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.intraTableVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
       weight = scipSolver
     } yield {
       val cell1 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx2)
-      (cell1, cell2, score)
+      (cell1, cell2, scipSolver.getVarObj(entry.variable))
     }
 
     // question table alignments
     val questionTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTableVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, score)
+      (cell, qCons, scipSolver.getVarObj(entry.variable))
     }
 
     // question title alignments
     val questionTitleAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTitleVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, score)
+      (cell, qCons, scipSolver.getVarObj(entry.variable))
     }
 
     // choice title alignments
     val choiceTitleAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTitleVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qChoiceCons = choiceAlignments(entry.qConsIdx)
-      (cell, qChoiceCons, score)
+      (cell, qChoiceCons, scipSolver.getVarObj(entry.variable))
     }
 
     // choice table alignments
     val choiceTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTableVariables
-      score = scipSolver.getSolVal(entry.variable)
-      if score > alignmentThreshold
+      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qOptCons = choiceAlignments(entry.qConsIdx)
-      (cell, qOptCons, score)
+      (cell, qOptCons, scipSolver.getVarObj(entry.variable))
     }
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
@@ -293,7 +287,7 @@ object IlpSolutionFactory extends Logging {
 
     // populate all the valid alignment weights
     val alignmentWeights = allAlignmentTriple.zipWithIndex.map {
-      case ((strAlign1, strAlign2, score), alignmentId) => AlignmentWeight(alignmentId, score)
+      case ((strAlign1, strAlign2, score), alignmentId) => (alignmentId, score)
     }.toSeq
 
     // return the alignment solution
@@ -355,7 +349,7 @@ object IlpSolutionFactory extends Logging {
     val timingStats = new TimingStats(0d, 1d, 1.5d)
 
     // Populate dummy alignemnt scores
-    val alignmentWeights = Seq(AlignmentWeight(0,1.0))
+    val alignmentWeights = Seq((0, 1.0), (1, 2.0))
 
     // Return the solution with random alignments
     IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,

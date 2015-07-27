@@ -105,6 +105,9 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     }
   }
 
+  /** Gets the coefficient for the variable in the objective function */
+  def getVarObj(l: Long): Double = envVar.varGetObj(l)
+
   /** check whether a solution has been found */
   private def IlpStatusFeasibleOrOptimal = Seq(IlpStatusOptimal, IlpStatusFeasible)
   def hasSolution: Boolean = IlpStatusFeasibleOrOptimal.contains(getStatus)
