@@ -15,7 +15,7 @@ sealed trait SimilarityType {
   def scoreCellQCons(cellStr: String, qConsStr: String): Double // directional: qCons to cell
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double // directional: qCons to title
   def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double // directional: cell to qChoice
-  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double // directional: title to qChoice
+  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double // dir.: title to qChoice
 
   // turn a one-sided score into a symmetric one
   protected def getSymmetricScore(text1: String, text2: String,
@@ -104,10 +104,18 @@ private class EntailmentSimilarity(
   def scoreCellCell(cellStr1: String, cellStr2: String): Double = {
     getSymmetricScore(cellStr1, cellStr2, getEntailmentScore)
   }
-  def scoreCellQCons(cellStr: String, qConsStr: String): Double = getEntailmentScore(qConsStr, cellStr)
-  def scoreTitleQCons(titleStr: String, qConsStr: String): Double = getEntailmentScore(qConsStr, titleStr)
-  def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = getEntailmentScore(cellStr, qChoiceStr)
-  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = getEntailmentScore(titleStr, qChoiceStr)
+  def scoreCellQCons(cellStr: String, qConsStr: String): Double = {
+    getEntailmentScore(qConsStr, cellStr)
+  }
+  def scoreTitleQCons(titleStr: String, qConsStr: String): Double = {
+    getEntailmentScore(qConsStr, titleStr)
+  }
+  def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = {
+    getEntailmentScore(cellStr, qChoiceStr)
+  }
+  def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = {
+    getEntailmentScore(titleStr, qChoiceStr)
+  }
 
   private val sep = ";".r
   private def getEntailmentScore(text1: String, text2: String): Double = {
