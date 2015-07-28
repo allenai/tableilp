@@ -212,7 +212,7 @@ object IlpSolutionFactory extends Logging {
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
-      val qChoiceCons = choiceAlignments(entry.qConsIdx)
+      val qChoiceCons = choiceAlignments(entry.qChoiceIdx)
       (cell, qChoiceCons, scipSolver.getVarObjCoeff(entry.variable))
     }
 
@@ -222,7 +222,7 @@ object IlpSolutionFactory extends Logging {
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
-      val qOptCons = choiceAlignments(entry.qConsIdx)
+      val qOptCons = choiceAlignments(entry.qChoiceIdx)
       (cell, qOptCons, scipSolver.getVarObjCoeff(entry.variable))
     }
 
@@ -253,9 +253,9 @@ object IlpSolutionFactory extends Logging {
     logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
     val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0 && scipSolver.hasSolution) {
       val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
-        (variable.qConsIdx, scipSolver.getSolVal(variable.variable))
+        (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
       } ++ allVariables.qChoiceTitleVariables.map { variable =>
-        (variable.qConsIdx, scipSolver.getSolVal(variable.variable))
+        (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
       }
       val choiceIdx = choiceScorePair.maxBy(_._2)._1
       (choiceIdx, scipSolver.getPrimalbound)

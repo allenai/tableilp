@@ -250,7 +250,7 @@ class IlpModel(
     }
     // A convenient map from a cell to question-choice ILP variables associated with it
     val tmpChoicesTriples = qChoiceTableVariables.map {
-      case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
+      case ChoiceTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
 
@@ -262,11 +262,11 @@ class IlpModel(
 
     // Collect all external alignments per answer choice
     val tmpChoiceToTableVars = qChoiceTableVariables.map {
-      case QuestionTableVariable(qChoiceCons, _, _, _, x) =>
+      case ChoiceTableVariable(qChoiceCons, _, _, _, x) =>
         qChoiceCons -> x
     }
     val tmpChoiceToTitleVars = qChoiceTitleVariables.map {
-      case QuestionTitleVariable(qChoiceCons, _, _, x) =>
+      case ChoiceTitleVariable(qChoiceCons, _, _, x) =>
         qChoiceCons -> x
     }
     val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceToTableVars ++
@@ -278,7 +278,7 @@ class IlpModel(
         TitleIdx(tableIdx, colIdx) -> x
     }
     val tmpTitleToChoiceVars = qChoiceTitleVariables.map {
-      case QuestionTitleVariable(_, tableIdx, colIdx, x) =>
+      case ChoiceTitleVariable(_, tableIdx, colIdx, x) =>
         TitleIdx(tableIdx, colIdx) -> x
     }
     val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars ++
@@ -400,7 +400,7 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables, questionTableVariables,
-      questionTitleVariables, qChoiceTitleVariables, qChoiceTableVariables)
+      questionTitleVariables, qChoiceTableVariables, qChoiceTitleVariables)
   }
 
   /** An internal method to create an intra-table variable */
@@ -471,7 +471,7 @@ class IlpModel(
   /** An internal method to create a question choice-to-title variable */
   private def addQChoiceTitleVariable(
     qChoice: String, qChoiceIdx: Int, tableIdx: Int, colIdx: Int
-  ): Option[QuestionTitleVariable] = {
+  ): Option[ChoiceTitleVariable] = {
     val objCoeff = aligner.scoreTitleQChoice(tables(tableIdx).titleRow(colIdx), qChoice)
     if (objCoeff < weights.minTitleQChoiceAlignment) {
       None
@@ -479,25 +479,25 @@ class IlpModel(
       val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
-      Some(QuestionTitleVariable(qChoiceIdx, tableIdx, colIdx, variable))
+      Some(ChoiceTitleVariable(qChoiceIdx, tableIdx, colIdx, variable))
     }
   }
 
   /** An internal method to create a option-to-table variable */
   private def addQChoiceTableVariable(
-    qChoiceCons: String, qConsIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
-  ): Option[QuestionTableVariable] = {
+    qChoice: String, qChoiceIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
+  ): Option[ChoiceTableVariable] = {
     val objCoeff = aligner.scoreCellQChoice(
       tables(tableIdx).contentMatrix(rowIdx)(colIdx),
-      qChoiceCons
+      qChoice
     )
     if (objCoeff < weights.minCellQChoiceAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-QChoice=$qConsIdx-R=$rowIdx-C=$colIdx"
+      val name = s"T=$tableIdx-QChoice=$qChoiceIdx-R=$rowIdx-C=$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
-      Some(QuestionTableVariable(qConsIdx, tableIdx, rowIdx, colIdx, variable))
+      Some(ChoiceTableVariable(qChoiceIdx, tableIdx, rowIdx, colIdx, variable))
     }
   }
 }

@@ -5,16 +5,17 @@ package org.allenai.ari.solvers.tableilp
   * @param intraTableVariables variables involving two cells in the same table
   * @param interTableVariables variables involving two cells in different tables
   * @param questionTableVariables variables involving a question constituent and a table cell
-  * @param questionTitleVariables variables involving a question constituent and a table title cell
-  * @param qChoiceTableVariables variables involving an choice in a question constituent and a table
+  * @param questionTitleVariables variables involving a question constituent and a table title
+  * @param qChoiceTableVariables variables involving an answer choice and a table cell
+  * @param qChoiceTitleVariables variables involving an answer choice and a table title
   */
 case class AllVariables(
     intraTableVariables: IndexedSeq[IntraTableVariable],
     interTableVariables: IndexedSeq[InterTableVariable],
     questionTableVariables: IndexedSeq[QuestionTableVariable],
     questionTitleVariables: IndexedSeq[QuestionTitleVariable],
-    qChoiceTitleVariables: IndexedSeq[QuestionTitleVariable],
-    qChoiceTableVariables: IndexedSeq[QuestionTableVariable]
+    qChoiceTableVariables: IndexedSeq[ChoiceTableVariable],
+    qChoiceTitleVariables: IndexedSeq[ChoiceTitleVariable]
 ) {
   def ++(that: AllVariables): AllVariables = {
     AllVariables(
@@ -22,8 +23,8 @@ case class AllVariables(
       interTableVariables ++ that.interTableVariables,
       questionTableVariables ++ that.questionTableVariables,
       questionTitleVariables ++ that.questionTitleVariables,
-      qChoiceTitleVariables ++ that.qChoiceTitleVariables,
-      qChoiceTableVariables ++ that.qChoiceTableVariables
+      qChoiceTableVariables ++ that.qChoiceTableVariables,
+      qChoiceTitleVariables ++ that.qChoiceTitleVariables
     )
   }
 
@@ -95,6 +96,36 @@ case class QuestionTableVariable(
   */
 case class QuestionTitleVariable(
   qConsIdx: Int,
+  tableIdx: Int,
+  colIdx: Int,
+  variable: Long
+)
+
+/** Variables involving an answer choice and a table cell.
+  *
+  * @param qChoiceIdx index identifying a constitute in the question
+  * @param tableIdx index identifying a table
+  * @param rowIdx index identifying a row in the table
+  * @param colIdx index identifying a column in the table
+  * @param variable a pointer to the associated ILP variable
+  */
+case class ChoiceTableVariable(
+  qChoiceIdx: Int,
+  tableIdx: Int,
+  rowIdx: Int,
+  colIdx: Int,
+  variable: Long
+)
+
+/** Variables involving an answer choice and a table title cell.
+  *
+  * @param qChoiceIdx index identifying a constitute in the question
+  * @param tableIdx index identifying a table
+  * @param colIdx index identifying a column in the table
+  * @param variable a pointer to the associated ILP variable
+  */
+case class ChoiceTitleVariable(
+  qChoiceIdx: Int,
   tableIdx: Int,
   colIdx: Int,
   variable: Long
