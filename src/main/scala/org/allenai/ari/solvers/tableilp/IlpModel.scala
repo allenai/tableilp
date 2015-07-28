@@ -261,22 +261,24 @@ class IlpModel(
     )
 
     // Collect all external alignments per answer choice
-    val tmpChoiceTables = qChoiceTableVariables.map {
+    val tmpChoiceTableVars = qChoiceTableVariables.map {
       case QuestionTableVariable(qChoiceCons, _, _, _, x) =>
         qChoiceCons -> x
     }
-    val tmpChoiceTitle = qChoiceTitleVariables.map {
+    val tmpChoiceTitleVars = qChoiceTitleVariables.map {
       case QuestionTitleVariable(qChoiceCons, _, _, x) =>
         qChoiceCons -> x
     }
-    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceTables ++ tmpChoiceTitle)
+    val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceTableVars ++
+      tmpChoiceTitleVars)
 
     // Collect all external alignments per title
     val tmpTitleToQuestionVars = questionTitleVariables.map {
       case QuestionTitleVariable(_, tableIdx, colIdx, x) =>
         TitleIdx(tableIdx, colIdx) -> x
     }
-    val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars)
+    val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars ++
+      tmpChoiceTitleVars)
 
     // Collect all external alignments per question constituent
     val tmpQuestionToTitleVars = questionTitleVariables.map {
