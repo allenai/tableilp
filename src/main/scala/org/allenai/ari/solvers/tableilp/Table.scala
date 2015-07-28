@@ -11,6 +11,8 @@ import scala.collection.JavaConverters._
 class Table(fileName: String) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
   val ignoreTableColumnFillers = true
+  // config: ignore columns whose title starts with the word SKIP
+  val ignoreTableColumnsMarkedSkip = true
 
   // extract title row and the rest of the content matrix from a CSV file
   val (titleRow, contentMatrix) = readCSV(fileName)
@@ -19,14 +21,14 @@ class Table(fileName: String) extends Logging {
     val reader = new CSVReader(new FileReader(file))
     val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
 
-    val fullContentsFiltered = {
-      if (ignoreTableColumnFillers) {
-        val indices = fullContents.head.zipWithIndex.filter(_._1 != "").map(_._2)
-        fullContents.map(indices collect _)
-      } else {
-        fullContents
-      }
-    }
+    val sep = "\\s+".r
+    val filteredColIndices = for {
+      (title, idx) <- fullContents.head.zipWithIndex
+      if !ignoreTableColumnFillers || title != ""
+      if !ignoreTableColumnsMarkedSkip || sep.split(title)(0) != "SKIP"
+    } yield idx
+    val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
+
     (fullContentsFiltered.head, fullContentsFiltered.tail)
   }
 }
