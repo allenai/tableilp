@@ -173,7 +173,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // inter-table alignments
-    val interTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val interTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.interTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -183,7 +183,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // intra-table alignments
-    val intraTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val intraTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.intraTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
       weight = scipSolver
@@ -194,7 +194,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // question table alignments
-    val questionTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val questionTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -204,7 +204,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // question title alignments
-    val questionTitleAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val questionTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTitleVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -214,7 +214,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // choice title alignments
-    val choiceTitleAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val choiceTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTitleVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -224,7 +224,7 @@ object IlpSolutionFactory extends Logging {
     }
 
     // choice table alignments
-    val choiceTableAlignmentTriple: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val choiceTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTableVariables
       if scipSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
@@ -234,11 +234,12 @@ object IlpSolutionFactory extends Logging {
     }
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
-    val allAlignmentTriple = interTableAlignmentTriple ++ intraTableAlignmentTriple ++
-      questionTableAlignmentTriple ++ questionTitleAlignmentTriple ++ choiceTitleAlignmentTriple ++
-      choiceTableAlignmentTriple
-    val termToAlignmentId = allAlignmentTriple.zipWithIndex.flatMap {
-      case ((strAlign1, strAlign2, score), alignmentId) =>
+    val allAlignmentTriples = interTableAlignmentTriples ++ intraTableAlignmentTriples ++
+      questionTableAlignmentTriples ++ questionTitleAlignmentTriples ++ choiceTitleAlignmentTriples ++
+      choiceTableAlignmentTriples
+    val allAlignmentTriplesWithIndex = allAlignmentTriples.zipWithIndex
+    val termToAlignmentId = allAlignmentTriplesWithIndex.flatMap {
+      case ((strAlign1, strAlign2, _), alignmentId) =>
         Seq((strAlign1, alignmentId), (strAlign2, alignmentId))
     }
     // TODO: is it possible to do with without cell.alignment being an ArrayBuffer?
@@ -286,8 +287,8 @@ object IlpSolutionFactory extends Logging {
       scipSolver.getTotalTime)
 
     // populate all the valid alignment weights
-    val alignmentWeights = allAlignmentTriple.zipWithIndex.map {
-      case ((strAlign1, strAlign2, score), alignmentId) => AlignmentWeight(alignmentId, score)
+    val alignmentWeights = allAlignmentTriplesWithIndex.map {
+      case ((_, _, score), alignmentId) => AlignmentWeight(alignmentId, score)
     }.toSeq
 
     // return the alignment solution
