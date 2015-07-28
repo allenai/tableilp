@@ -3,7 +3,6 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatus, IlpStatusFeasible, ScipInterface }
 import org.allenai.common.Logging
 
-import spray.json.DefaultJsonProtocol._
 import spray.json._
 
 import scala.collection.mutable.ArrayBuffer
@@ -75,15 +74,6 @@ case class SearchStats(
   maxDepth: Int
 )
 
-/** Weights of valid alignments in the output solution
-  *
-  * @param scores The scores, given the index of the alignment
-  */
-
-case class AlignmentWeight(
-  scores: (Int, Double)
-)
-
 /** Metrics to capture timing stats for the ILP solver run.
   *
   * @param modelCreationTime Time to create the ILP model.
@@ -118,17 +108,21 @@ case class IlpSolution(
   problemStats: ProblemStats,
   searchStats: SearchStats,
   timingStats: TimingStats,
-  alignmentWeights: Seq[AlignmentWeight]
+  alignmentIdToScore: Map[Int, Double]
 )
 
 /** A container object to define Json protocol and have a main testing routine */
-object IlpSolution extends Logging {
+object IlpSolution extends DefaultJsonProtocol with Logging {
   // The default json protocol has JsonFormat implemented only for immutable collections. Add it
   // for ArrayBuffer here.
   // Note: lift turns a one-sided converter (Writer or Reader) into a symmetric format that throws
   // an exception if an unimplemented method is called.
   implicit val termAlignmentJsonFormat: JsonFormat[TermAlignment] = lift(
     { pair: TermAlignment => (pair.term, pair.alignmentIds.toSeq).toJson }
+  )
+  // The default json protocol for Map works only when the key is a String. Change to Seq.
+  implicit val alignmentIdToScoreJsonFormat: JsonFormat[Map[Int, Double]] = lift(
+    { map: Map[Int, Double] => map.toSeq.sortBy(_._1).toJson }
   )
   implicit val tableAlignmentJsonFormat = jsonFormat2(TableAlignment.apply)
   implicit val questionAlignmentJsonFormat = jsonFormat2(QuestionAlignment.apply)
@@ -139,7 +133,6 @@ object IlpSolution extends Logging {
   implicit val problemStatsJsonFormat = jsonFormat4(ProblemStats.apply)
   implicit val searchStatsJsonFormat = jsonFormat3(SearchStats.apply)
   implicit val timingStatsJsonFormat = jsonFormat4(TimingStats.apply)
-  implicit val alignmentWeightJsonFormat = jsonFormat1(AlignmentWeight.apply)
   implicit val ilpSolutionJsonFormat = jsonFormat9(IlpSolution.apply)
 
   /** Main method to test a sample alignment solution */
@@ -235,8 +228,8 @@ object IlpSolutionFactory extends Logging {
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
     val allAlignmentTriples = interTableAlignmentTriples ++ intraTableAlignmentTriples ++
-      questionTableAlignmentTriples ++ questionTitleAlignmentTriples ++ choiceTitleAlignmentTriples ++
-      choiceTableAlignmentTriples
+      questionTableAlignmentTriples ++ questionTitleAlignmentTriples ++
+      choiceTitleAlignmentTriples ++ choiceTableAlignmentTriples
     val allAlignmentTriplesWithIndex = allAlignmentTriples.zipWithIndex
     val termToAlignmentId = allAlignmentTriplesWithIndex.flatMap {
       case ((strAlign1, strAlign2, _), alignmentId) =>
@@ -255,7 +248,8 @@ object IlpSolutionFactory extends Logging {
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
 
     // choose answer choice and its score
-    val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length + allVariables.qChoiceTitleVariables.length
+    val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length +
+      allVariables.qChoiceTitleVariables.length
     logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
     val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0 && scipSolver.hasSolution) {
       val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
@@ -286,14 +280,14 @@ object IlpSolutionFactory extends Logging {
     val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
       scipSolver.getTotalTime)
 
-    // populate all the valid alignment weights
-    val alignmentWeights = allAlignmentTriplesWithIndex.map {
-      case ((_, _, score), alignmentId) => AlignmentWeight(alignmentId, score)
-    }.toSeq
+    // populate all the valid alignment scores
+    val alignmentIdToScore = allAlignmentTriplesWithIndex.map {
+      case ((_, _, score), alignmentId) => alignmentId -> score
+    }.toMap
 
     // return the alignment solution
     IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
-      problemStats, searchStats, timingStats, alignmentWeights)
+      problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 
   /** Load all tables, if and when needed */
@@ -350,10 +344,10 @@ object IlpSolutionFactory extends Logging {
     val timingStats = new TimingStats(0d, 1d, 1.5d)
 
     // Populate dummy alignemnt scores
-    val alignmentWeights = Seq(AlignmentWeight(0, 1.0), AlignmentWeight(1, 2.0))
+    val alignmentIdToScore = Map(0 -> 1d, 1 -> 2d)
 
     // Return the solution with random alignments
     IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,
-      problemStats, searchStats, timingStats, alignmentWeights)
+      problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 }
