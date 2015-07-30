@@ -270,7 +270,7 @@ object IlpSolutionFactory extends Logging {
     val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length +
       allVariables.qChoiceTitleVariables.length
     logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
-    val (bestChoice, bestChoiceScore) = {
+    val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0) {
       val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
         (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
       } ++ allVariables.qChoiceTitleVariables.map { variable =>
@@ -278,6 +278,9 @@ object IlpSolutionFactory extends Logging {
       }
       val choiceIdx = choiceScorePair.maxBy(_._2)._1
       (choiceIdx, scipSolver.getPrimalbound)
+    } else {
+      // The default, helpful for initial debugging
+      (0, 0d)
     }
 
     // extract solution quality
