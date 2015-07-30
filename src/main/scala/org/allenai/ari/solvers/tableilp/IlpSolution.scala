@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatus, IlpStatusFeasible, ScipInterface }
 import org.allenai.common.Logging
 
@@ -137,8 +138,8 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
-    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    logger.debug(ilpSolution.toJson.toString())
+    //val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
+    //logger.debug(ilpSolution.toJson.toString())
   }
 }
 
@@ -290,9 +291,6 @@ object IlpSolutionFactory extends Logging {
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 
-  /** Load all tables, if and when needed */
-  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
-
   /** Object to generate random values */
   private val r = scala.util.Random
 
@@ -303,7 +301,11 @@ object IlpSolutionFactory extends Logging {
   }
 
   /** Generate a random alignment solution object for visualizer testing */
-  def makeRandomIlpSolution: IlpSolution = {
+  def makeRandomIlpSolution(tokenizer: KeywordTokenizer): IlpSolution = {
+
+    /** Load all tables, if and when needed */
+    val tableInterface = new TableInterface("src/main/resources/allTables", "", false, tokenizer)
+
     // A sample question
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")

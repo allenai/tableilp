@@ -13,7 +13,7 @@ object IlpExamples extends Logging {
     tokenizer: KeywordTokenizer
   ): Unit = {
     val question = TableQuestionFactory.makeQuestion(questionChunks)
-    val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
+    val tableInterface = new TableInterface("src/main/resources/allTables", "", false, tokenizer)
     val tables = tableInterface.allTables.slice(0, 2)
     val alignmentType = if (entailmentServiceOpt.isDefined) "Entailment" else "WordOverlap"
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, 0.2, tokenizer)

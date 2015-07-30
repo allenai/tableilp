@@ -58,7 +58,8 @@ class TableIlpSolver @Inject() (
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
         val ilpSolution = if (useActualSolver) {
-          val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
+//          val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
+          val tables = tableInterface.getRankedTablesForQuestion(question.rawQuestion)
           val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(alignmentType, Some(entailmentService),
             entailmentScoreOffset, tokenizer)
@@ -68,7 +69,7 @@ class TableIlpSolver @Inject() (
           scipSolver.solve()
           IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables)
         } else {
-          IlpSolutionFactory.makeRandomIlpSolution
+          IlpSolutionFactory.makeRandomIlpSolution(tokenizer)
         }
 
         val ilpSolutionJson = ilpSolution.toJson
