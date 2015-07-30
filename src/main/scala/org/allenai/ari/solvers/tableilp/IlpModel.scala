@@ -363,7 +363,7 @@ class IlpModel(
     }
 
     // if the question choice is active, there is at least one active thing connected to it.
-    // i.e. ChoiceVariable => Sum(incomingToChoice)
+    // i.e. ChoiceVariable <= Sum(incomingToChoice)
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
       val extAlignmentVarsForChoice = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)

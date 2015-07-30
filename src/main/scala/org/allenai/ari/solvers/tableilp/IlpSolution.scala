@@ -46,9 +46,9 @@ case class QuestionAlignment(
   */
 case class SolutionQuality(
   status: IlpStatus,
-  lb: Double = -1e+20,
-  ub: Double = 1e+20,
-  optgap: Double = 1e+20
+  lb: Double = Double.MinValue,
+  ub: Double = Double.MaxValue,
+  optgap: Double = Double.MaxValue
 )
 
 /** Metrics to capture ILP problem complexity.
@@ -98,16 +98,20 @@ case class TimingStats(
   * @param questionAlignment Alignments for the question (including constituents and choices)
   */
 case class IlpSolution(
-  bestChoice: Int = 0,
-  bestChoiceScore: Double = 0d,
-  tableAlignments: Seq[TableAlignment] = Seq.empty,
-  questionAlignment: QuestionAlignment = QuestionAlignment(),
-  solutionQuality: SolutionQuality,
-  problemStats: ProblemStats,
-  searchStats: SearchStats,
-  timingStats: TimingStats,
-  alignmentIdToScore: Map[Int, Double] = Map.empty
-)
+    bestChoice: Int,
+    bestChoiceScore: Double,
+    tableAlignments: Seq[TableAlignment],
+    questionAlignment: QuestionAlignment,
+    solutionQuality: SolutionQuality,
+    problemStats: ProblemStats,
+    searchStats: SearchStats,
+    timingStats: TimingStats,
+    alignmentIdToScore: Map[Int, Double]
+) {
+  def this(sq: SolutionQuality, ps: ProblemStats, ss: SearchStats, ts: TimingStats) = {
+    this(0, 0d, Seq.empty, QuestionAlignment(), sq, ps, ss, ts, Map.empty)
+  }
+}
 
 /** A container object to define Json protocol and have a main testing routine */
 object IlpSolution extends DefaultJsonProtocol with Logging {
@@ -169,10 +173,8 @@ object IlpSolutionFactory extends Logging {
 
     // If no solution is found, return an empty IlpSolution
     if (!scipSolver.hasSolution) {
-      return IlpSolution(
-        solutionQuality = SolutionQuality(IlpStatusInfeasible),
-        problemStats = problemStats, searchStats = searchStats, timingStats = timingStats
-      )
+      return new IlpSolution(SolutionQuality(IlpStatusInfeasible), problemStats, searchStats,
+        timingStats)
     }
 
     // Otherwise, start extracting alignments and other solution details
