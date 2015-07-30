@@ -1,0 +1,2 @@
+adaptation	adapt to their environment	1.0
+duck	attract a mate	0.0
