@@ -137,7 +137,7 @@ private class EntailmentSimilarity(
           text1Seq <- text1StemmedTokens
           text2Seq <- text2StemmedTokens
         } yield entailmentService.entail(text1Seq, text2Seq).confidence
-        val scoreMax = scores.max
+        val scoreMax = if (scores.nonEmpty) scores.max else 0d
         redis.set(key, scoreMax)
         scoreMax
       }
