@@ -211,7 +211,7 @@ class IlpModel(
       x <- addQChoiceTitleVariable(qChoiceCons, qChoiceIdx, tableIdx, colIdx)
     } yield x
 
-    // Auxiliary variables: whether a title column of a given table is "active"
+    // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
       x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", weights.activeChoiceObjCoeff)
@@ -363,17 +363,21 @@ class IlpModel(
     }
 
     // if the question choice is active, there is at least one active thing connected to it.
-    // i.e. Sum(incomingToChoice) <= ChoiceVariable
+    // i.e. ChoiceVariable => Sum(incomingToChoice)
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
-      val extChoiceToExtAlignmentVars = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
-      ilpSolver.addConsSumImpliesY("activeChoiceImpliesAlignments", extChoiceToExtAlignmentVars,
+      val extAlignmentVarsForChoice = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
+      ilpSolver.addConsSumImpliesY("activeChoiceImpliesAlignments", extAlignmentVarsForChoice,
         choiceVar, 1d)
-      // activate the choice variables, whens there is anything aligned to them
-      // for any cell connected to the choice: cell <= choice
-      extChoiceToExtAlignmentVars.foreach {
+      // activate the choice variables if there is anything aligned to it: alignedCell => Choice
+      extAlignmentVarsForChoice.foreach {
         ilpSolver.addConsXLeqY("choiceActivation", _, choiceVar)
       }
+    }
+
+    // a choice should align to at most one cell
+    choiceToExtAlignmentVars.values.foreach { extAlignmentVarsForChoice =>
+      ilpSolver.addConsBasicSetpack("choiceAlignsToAtMostOneCell", extAlignmentVarsForChoice)
     }
 
     // align at least one question constituent
