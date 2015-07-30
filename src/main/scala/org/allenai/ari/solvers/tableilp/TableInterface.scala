@@ -21,6 +21,8 @@ class TableInterface @Inject() (
     tokenizer: KeywordTokenizer
 ) extends Logging {
 
+  final private val ignoreTable18 = true
+
   /** config: a cheat sheet mapping training questions from question to tables */
   private lazy val questionToTables = new Table(questionToTablesCache).contentMatrix
 
@@ -62,7 +64,10 @@ class TableInterface @Inject() (
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qToTables =>
-      qToTables(2).split('-').filterNot(_.toInt == 15).map(idx => allTables(idx.toInt)).toSeq
+      if( ignoreTable18 )
+        qToTables(2).split('-').filterNot(_.toInt == 15).map(idx => allTables(idx.toInt)).toSeq
+      else
+        qToTables(2).split('-').map(idx => allTables(idx.toInt)).toSeq
     } orElse {
       Some(Seq.empty)
     }
@@ -72,9 +77,17 @@ class TableInterface @Inject() (
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
   def getRankedTablesForQuestion(question: String): Seq[Table] = {
     val topN = 5
-    val scoreIndexPairs = (1 until allTables.length).map { tableIdx =>
-      (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
-    }
+    // ignore table 18 (which has index 15)
+    val scoreIndexPairs = if( ignoreTable18 ) {
+        allTables.indices.filterNot(_ == 15).map { tableIdx =>
+          (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
+        }
+      }
+      else {
+        allTables.indices.map { tableIdx =>
+          (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
+        }
+      }
     scoreIndexPairs.sortBy(-_._2).slice(0, topN).map { case (idx, score) => allTables(idx) }
   }
 
@@ -118,8 +131,13 @@ class TableInterface @Inject() (
   }
 
   private def normalizeTables(tokenizer: KeywordTokenizer, tables: Seq[Table]): Seq[Seq[Seq[Seq[String]]]] = {
-    val normalizedTables = tables.map { table =>
-      val content = table.contentMatrix :+ table.titleRow
+    val normalizedTables = tables.zipWithIndex.map { case (table, idx) =>
+      val content = if( ignoreTable18 && idx == 15 ) {
+        Seq(Seq())
+      }
+      else {
+        table.contentMatrix :+ table.titleRow
+      }
       content.map(row => row.map(tokenizer.stemmedKeywordTokenize))
     }
     normalizedTables
