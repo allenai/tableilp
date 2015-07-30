@@ -76,7 +76,7 @@ class TableInterface @Inject() (
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
   def getRankedTablesForQuestion(question: String): Seq[Table] = {
-    val topN = 5
+    val topN = 3
     // ignore table 18 (which has index 15)
     val scoreIndexPairs = if( ignoreTable18 ) {
         allTables.indices.filterNot(_ == 15).map { tableIdx =>
@@ -88,7 +88,8 @@ class TableInterface @Inject() (
           (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
         }
       }
-    scoreIndexPairs.sortBy(-_._2).slice(0, topN).map { case (idx, score) => allTables(idx) }
+    val ranks = scoreIndexPairs.sortBy(-_._2).slice(0, topN)
+    ranks.map { case (idx, score) => allTables(idx) }
   }
 
   /** Print all variables relevant to tables */
