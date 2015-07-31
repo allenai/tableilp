@@ -1,7 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.common.KeywordTokenizer
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatus, IlpStatusFeasible, ScipInterface }
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusInfeasible, IlpStatus, IlpStatusFeasible, ScipInterface }
 import org.allenai.common.Logging
 
 import spray.json._
@@ -140,8 +140,8 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
-    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    logger.debug(ilpSolution.toJson.toString())
+    //    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
+    //    logger.debug(ilpSolution.toJson.toString())
   }
 }
 
@@ -300,9 +300,6 @@ object IlpSolutionFactory extends Logging {
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 
-  /** Load all tables, if and when needed */
-  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
-
   /** Object to generate random values */
   private val r = scala.util.Random
 
@@ -361,7 +358,7 @@ object IlpSolutionFactory extends Logging {
     val alignmentIdToScore = Map(0 -> 1d, 1 -> 2d)
 
     // Return the solution with random alignments
-    IlpSolution(bestChoice, bestChoiceScore, tablesAlignments, questionAlignment, solutionQuality,
+    IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 }
