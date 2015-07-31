@@ -14,11 +14,9 @@ import scala.collection.mutable.ArrayBuffer
   * @param alignmentIds A sequence of alignment IDs that connect this term with other terms
   */
 case class TermAlignment(
-    term: String,
-    alignmentIds: ArrayBuffer[Int]
-) {
-  def this(str: String) = this(str, ArrayBuffer.empty)
-}
+  term: String,
+  alignmentIds: ArrayBuffer[Int] = ArrayBuffer.empty
+)
 
 /** All alignments of each cell in a table's title row and content matrix to everything else.
   *
@@ -36,8 +34,8 @@ case class TableAlignment(
   * @param choiceAlignments A TermAlignment for each answer choice
   */
 case class QuestionAlignment(
-  qConsAlignments: Seq[TermAlignment],
-  choiceAlignments: Seq[TermAlignment]
+  qConsAlignments: Seq[TermAlignment] = Seq.empty,
+  choiceAlignments: Seq[TermAlignment] = Seq.empty
 )
 
 /** Metrics to capture ILP solution values and solution quality
@@ -49,9 +47,9 @@ case class QuestionAlignment(
   */
 case class SolutionQuality(
   status: IlpStatus,
-  lb: Double,
-  ub: Double,
-  optgap: Double
+  lb: Double = Double.MinValue,
+  ub: Double = Double.MaxValue,
+  optgap: Double = Double.MaxValue
 )
 
 /** Metrics to capture ILP problem complexity.
@@ -101,16 +99,20 @@ case class TimingStats(
   * @param questionAlignment Alignments for the question (including constituents and choices)
   */
 case class IlpSolution(
-  bestChoice: Int,
-  bestChoiceScore: Double,
-  tableAlignments: Seq[TableAlignment],
-  questionAlignment: QuestionAlignment,
-  solutionQuality: SolutionQuality,
-  problemStats: ProblemStats,
-  searchStats: SearchStats,
-  timingStats: TimingStats,
-  alignmentIdToScore: Map[Int, Double]
-)
+    bestChoice: Int,
+    bestChoiceScore: Double,
+    tableAlignments: Seq[TableAlignment],
+    questionAlignment: QuestionAlignment,
+    solutionQuality: SolutionQuality,
+    problemStats: ProblemStats,
+    searchStats: SearchStats,
+    timingStats: TimingStats,
+    alignmentIdToScore: Map[Int, Double]
+) {
+  def this(sq: SolutionQuality, ps: ProblemStats, ss: SearchStats, ts: TimingStats) = {
+    this(0, 0d, Seq.empty, QuestionAlignment(), sq, ps, ss, ts, Map.empty)
+  }
+}
 
 /** A container object to define Json protocol and have a main testing routine */
 object IlpSolution extends DefaultJsonProtocol with Logging {
@@ -138,8 +140,8 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
-    //val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    //logger.debug(ilpSolution.toJson.toString())
+    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
+    logger.debug(ilpSolution.toJson.toString())
   }
 }
 
@@ -158,6 +160,25 @@ object IlpSolutionFactory extends Logging {
     */
   def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface,
     question: TableQuestion, tables: Seq[Table]): IlpSolution = {
+    // populate problem stats
+    val problemStats = ProblemStats(scipSolver.getNOrigVars, scipSolver.getNOrigConss,
+      scipSolver.getNVars, scipSolver.getNConss)
+
+    // populate search stats
+    val searchStats = SearchStats(scipSolver.getNNodes, scipSolver.getNLPIterations,
+      scipSolver.getMaxDepth)
+
+    // populate timing stats
+    val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
+      scipSolver.getTotalTime)
+
+    // If no solution is found, return an empty IlpSolution
+    if (!scipSolver.hasSolution) {
+      return new IlpSolution(SolutionQuality(IlpStatusInfeasible), problemStats, searchStats,
+        timingStats)
+    }
+
+    // Otherwise, start extracting alignments and other solution details
     val qConsAlignments = question.questionCons.map(new TermAlignment(_))
     val choiceAlignments = question.choices.map(new TermAlignment(_))
     val tableAlignments = tables.map { table =>
@@ -252,7 +273,7 @@ object IlpSolutionFactory extends Logging {
     val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length +
       allVariables.qChoiceTitleVariables.length
     logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
-    val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0 && scipSolver.hasSolution) {
+    val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0) {
       val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
         (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
       } ++ allVariables.qChoiceTitleVariables.map { variable =>
@@ -269,18 +290,6 @@ object IlpSolutionFactory extends Logging {
     val solutionQuality = SolutionQuality(scipSolver.getStatus, scipSolver.getPrimalbound,
       scipSolver.getDualbound, scipSolver.getGap)
 
-    // populate problem stats
-    val problemStats = ProblemStats(scipSolver.getNOrigVars, scipSolver.getNOrigConss,
-      scipSolver.getNVars, scipSolver.getNConss)
-
-    // populate search stats
-    val searchStats = SearchStats(scipSolver.getNNodes, scipSolver.getNLPIterations,
-      scipSolver.getMaxDepth)
-
-    // populate timing stats
-    val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
-      scipSolver.getTotalTime)
-
     // populate all the valid alignment scores
     val alignmentIdToScore = allAlignmentTriplesWithIndex.map {
       case ((_, _, score), alignmentId) => alignmentId -> score
@@ -290,6 +299,9 @@ object IlpSolutionFactory extends Logging {
     IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
+
+  /** Load all tables, if and when needed */
+  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
 
   /** Object to generate random values */
   private val r = scala.util.Random
@@ -321,7 +333,7 @@ object IlpSolutionFactory extends Logging {
     val qConsAlignments = questionChunks.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val choiceAlignments = choices.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
-    val tablesAlignments = tableInterface.allTables.slice(0, 2).map { table =>
+    val tableAlignments = tableInterface.allTables.slice(0, 2).map { table =>
       val titleAlignments = table.titleRow.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))
       val contentAlignments = table.contentMatrix.map { row =>
         row.map(TermAlignment(_, getRandInts.to[ArrayBuffer]))

@@ -117,19 +117,27 @@ private class EntailmentSimilarity(
     getEntailmentScore(titleStr, qChoiceStr)
   }
 
-  private val sep = ";".r
+  private val semicolonSep = ";".r
+  private def splitStemKeywordTokenizeFilter(text: String): Seq[Seq[String]] = {
+    for {
+      str <- semicolonSep.split(text).toSeq
+      trimmedStr = str.trim
+      if !trimmedStr.startsWith("[") || !trimmedStr.endsWith("]") // ignore strings like "[...]"
+    } yield tokenizer.stemmedKeywordTokenize(trimmedStr)
+  }
+
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
     val score = redis.get(key) match {
       case Some(value) => value.toDouble
       case None => {
-        val text1StemmedTokens = sep.split(text1).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
-        val text2StemmedTokens = sep.split(text2).map(s => tokenizer.stemmedKeywordTokenize(s.trim))
+        val text1StemmedTokens = splitStemKeywordTokenizeFilter(text1)
+        val text2StemmedTokens = splitStemKeywordTokenizeFilter(text2)
         val scores = for {
           text1Seq <- text1StemmedTokens
           text2Seq <- text2StemmedTokens
         } yield entailmentService.entail(text1Seq, text2Seq).confidence
-        val scoreMax = scores.max
+        val scoreMax = if (scores.nonEmpty) scores.max else 0d
         redis.set(key, scoreMax)
         scoreMax
       }
