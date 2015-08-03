@@ -103,8 +103,8 @@ class TableInterface @Inject() (
 
   private def calculateAllTFIDFScores(): (Map[(String, Int), Double], Map[String, Double]) = {
     val numberOfTables = allTables.size.toDouble
-    val allTableTokens = allTables.flatMap(tab => tab.fullContentNormalized).flatten.flatten.toSet
-    val eachTableTokens = allTables.map(tab => tab.fullContentNormalized.flatten.flatten)
+    val allTableTokens = allTables.flatMap(tab => tab.fullContentNormalized).flatten.flatMap(_.values)
+    val eachTableTokens = allTables.map(tab => tab.fullContentNormalized.flatten.flatMap(_.values))
 
     val tfMap = (for {
       tableIdx <- allTables.indices
@@ -126,7 +126,7 @@ class TableInterface @Inject() (
   private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int, questionRaw: String): Double = {
     val table = allTables(tableIdx).fullContentNormalized
     val qaTokens = tokenizer.stemmedKeywordTokenize(questionRaw.toLowerCase)
-    val currentTableTokens = table.flatten.flatten
+    val currentTableTokens = table.flatten.flatMap(_.values)
     val commonTokenSet = currentTableTokens.toSet.intersect(qaTokens.toSet).toVector
     val currentTableScore = commonTokenSet.map(token => tfMap.getOrElse((token, tableIdx), 0.0) *
       idfMap.getOrElse(token, 0.0)).sum
