@@ -24,20 +24,20 @@ class TableInterface @Inject() (
   final private val ignoreTable18 = true
 
   /** config: a cheat sheet mapping training questions from question to tables */
-  private lazy val questionToTables = new Table(questionToTablesCache).contentMatrix
+  private lazy val questionToTables = new Table(questionToTablesCache, tokenizer).contentMatrix
 
   /** All tables loaded from CSV files */
   val allTables = {
     logger.info(s"Loading tables from folder $tablesFolder")
     val files = new java.io.File(tablesFolder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
-    val tables = files.map(file => new Table(file.getAbsolutePath))
+    val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
     logger.debug(s"${tables.size} tables loaded from files:\n" + files.mkString("\n"))
     if (internalLogger.isTraceEnabled) tables.foreach(t => logger.trace(t.titleRow.mkString(",")))
     tables
   }
 
-  /** tables after some normalization */
-  val normalizedTables = normalizeTables(tokenizer, allTables)
+  //  /** tables after some normalization */
+  //  val normalizedTables = normalizeTables(tokenizer, allTables)
 
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
@@ -64,11 +64,7 @@ class TableInterface @Inject() (
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qToTables =>
-      if (ignoreTable18) {
-        qToTables(2).split('-').filterNot(_.toInt == 15).map(idx => allTables(idx.toInt)).toSeq
-      } else {
-        qToTables(2).split('-').map(idx => allTables(idx.toInt)).toSeq
-      }
+      qToTables(2).split('-').filterNot(_.toInt == 15 && ignoreTable18).map(idx => allTables(idx.toInt)).toSeq
     } orElse {
       Some(Seq.empty)
     }
@@ -79,22 +75,16 @@ class TableInterface @Inject() (
   def getRankedTablesForQuestion(question: String): Seq[Table] = {
     val withThreshold = false
     val thresholdValue = 0.17333
-    val topN = 3
+    val topN = 1
     // ignore table 18 (which has index 15)
-    val scoreIndexPairs = if (ignoreTable18) {
-      allTables.indices.filterNot(_ == 15).map { tableIdx =>
-        (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
-      }
-    } else {
-      allTables.indices.map { tableIdx =>
-        (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
-      }
+    val scoreIndexPairs = allTables.indices.filterNot(_ == 15 && ignoreTable18).map { tableIdx =>
+      (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
-    if (!withThreshold) {
-      scoreIndexPairs.sortBy(-_._2).slice(0, topN).map { case (idx, score) => allTables(idx) }
+    (if (!withThreshold) {
+      scoreIndexPairs.sortBy(-_._2).slice(0, topN)
     } else {
-      scoreIndexPairs.filter(_._2 > thresholdValue).map { case (idx, score) => allTables(idx) }
-    }
+      scoreIndexPairs.filter(_._2 > thresholdValue)
+    }).map { case (idx, score) => allTables(idx) }
   }
 
   /** Print all variables relevant to tables */
@@ -115,12 +105,12 @@ class TableInterface @Inject() (
   }
 
   private def calculateAllTFIDFScores(): (Map[(String, Int), Double], Map[String, Double]) = {
-    val numberOfTables = normalizedTables.size.toDouble
-    val allTableTokens = normalizedTables.flatten.flatten.flatten.toSet
-    val eachTableTokens = normalizedTables.map { _.flatten.flatten }
+    val numberOfTables = allTables.size.toDouble
+    val allTableTokens = allTables.flatMap(tab => tab.fullContentNormalized).flatten.flatten.toSet
+    val eachTableTokens = allTables.map(tab => tab.fullContentNormalized.flatten.flatten)
 
     val tfMap = (for {
-      tableIdx <- normalizedTables.indices
+      tableIdx <- allTables.indices
       word <- allTableTokens
     } yield {
       val tfcount = eachTableTokens(tableIdx).count(_ == word).toDouble
@@ -150,7 +140,7 @@ class TableInterface @Inject() (
   }
 
   private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int, questionRaw: String): Double = {
-    val table = normalizedTables(tableIdx)
+    val table = allTables(tableIdx).fullContentNormalized
     val qaTokens = tokenizer.stemmedKeywordTokenize(questionRaw.toLowerCase)
     val currentTableTokens = table.flatten.flatten
     val commonTokenSet = currentTableTokens.toSet.intersect(qaTokens.toSet).toVector

@@ -140,8 +140,8 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
 
   /** Main method to test a sample alignment solution */
   def main(args: Array[String]) {
-    //    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    //    logger.debug(ilpSolution.toJson.toString())
+    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
+    logger.debug(ilpSolution.toJson.toString())
   }
 }
 
@@ -310,10 +310,10 @@ object IlpSolutionFactory extends Logging {
   }
 
   /** Generate a random alignment solution object for visualizer testing */
-  def makeRandomIlpSolution(tokenizer: KeywordTokenizer): IlpSolution = {
+  def makeRandomIlpSolution(): IlpSolution = {
 
     /** Load all tables, if and when needed */
-    val tableInterface = new TableInterface("src/main/resources/allTables", "", false, tokenizer)
+    val tableInterface = new TableInterface("src/main/resources/allTables", "", false, KeywordTokenizer.Default)
 
     // A sample question
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
