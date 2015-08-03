@@ -23,6 +23,7 @@ import scala.concurrent.Future
   * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
   * @param failOnUnansweredQuestions declare question "unanswered" when no answer choice is found
+  * @param useFallbackSolver if this solver doesn't answer the question, use a fallback solver
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
@@ -32,7 +33,8 @@ class TableIlpSolver @Inject() (
     scipParams: ScipParams,
     ilpParams: IlpParams,
     weights: IlpWeights,
-    @Named("failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean
+    @Named("failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
+    @Named("useFallbackSolver") useFallbackSolver: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -68,7 +70,11 @@ class TableIlpSolver @Inject() (
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
           if (failOnUnansweredQuestions && !scipSolver.hasSolution) {
-            None
+            if (useFallbackSolver) {
+              None // TODO(tushar) add Salience Solver as a fallback solver
+            } else {
+              None
+            }
           } else {
             Some(IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables))
           }
