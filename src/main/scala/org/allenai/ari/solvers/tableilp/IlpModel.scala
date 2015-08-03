@@ -8,10 +8,15 @@ import org.allenai.common.Logging
   * @param ilpSolver a ScipInterface object; safest to create a new instance of it per question
   * @param tables a seq of tables as the knowledge base
   * @param aligner a blackbox to align textual mentions
+  * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
   */
 class IlpModel(
-    ilpSolver: ScipInterface, tables: Seq[Table], aligner: AlignmentFunction, weights: IlpWeights
+    ilpSolver: ScipInterface,
+    tables: Seq[Table],
+    aligner: AlignmentFunction,
+    ilpParams: IlpParams,
+    weights: IlpWeights
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -104,6 +109,15 @@ class IlpModel(
     (tableIdx, colIdx) -> x
   }).toMap
 
+  /** Auxiliary variables: whether a table is "active" */
+  private val activeTableVars: Map[Int, Long] = (for {
+    tableIdx <- tables.indices
+    x = ilpSolver.createBinaryVar(s"activeTable_t=$tableIdx", weights.activeTableObjCoeff)
+  } yield {
+    ilpSolver.addVar(x)
+    tableIdx -> x
+  }).toMap
+
   /** The main method to build the question independent aspects of the ILP model.
     * Note: using 'val' rather than 'def' makes this be computed only once.
     *
@@ -146,14 +160,30 @@ class IlpModel(
       }
     }
 
-    // row activity constraint: allow at most 1 row per table to be active
+    // row activity constraint: allow at most 1 row per table to be active, unless otherwise
+    // specified in the configuration
     // Note: question dependent variables may also make the row active; this constraint will
     // take that into account as well
     tables.indices.foreach { tableIdx =>
       val table = tables(tableIdx)
       val tableRowVars = table.contentMatrix.indices.map(r => activeRowVars((tableIdx, r)))
-      ilpSolver.addConsBasicSetpack(s"atMostOneRow_T=$tableIdx", tableRowVars)
+      val ub = ilpParams.maxRowsPerTable
+      ilpSolver.addConsAtMostK(s"atMost${ub}Rows_T=$tableIdx", tableRowVars, ub)
+      // table activity constraints:
+      // (a) if a row is active, then the table is active
+      // (b) if the table is active, then at least one row is active
+      val activeTableVar = activeTableVars(tableIdx)
+      tableRowVars.foreach { activeRowVar =>
+        ilpSolver.addConsXLeqY(s"activeRowImpliesActiveTable_T=$tableIdx", activeRowVar,
+          activeTableVar)
+      }
+      ilpSolver.addConsYImpliesAtLeastK(s"activeRowsImpliesActiveTable_T=$tableIdx", activeTableVar,
+        tableRowVars, 1d)
     }
+
+    // at most k tables may be active
+    val maxTables = ilpParams.maxTablesToChain
+    ilpSolver.addConsAtMostK(s"atMost${maxTables}Tables", activeTableVars.values.toSeq, maxTables)
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables,
@@ -312,8 +342,10 @@ class IlpModel(
           // if an activeCellVar is 1, at least one external cell alignment variable must be 1;
           // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
           // 0 <= sum(extAlignmentVarsForCell) - activeCellVar
-          ilpSolver.addConsSumImpliesY("activeCellImpliesAtLeastOneExt", extAlignmentVarsForCell,
-            activeCellVar, 1d)
+          ilpSolver.addConsYImpliesAtLeastK(
+            "activeCellImpliesAtLeastOneExt",
+            activeCellVar, extAlignmentVarsForCell, 1d
+          )
           // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
           ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
           ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
@@ -323,8 +355,8 @@ class IlpModel(
         // non-redundant use of tables: if a row is active, at least TWO of its cells must be
         // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
-        ilpSolver.addConsSumImpliesY("activeRowImpliesAtLeastTwoCells", activeCellVarsInRow,
-          activeRowVar, 2d)
+        ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
+          activeCellVarsInRow, 2d)
       }
 
       table.titleRow.indices.foreach { colIdx =>
@@ -337,8 +369,8 @@ class IlpModel(
         // non-redundant use of tables: if a col is active, at least ONE of its cells must be
         // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
         // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
-        ilpSolver.addConsSumImpliesY("activeColImpliesAtLeastOneCell", activeCellVarsInCol,
-          activeColVar, 1d)
+        ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
+          activeCellVarsInCol, 1d)
       }
 
       table.titleRow.indices.foreach { colIdx =>
@@ -354,8 +386,8 @@ class IlpModel(
         val titleIdx = TitleIdx(tableIdx, colIdx)
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
-        ilpSolver.addConsSumImpliesY("activeTitleImpliesAlignments", extAlignmentVarsForTitle,
-          activeTitleVar, 1d)
+        ilpSolver.addConsYImpliesAtLeastK("activeTitleImpliesAlignments", activeTitleVar,
+          extAlignmentVarsForTitle, 1d)
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
         }
@@ -367,8 +399,8 @@ class IlpModel(
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
       val extAlignmentVarsForChoice = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
-      ilpSolver.addConsSumImpliesY("activeChoiceImpliesAlignments", extAlignmentVarsForChoice,
-        choiceVar, 1d)
+      ilpSolver.addConsYImpliesAtLeastK("activeChoiceImpliesAlignments", choiceVar,
+        extAlignmentVarsForChoice, 1d)
       // activate the choice variables if there is anything aligned to it: alignedCell => Choice
       extAlignmentVarsForChoice.foreach {
         ilpSolver.addConsXLeqY("choiceActivation", _, choiceVar)
@@ -384,20 +416,21 @@ class IlpModel(
     val qConsVars = question.questionCons.indices.map(activeQuestionVars)
     ilpSolver.addConsBasicSetcover("atLeastOneQCons", qConsVars)
 
-    // choose at most one answer choice
+    // select at most one answer choice
     val choiceVars = question.choices.indices.map(activeChoiceVars)
     ilpSolver.addConsBasicSetpack("atMostOneChoice", choiceVars)
+
+    // (optional) select at least one answer choice
+    if (ilpParams.mustChooseAnAnswer) ilpSolver.addConsBasicSetcover("atLeastOneChoice", choiceVars)
 
     // active question variables
     question.questionCons.indices.foreach { qIdx =>
       val questionIdx = QuestionIdx(qIdx)
       val activeQuestionVar = activeQuestionVars(qIdx)
-      val questionToExtAlignmentVar = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
-      ilpSolver.addConsSumImpliesY(
-        "activeQuestionImpliesAlignments",
-        questionToExtAlignmentVar, activeQuestionVar, 1d
-      )
-      questionToExtAlignmentVar.foreach {
+      val extAlignmentVars = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
+      ilpSolver.addConsYImpliesAtLeastK("activeQuestionImpliesAlignments", activeQuestionVar,
+        extAlignmentVars, 1d)
+      extAlignmentVars.foreach {
         ilpSolver.addConsXLeqY("activeQuestionCons", _, activeQuestionVar)
       }
     }

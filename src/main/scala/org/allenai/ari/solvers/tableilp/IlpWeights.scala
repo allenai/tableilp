@@ -13,6 +13,7 @@ import com.google.inject.name.Named
   * @param activeRowObjCoeff How much does an active row contribute to the objective function
   * @param activeColObjCoeff How much does an active column contribute to the objective function
   * @param activeTitleObjCoeff How much does an active title contribute to the objective function
+  * @param activeTableObjCoeff How much does an active table contribute to the objective function
   * @param activeQConsObjCoeff How much does an active qcons contribute to the objective function
   * @param activeChoiceObjCoeff How much does an active choice contribute to the objective function
   */
@@ -27,6 +28,7 @@ class IlpWeights @Inject() (
   @Named("weights.activeRowObjCoeff") val activeRowObjCoeff: Double = 0d,
   @Named("weights.activeColObjCoeff") val activeColObjCoeff: Double = 0d,
   @Named("weights.activeTitleObjCoeff") val activeTitleObjCoeff: Double = 0d,
+  @Named("weights.activeTableObjCoeff") val activeTableObjCoeff: Double = 0d,
   @Named("weights.activeQConsObjCoeff") val activeQConsObjCoeff: Double = 1d,
   @Named("weights.activeChoiceObjCoeff") val activeChoiceObjCoeff: Double = 100d
 ) {}

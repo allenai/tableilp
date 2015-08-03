@@ -15,11 +15,13 @@ object IlpExamples extends Logging {
     val question = TableQuestionFactory.makeQuestion(questionChunks)
     val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
     val tables = tableInterface.allTables.slice(0, 2)
-    val alignmentType = if (entailmentServiceOpt.isDefined) "Entailment" else "WordOverlap"
-    val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt, 0.2, tokenizer)
-    val ilpSolver = new ScipInterface("sampleExample", ScipParams.Default)
+    val scipParams = ScipParams.Default
+    val ilpParams = IlpParams.Default
     val weights = IlpWeights.Default
-    val ilpModel = new IlpModel(ilpSolver, tables, aligner, weights)
+    val aligner = new AlignmentFunction(ilpParams.alignmentType, entailmentServiceOpt,
+      ilpParams.entailmentScoreOffset, tokenizer)
+    val ilpSolver = new ScipInterface("sampleExample", scipParams)
+    val ilpModel = new IlpModel(ilpSolver, tables, aligner, ilpParams, weights)
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.ilpVars
     ilpSolver.solve()

@@ -19,19 +19,20 @@ import scala.concurrent.Future
   * @param entailmentService service for computing entailment score between two text sequences
   * @param tokenizer keyword tokenizer, also does stemming
   * @param tableInterface interface to access CSV tables from files
+  * @param scipParams various parameters for the SCIP solver
+  * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
-  * @param alignmentType whether to use Entailment, WordOverlap, or Word2Vec for alignment scores
-  * @param entailmentScoreOffset amount to subtract from the raw score returned by entailment
+  * @param failOnUnansweredQuestions declare question "unanswered" when no answer choice is found
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
     entailmentService: EntailmentService,
     tokenizer: KeywordTokenizer,
     tableInterface: TableInterface,
-    weights: IlpWeights,
     scipParams: ScipParams,
-    @Named("alignmentType") alignmentType: String,
-    @Named("entailmentScoreOffset") entailmentScoreOffset: Double
+    ilpParams: IlpParams,
+    weights: IlpWeights,
+    @Named("failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -57,33 +58,39 @@ class TableIlpSolver @Inject() (
     } else {
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
-        val ilpSolution = if (useActualSolver) {
+        val ilpSolutionOpt = if (useActualSolver) {
           val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
           val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
-          val aligner = new AlignmentFunction(alignmentType, Some(entailmentService),
-            entailmentScoreOffset, tokenizer)
-          val ilpModel = new IlpModel(scipSolver, tables, aligner, weights)
+          val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
+            ilpParams.entailmentScoreOffset, tokenizer)
+          val ilpModel = new IlpModel(scipSolver, tables, aligner, ilpParams, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
-          IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables)
+          if (failOnUnansweredQuestions && !scipSolver.hasSolution) {
+            None
+          } else {
+            Some(IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables))
+          }
         } else {
-          IlpSolutionFactory.makeRandomIlpSolution
+          Some(IlpSolutionFactory.makeRandomIlpSolution)
         }
 
-        val ilpSolutionJson = ilpSolution.toJson
-        logger.debug(ilpSolutionJson.toString())
-
-        val ilpBestAnswer = SimpleAnswer(
-          question.selections(ilpSolution.bestChoice),
-          ilpSolution.bestChoiceScore,
-          Some(Map("ilpSolution" -> ilpSolutionJson))
-        )
-
-        val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
-          .map(defaultIlpAnswer)
-
-        ilpBestAnswer +: otherAnswers
+        ilpSolutionOpt match {
+          case Some(ilpSolution) => {
+            val ilpSolutionJson = ilpSolution.toJson
+            logger.debug(ilpSolutionJson.toString())
+            val ilpBestAnswer = SimpleAnswer(
+              question.selections(ilpSolution.bestChoice),
+              ilpSolution.bestChoiceScore,
+              Some(Map("ilpSolution" -> ilpSolutionJson))
+            )
+            val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
+              .map(defaultIlpAnswer)
+            ilpBestAnswer +: otherAnswers
+          }
+          case None => Seq.empty
+        }
       }
     }
   }

@@ -328,18 +328,66 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     addConsXEqYPlusC(name, x, y, 0d, trigger)
   }
 
+  /** Adds the constraint sum(X) >= k */
+  def addConsAtLeastK(name: String, X: Seq[Long], k: Double): Unit = {
+    if (k == 1) {
+      addConsBasicSetcover(name, X)
+    } else {
+      val coeffs = Seq.fill(X.size)(1d)
+      addConsBasicLinear(name, X, coeffs, Some(k), None)
+    }
+  }
+
+  /** If triggered, imposes the constraint sum(X) >= k; trigger is binary variable */
+  def addConsAtLeastK(name: String, X: Seq[Long], k: Double, trigger: Long): Unit = {
+    val coeffs = Seq.fill(X.size)(1d)
+    addConsBasicLinear(name, X, coeffs, Some(k), None, trigger)
+  }
+
+  /** Adds the constraint sum(X) <= k */
+  def addConsAtMostK(name: String, X: Seq[Long], k: Double): Unit = {
+    if (k == 1) {
+      addConsBasicSetpack(name, X)
+    } else {
+      val coeffs = Seq.fill(X.size)(1d)
+      addConsBasicLinear(name, X, coeffs, None, Some(k))
+    }
+  }
+
+  /** If triggered, imposes the constraint sum(X) <= k; trigger is binary variable */
+  def addConsAtMostK(name: String, X: Seq[Long], k: Double, trigger: Long): Unit = {
+    val coeffs = Seq.fill(X.size)(1d)
+    addConsBasicLinear(name, X, coeffs, None, Some(k), trigger)
+  }
+
   /** Adds the constraint sum(X) >= k * y */
-  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double): Unit = {
+  def addConsYImpliesAtLeastK(name: String, y: Long, X: Seq[Long], k: Double): Unit = {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
     addConsBasicLinear(name, vars, coeffs, Some(0d), None)
   }
 
   /** If triggered, imposes the constraint sum(X) >= k * y; trigger is binary variable */
-  def addConsSumImpliesY(name: String, X: Seq[Long], y: Long, k: Double, trigger: Long): Unit = {
+  def addConsYImpliesAtLeastK(name: String, y: Long, X: Seq[Long], k: Double,
+    trigger: Long): Unit = {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
     addConsBasicLinear(name, vars, coeffs, Some(0d), None, trigger)
+  }
+
+  /** Adds the constraint sum(X) <= k * y */
+  def addConsYImpliesAtMostK(name: String, y: Long, X: Seq[Long], k: Double): Unit = {
+    val vars = X :+ y
+    val coeffs = Seq.fill(X.size)(1d) :+ (-k)
+    addConsBasicLinear(name, vars, coeffs, None, Some(0d))
+  }
+
+  /** If triggered, imposes the constraint sum(X) <= k * y; trigger is binary variable */
+  def addConsYImpliesAtMostK(name: String, y: Long, X: Seq[Long], k: Double,
+    trigger: Long): Unit = {
+    val vars = X :+ y
+    val coeffs = Seq.fill(X.size)(1d) :+ (-k)
+    addConsBasicLinear(name, vars, coeffs, None, Some(0d), trigger)
   }
 
   /** Solve the ILP model and report the result */
