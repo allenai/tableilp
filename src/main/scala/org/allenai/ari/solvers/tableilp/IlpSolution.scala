@@ -300,7 +300,7 @@ object IlpSolutionFactory extends Logging {
   }
 
   /** Load all tables, if and when needed */
-  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false)
+  private lazy val tableInterface = new TableInterface("data/allTables", "", false)
 
   /** Object to generate random values */
   private val r = scala.util.Random
