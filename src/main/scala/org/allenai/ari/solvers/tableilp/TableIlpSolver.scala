@@ -33,8 +33,8 @@ class TableIlpSolver @Inject() (
     scipParams: ScipParams,
     ilpParams: IlpParams,
     weights: IlpWeights,
-    @Named("failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
-    @Named("useFallbackSolver") useFallbackSolver: Boolean
+    @Named("solver.failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
+    @Named("solver.useFallbackSolver") useFallbackSolver: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 

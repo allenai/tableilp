@@ -7,14 +7,14 @@ import com.google.inject.name.Named
 
 /** A class for storing and processing multiple tables.
   *
-  * @param tablesFolder Name of the folder from which to read tables
+  * @param folder Name of the folder from which to read tables
   * @param questionToTablesCache Name of the cheat sheet mapping question to relevant tables
   * @param useCachedTablesForQuestion Whether to use the above cheat sheet
   */
 class TableInterface @Inject() (
-    @Named("tablesFolder") tablesFolder: String,
-    @Named("questionToTablesCache") questionToTablesCache: String,
-    @Named("useCachedTablesForQuestion") useCachedTablesForQuestion: Boolean
+    @Named("tables.folder") folder: String,
+    @Named("tables.questionToTablesCache") questionToTablesCache: String,
+    @Named("tables.useCachedTablesForQuestion") useCachedTablesForQuestion: Boolean
 ) extends Logging {
 
   /** config: a cheat sheet mapping training questions from question to tables */
@@ -22,8 +22,8 @@ class TableInterface @Inject() (
 
   /** All tables loaded from CSV files */
   val allTables = {
-    logger.info(s"Loading tables from folder $tablesFolder")
-    val files = new java.io.File(tablesFolder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
+    logger.info(s"Loading tables from folder $folder")
+    val files = new java.io.File(folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
     val tables = files.map(file => new Table(file.getAbsolutePath))
     logger.debug(s"${tables.size} tables loaded from files:\n" + files.mkString("\n"))
     if (internalLogger.isTraceEnabled) tables.foreach(t => logger.trace(t.titleRow.mkString(",")))
