@@ -3,10 +3,10 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.common.Logging
 
-import scala.math._
-
 import com.google.inject.Inject
 import com.google.inject.name.Named
+
+import scala.math._
 
 /** A class for storing and processing multiple tables.
   *
