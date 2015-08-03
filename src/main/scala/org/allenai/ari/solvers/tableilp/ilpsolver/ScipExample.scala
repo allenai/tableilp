@@ -40,19 +40,8 @@ object ScipExample extends Logging {
     // create coefficients for the constraint
     val coeffs = (0 until nvars).map(_ + 1d)
 
-    // create a linear constraint
-    val consLinear = scipSolver.createConsBasicLinear("test", vars, coeffs, Some(0d), Some(2d))
-
-    // add constraints to problem
-    scipSolver.addCons(consLinear)
-
-    if (internalLogger.isDebugEnabled) {
-      val coeffs = scipSolver.getValsLinear(consLinear)
-      logger.debug("Constraint coefficients:\n\t" + coeffs.mkString("\n\t"))
-    }
-
-    // release constraints
-    scipSolver.releaseCons(consLinear)
+    // add a linear constraint
+    scipSolver.addConsBasicLinear("test", vars, coeffs, Some(0d), Some(2d))
 
     // return vars of interest
     varsOfInterest

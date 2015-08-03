@@ -409,19 +409,19 @@ class IlpModel(
 
     // a choice should align to at most one cell
     choiceToExtAlignmentVars.values.foreach { extAlignmentVarsForChoice =>
-      ilpSolver.addConsBasicSetpack("choiceAlignsToAtMostOneCell", extAlignmentVarsForChoice)
+      ilpSolver.addConsAtMostOne("choiceAlignsToAtMostOneCell", extAlignmentVarsForChoice)
     }
 
     // align at least one question constituent
     val qConsVars = question.questionCons.indices.map(activeQuestionVars)
-    ilpSolver.addConsBasicSetcover("atLeastOneQCons", qConsVars)
+    ilpSolver.addConsAtLeastOne("atLeastOneQCons", qConsVars)
 
     // select at most one answer choice
     val choiceVars = question.choices.indices.map(activeChoiceVars)
-    ilpSolver.addConsBasicSetpack("atMostOneChoice", choiceVars)
+    ilpSolver.addConsAtMostOne("atMostOneChoice", choiceVars)
 
     // (optional) select at least one answer choice
-    if (ilpParams.mustChooseAnAnswer) ilpSolver.addConsBasicSetcover("atLeastOneChoice", choiceVars)
+    if (ilpParams.mustChooseAnAnswer) ilpSolver.addConsAtLeastOne("atLeastOneChoice", choiceVars)
 
     // active question variables
     question.questionCons.indices.foreach { qIdx =>

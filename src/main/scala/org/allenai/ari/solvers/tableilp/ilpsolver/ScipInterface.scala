@@ -173,31 +173,13 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     addConsBasicLinear("VarUb", Seq(x), Seq(1d), None, Some(bound), trigger)
   }
 
-  /** Creates and captures a linear constraint in its most basic version; all constraint flags are
-    * set to their basic value as explained for the method SCIPcreateConsLinear(); all flags can
-    * be set via SCIPsetConsFLAGNAME methods in scip.h
-    *
-    * @see SCIPcreateConsLinear() for information about the basic constraint flag configuration
-    *
-    * @param name                  name of constraint
-    * @param vars                  seq with variables of constraint entries
-    * @param coeffs                seq with coefficients of constraint entries
-    * @param lhsOpt                left hand side of constraint, optional
-    * @param rhsOpt                right hand side of constraint, optional
-    */
-  def createConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
-    lhsOpt: Option[Double], rhsOpt: Option[Double]): Long = {
-    envConsLinear.createConsBasicLinear(scip, name, vars.length, vars.toArray, coeffs.toArray,
-      lhsOpt.getOrElse(ScipMin), rhsOpt.getOrElse(ScipMax))
-  }
-
-  /** Calls createConsBasicLinear and adds the constraint to the solver */
+  /** Adds a basic linear constraints with an optional LHS and an optional RHS */
   def addConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
     lhsOpt: Option[Double], rhsOpt: Option[Double]): Unit = {
     addReleaseCons(createConsBasicLinear(name, vars, coeffs, lhsOpt, rhsOpt))
   }
 
-  /** If triggered, imposes a basic linear constraint to the solver; trigger is binary variable */
+  /** If triggered, imposes a basic linear constraint on the solver; trigger is binary variable */
   def addConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
     lhsOpt: Option[Double], rhsOpt: Option[Double], trigger: Long): Unit = {
     val largeDbl = 1000000d // a very large value, compared to sum_i var[i] * coeffs[i]
@@ -222,66 +204,33 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     */
   def getValsLinear(cons: Long): Seq[Double] = envConsLinear.getValsLinear(scip, cons)
 
-  /** Creates and captures a basic Set Partitioning constraint, sum_i x_i = 1, emulating C++ API's
-    * createConsBasicSetpack constraint which is not provided in the Java API.
-    *
-    * @param name                  name of constraint
-    * @param vars                  seq with variables of constraint entries
-    */
-  def createConsBasicSetpart(name: String, vars: Seq[Long]): Long = {
-    envConsSetppc.createConsSetpart(scip, name, vars.length, vars.toArray,
-      true, true, true, true, true, false, false, false, false, false)
-  }
-
-  /** Calls createConsBasicSetpart and adds the constraint to the solver */
-  def addConsBasicSetpart(name: String, vars: Seq[Long]): Unit = {
+  /** Adds the constraint sum_i x_i = 1 */
+  def addConsExactlyOne(name: String, vars: Seq[Long]): Unit = {
     addReleaseCons(createConsBasicSetpart(name, vars))
   }
 
   /** If triggered, imposes a set partitioning constraint, sum_i x_i = 1; trigger is binary var */
-  def addConsBasicSetpart(name: String, vars: Seq[Long], trigger: Long): Unit = {
+  def addConsExactlyOne(name: String, vars: Seq[Long], trigger: Long): Unit = {
     addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), Some(1d), Some(1d), trigger)
   }
 
-  /** Creates and captures a basic Set Packing constraint, sum_i x_i <= 1, emulating C++ API's
-    * createConsBasicSetpack constraint which is not provided in the Java API.
-    *
-    * @param name                  name of constraint
-    * @param vars                  seq with variables of constraint entries
-    */
-  def createConsBasicSetpack(name: String, vars: Seq[Long]): Long = {
-    envConsSetppc.createConsSetpack(scip, name, vars.length, vars.toArray,
-      true, true, true, true, true, false, false, false, false, false)
-  }
-
-  /** Calls createConsBasicSetpack and adds the constraint to the solver */
-  def addConsBasicSetpack(name: String, vars: Seq[Long]): Unit = {
+  /** Adds the constraint sum_i x_i <= 1 */
+  def addConsAtMostOne(name: String, vars: Seq[Long]): Unit = {
     addReleaseCons(createConsBasicSetpack(name, vars))
   }
 
   /** If triggered, imposes a set packing constraint, sum_i x_i <= 1; trigger is binary variable */
-  def addConsBasicSetpack(name: String, vars: Seq[Long], trigger: Long): Unit = {
+  def addConsAtMostOne(name: String, vars: Seq[Long], trigger: Long): Unit = {
     addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), None, Some(1d), trigger)
   }
 
-  /** Creates and captures a basic Set covering constraint, sum_i x_i >= 1, emulating C++ API's
-    * createConsBasicSetpack constraint which is not provided in the Java API.
-    *
-    * @param name                  name of constraint
-    * @param vars                  seq with variables of constraint entries
-    */
-  def createConsBasicSetcover(name: String, vars: Seq[Long]): Long = {
-    envConsSetppc.createConsSetcover(scip, name, vars.length, vars.toArray,
-      true, true, true, true, true, false, false, false, false, false)
-  }
-
-  /** Calls createConsBasicSetcover and adds the constraint to the solver */
-  def addConsBasicSetcover(name: String, vars: Seq[Long]): Unit = {
+  /** Adds the constraint sum_i x_i >= 1 */
+  def addConsAtLeastOne(name: String, vars: Seq[Long]): Unit = {
     addReleaseCons(createConsBasicSetcover(name, vars))
   }
 
   /** If triggered, imposes a set covering constraint, sum_i x_i >= 1; trigger is binary variable */
-  def addConsBasicSetcover(name: String, vars: Seq[Long], trigger: Long): Unit = {
+  def addConsAtLeastOne(name: String, vars: Seq[Long], trigger: Long): Unit = {
     addConsBasicLinear(name, vars, Seq.fill(vars.size)(1d), Some(1d), None, trigger)
   }
 
@@ -331,7 +280,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** Adds the constraint sum(X) >= k */
   def addConsAtLeastK(name: String, X: Seq[Long], k: Double): Unit = {
     if (k == 1) {
-      addConsBasicSetcover(name, X)
+      addConsAtLeastOne(name, X)
     } else {
       val coeffs = Seq.fill(X.size)(1d)
       addConsBasicLinear(name, X, coeffs, Some(k), None)
@@ -347,7 +296,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** Adds the constraint sum(X) <= k */
   def addConsAtMostK(name: String, X: Seq[Long], k: Double): Unit = {
     if (k == 1) {
-      addConsBasicSetpack(name, X)
+      addConsAtMostOne(name, X)
     } else {
       val coeffs = Seq.fill(X.size)(1d)
       addConsBasicLinear(name, X, coeffs, None, Some(k))
@@ -405,5 +354,56 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
       val solution = vars.zip(values) map { case (x, v) => varGetName(x) + " : " + v }
       logger.info("Solution found:\n\t" + solution.mkString("\n\t"))
     }
+  }
+
+  /** Creates and captures a linear constraint in its most basic version; all constraint flags are
+    * set to their basic value as explained for the method SCIPcreateConsLinear(); all flags can
+    * be set via SCIPsetConsFLAGNAME methods in scip.h
+    *
+    * @see SCIPcreateConsLinear() for information about the basic constraint flag configuration
+    *
+    * @param name                  name of constraint
+    * @param vars                  seq with variables of constraint entries
+    * @param coeffs                seq with coefficients of constraint entries
+    * @param lhsOpt                left hand side of constraint, optional
+    * @param rhsOpt                right hand side of constraint, optional
+    */
+  private def createConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
+    lhsOpt: Option[Double], rhsOpt: Option[Double]): Long = {
+    envConsLinear.createConsBasicLinear(scip, name, vars.length, vars.toArray, coeffs.toArray,
+      lhsOpt.getOrElse(ScipMin), rhsOpt.getOrElse(ScipMax))
+  }
+
+  /** Creates and captures a basic Set Partitioning constraint, sum_i x_i = 1, emulating C++ API's
+    * createConsBasicSetpack constraint which is not provided in the Java API.
+    *
+    * @param name                  name of constraint
+    * @param vars                  seq with variables of constraint entries
+    */
+  private def createConsBasicSetpart(name: String, vars: Seq[Long]): Long = {
+    envConsSetppc.createConsSetpart(scip, name, vars.length, vars.toArray,
+      true, true, true, true, true, false, false, false, false, false)
+  }
+
+  /** Creates and captures a basic Set Packing constraint, sum_i x_i <= 1, emulating C++ API's
+    * createConsBasicSetpack constraint which is not provided in the Java API.
+    *
+    * @param name                  name of constraint
+    * @param vars                  seq with variables of constraint entries
+    */
+  private def createConsBasicSetpack(name: String, vars: Seq[Long]): Long = {
+    envConsSetppc.createConsSetpack(scip, name, vars.length, vars.toArray,
+      true, true, true, true, true, false, false, false, false, false)
+  }
+
+  /** Creates and captures a basic Set covering constraint, sum_i x_i >= 1, emulating C++ API's
+    * createConsBasicSetpack constraint which is not provided in the Java API.
+    *
+    * @param name                  name of constraint
+    * @param vars                  seq with variables of constraint entries
+    */
+  private def createConsBasicSetcover(name: String, vars: Seq[Long]): Long = {
+    envConsSetppc.createConsSetcover(scip, name, vars.length, vars.toArray,
+      true, true, true, true, true, false, false, false, false, false)
   }
 }
