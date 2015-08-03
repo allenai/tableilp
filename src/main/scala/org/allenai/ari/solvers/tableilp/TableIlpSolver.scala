@@ -69,7 +69,7 @@ class TableIlpSolver @Inject() (
           scipSolver.solve()
           IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables)
         } else {
-          IlpSolutionFactory.makeRandomIlpSolution()
+          IlpSolutionFactory.makeRandomIlpSolution
         }
 
         val ilpSolutionJson = ilpSolution.toJson

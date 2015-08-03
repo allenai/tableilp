@@ -36,9 +36,6 @@ class TableInterface @Inject() (
     tables
   }
 
-  //  /** tables after some normalization */
-  //  val normalizedTables = normalizeTables(tokenizer, allTables)
-
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
 
@@ -124,19 +121,6 @@ class TableInterface @Inject() (
       (word, if (dfcount == 0.0) { 0.0 } else { log10(numberOfTables / dfcount) })
     }).toMap
     (tfMap, idfMap)
-  }
-
-  private def normalizeTables(tokenizer: KeywordTokenizer, tables: Seq[Table]): Seq[Seq[Seq[Seq[String]]]] = {
-    val normalizedTables = tables.zipWithIndex.map {
-      case (table, idx) =>
-        val content = if (ignoreTable18 && idx == 15) {
-          Seq(Seq())
-        } else {
-          table.contentMatrix :+ table.titleRow
-        }
-        content.map(row => row.map(tokenizer.stemmedKeywordTokenize))
-    }
-    normalizedTables
   }
 
   private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int, questionRaw: String): Double = {

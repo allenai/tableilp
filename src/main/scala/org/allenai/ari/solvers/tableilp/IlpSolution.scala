@@ -1,7 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.common.KeywordTokenizer
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusInfeasible, IlpStatus, IlpStatusFeasible, ScipInterface }
+import org.allenai.ari.solvers.tableilp.ilpsolver._
 import org.allenai.common.Logging
 
 import spray.json._
@@ -309,11 +309,11 @@ object IlpSolutionFactory extends Logging {
     (0 until nvals).map(_ => r.nextInt(maxVal))
   }
 
-  /** Generate a random alignment solution object for visualizer testing */
-  def makeRandomIlpSolution(): IlpSolution = {
+  /** Load all tables, if and when needed */
+  private lazy val tableInterface = new TableInterface("src/main/resources/allTables", "", false, KeywordTokenizer.Default)
 
-    /** Load all tables, if and when needed */
-    val tableInterface = new TableInterface("src/main/resources/allTables", "", false, KeywordTokenizer.Default)
+  /** Generate a random alignment solution object for visualizer testing */
+  def makeRandomIlpSolution: IlpSolution = {
 
     // A sample question
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
