@@ -22,9 +22,16 @@ class TableInterface @Inject() (
     tokenizer: KeywordTokenizer
 ) extends Logging {
 
-  final private val ignoreTable18 = true
+  /** config: whether or not to ignore table 18 */
+  private val ignoreTable18 = true
 
-  /** config: a cheat sheet mapping training questions from question to tables */
+  if (useCachedTablesForQuestion) {
+    logger.info(s"Using CACHED tables for questions from $questionToTablesCache")
+  } else {
+    logger.info("Using RANKED tables for questions")
+  }
+
+  /** a cheat sheet mapping training questions from question to tables */
   private lazy val questionToTables = new Table(questionToTablesCache, tokenizer).contentMatrix
 
   /** All tables loaded from CSV files */
@@ -70,7 +77,7 @@ class TableInterface @Inject() (
   }
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
-  def getRankedTablesForQuestion(question: String): Seq[Table] = {
+  private def getRankedTablesForQuestion(question: String): Seq[Table] = {
     val withThreshold = false
     val thresholdValue = 0.17333
     val topN = 1
