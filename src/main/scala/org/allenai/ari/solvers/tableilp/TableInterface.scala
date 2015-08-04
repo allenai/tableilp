@@ -1,6 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.common.KeywordTokenizer
+import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
 
 import com.google.inject.Inject

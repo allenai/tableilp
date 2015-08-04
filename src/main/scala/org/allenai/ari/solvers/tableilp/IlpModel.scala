@@ -1,6 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
+import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights }
 import org.allenai.common.Logging
 
 /** The ILP model for Table Inference.

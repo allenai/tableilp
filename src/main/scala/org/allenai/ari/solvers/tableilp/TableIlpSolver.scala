@@ -4,6 +4,7 @@ import org.allenai.ari.models.{ MultipleChoiceSelection, Question }
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipInterface, ScipParams }
+import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights }
 import org.allenai.common.Version
 
 import akka.actor.ActorSystem

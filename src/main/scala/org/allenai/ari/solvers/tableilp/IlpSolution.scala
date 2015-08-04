@@ -2,6 +2,7 @@ package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.ilpsolver._
+import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
 
 import spray.json._

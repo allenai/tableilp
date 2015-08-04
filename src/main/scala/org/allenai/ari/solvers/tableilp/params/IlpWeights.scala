@@ -1,4 +1,4 @@
-package org.allenai.ari.solvers.tableilp
+package org.allenai.ari.solvers.tableilp.params
 
 import com.google.inject.Inject
 import com.google.inject.name.Named
