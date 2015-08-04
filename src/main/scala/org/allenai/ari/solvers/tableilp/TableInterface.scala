@@ -102,9 +102,9 @@ class TableInterface @Inject() (
   }
 
   private def calculateAllTFIDFScores(): (Map[(String, Int), Double], Map[String, Double]) = {
-    val numberOfTables = allTables.size.toDouble
-    val allTableTokens = allTables.flatMap(tab => tab.fullContentNormalized).flatten.flatMap(_.values)
+    val numberOfTables = allTables.size
     val eachTableTokens = allTables.map(tab => tab.fullContentNormalized.flatten.flatMap(_.values))
+    val allTableTokens = eachTableTokens.flatMap(toks => toks)
 
     val tfMap = (for {
       tableIdx <- allTables.indices
