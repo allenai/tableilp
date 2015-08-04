@@ -35,7 +35,9 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
     val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
 
     val fullContentNormalized = if (tokenizeCells) {
-      fullContentsFiltered.map(row => row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell))))
+      fullContentsFiltered.map { row =>
+        row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
+      }
     } else {
       Seq(Seq[TokenizedCell]())
     }
