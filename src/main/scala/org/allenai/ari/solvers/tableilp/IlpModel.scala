@@ -372,12 +372,10 @@ class IlpModel(
     tables.indices.foreach { tableIdx =>
       val table = tables(tableIdx)
       table.contentMatrix.indices.foreach { rowIdx =>
-        val activeRowVar = activeRowVars((tableIdx, rowIdx))
         val row = table.contentMatrix(rowIdx)
-        val activeCellVarsInRow = row.indices.map { colIdx =>
+        row.indices.map { colIdx =>
           val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
           val activeCellVar = activeCellVars(cellIdx)
-          val activeColVar = activeColVars((tableIdx, colIdx))
           // if any variable aligning to a cell is 1, make the corresponding activeCellVar be 1
           val extAlignmentVarsForCell = cellToExtAlignmentVars.getOrElse(cellIdx, Seq.empty)
           extAlignmentVarsForCell.foreach { ilpSolver.addConsXLeqY("activeCell", _, activeCellVar) }
