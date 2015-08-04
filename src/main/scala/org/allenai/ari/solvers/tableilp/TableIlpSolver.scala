@@ -45,6 +45,9 @@ class TableIlpSolver @Inject() (
   /** config: run actual solver or simply generate a random alignement for debugging */
   private val useActualSolver = true
 
+  /** config: when this correct, we will use automatic table selection */
+  private val useTableSelection = false
+
   private val defaultScore = 0d
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
     SimpleAnswer(selection, defaultScore, Some(Map("ilpSolution" -> JsNull)))
@@ -61,7 +64,11 @@ class TableIlpSolver @Inject() (
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
         val ilpSolutionOpt = if (useActualSolver) {
-          val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
+          val tables = if (useTableSelection) {
+            tableInterface.getRankedTablesForQuestion(question.rawQuestion)
+          } else {
+            tableInterface.getTablesForQuestion(question.rawQuestion)
+          }
           val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer)

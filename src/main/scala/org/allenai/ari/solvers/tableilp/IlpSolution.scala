@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.ilpsolver._
 import org.allenai.common.Logging
 
@@ -299,9 +300,6 @@ object IlpSolutionFactory extends Logging {
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 
-  /** Load all tables, if and when needed */
-  private lazy val tableInterface = new TableInterface("data/allTables", "", false)
-
   /** Object to generate random values */
   private val r = scala.util.Random
 
@@ -311,8 +309,13 @@ object IlpSolutionFactory extends Logging {
     (0 until nvals).map(_ => r.nextInt(maxVal))
   }
 
+  /** Load all tables, if and when needed */
+  private lazy val tableInterface = new TableInterface("data/allTables", "", false,
+    KeywordTokenizer.Default)
+
   /** Generate a random alignment solution object for visualizer testing */
   def makeRandomIlpSolution: IlpSolution = {
+
     // A sample question
     val questionChunks = Array("In", "New York State", "the", "shortest", "period",
       "of", "daylight", "occurs", "during", "which", "month")
