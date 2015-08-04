@@ -1,8 +1,9 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.{ MultipleChoiceSelection, Question }
+import org.allenai.ari.models._
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
+import org.allenai.ari.solvers.lucience.LucienceSolver
 import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipInterface, ScipParams }
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights }
 import org.allenai.common.Version
@@ -34,6 +35,7 @@ class TableIlpSolver @Inject() (
     scipParams: ScipParams,
     ilpParams: IlpParams,
     weights: IlpWeights,
+    lucienceSolver: LucienceSolver,
     @Named("solver.failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
     @Named("solver.useFallbackSolver") useFallbackSolver: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
@@ -49,6 +51,25 @@ class TableIlpSolver @Inject() (
   private val defaultScore = 0d
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
     SimpleAnswer(selection, defaultScore, Some(Map("ilpSolution" -> JsNull)))
+  }
+
+  /** Override SimpleSolver's implementation of solveInternal to be able to call a fallback solver
+    */
+  override protected[ari] def solveInternal(request: SolverRequest): Future[SolverResponse] = {
+    handleQuestion(request.question) flatMap { simpleAnswers =>
+      val completeAnswers = simpleAnswers map {
+        case SimpleAnswer(selection, score, analysisOption, features) => {
+          val analysis = analysisOption getOrElse { Map.empty }
+          SolverAnswer(selection, Analysis(componentId, Some(score), analysis, features))
+        }
+      }
+      // If no answers returned and fallback solver is enabled, call the solver
+      if (completeAnswers.isEmpty && useFallbackSolver) {
+        lucienceSolver.solveInternal(request)
+      } else {
+        Future(SolverResponse(componentId, completeAnswers.sorted))
+      }
+    }
   }
 
   /** The entry point for the solver */
@@ -71,11 +92,7 @@ class TableIlpSolver @Inject() (
           val allVariables = ilpModel.buildModel(questionIlp)
           scipSolver.solve()
           if (failOnUnansweredQuestions && !scipSolver.hasSolution) {
-            if (useFallbackSolver) {
-              None // TODO(tushar) add Salience Solver as a fallback solver
-            } else {
-              None
-            }
+            None
           } else {
             Some(IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables))
           }
@@ -95,7 +112,6 @@ class TableIlpSolver @Inject() (
             .map(defaultIlpAnswer)
           ilpBestAnswer +: otherAnswers
         }
-
         answersOpt.getOrElse(Seq.empty)
       }
     }

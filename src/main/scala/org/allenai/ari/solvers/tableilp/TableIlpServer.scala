@@ -2,6 +2,7 @@ package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.solvers.HttpSolverServer
 import org.allenai.ari.solvers.common.SolversCommonModule
+import org.allenai.ari.solvers.lucience.LucienceSolverModule
 import org.allenai.common.Config._
 import org.allenai.common.guice.ActorSystemModule
 
@@ -21,7 +22,8 @@ object TableIlpServer extends HttpSolverServer {
   val injector = Guice.createInjector(
     new ActorSystemModule,
     // TODO(ashish33) Replace localConfig call with ConfigModule instance; needs new AllenAICommon
-    new SolversCommonModule(localConfig)
+    new SolversCommonModule(localConfig, true),
+    new LucienceSolverModule(rootConfig.getConfig("ari.solvers.lucience"))
   )
 
   override val port = localConfig[Int]("port")
