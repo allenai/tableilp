@@ -15,7 +15,7 @@ import com.google.inject.name.Named
   */
 class TableParams @Inject() (
     @Named("tables.folder") val folder: String = "data/allTables",
-    @Named("tables.ignoreList") ignoreListStr: String = "",
+    @Named("tables.ignoreList") ignoreListStr: String = "15",
     @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int = 4,
     @Named("tables.questionToTablesCache") val questionToTablesCache: String = "",
     @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean = false,
