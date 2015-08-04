@@ -310,8 +310,10 @@ object IlpSolutionFactory extends Logging {
   }
 
   /** Load all tables, if and when needed */
-  private lazy val tableInterface = new TableInterface("data/allTables", "", false,
-    "", KeywordTokenizer.Default)
+  private lazy val tableInterface = new TableInterface(
+    TableParams.Default,
+    KeywordTokenizer.Default
+  )
 
   /** Generate a random alignment solution object for visualizer testing */
   def makeRandomIlpSolution: IlpSolution = {

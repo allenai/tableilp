@@ -4,29 +4,22 @@ import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.common.Logging
 
 import com.google.inject.Inject
-import com.google.inject.name.Named
 
 import scala.math._
 
 /** A class for storing and processing multiple tables.
   *
-  * @param folder Name of the folder from which to read tables
-  * @param questionToTablesCache Name of the cheat sheet mapping question to relevant tables
-  * @param useCachedTablesForQuestion Whether to use the above cheat sheet
-  * @param ignoreList A comma-separated list of able IDs to ignore
+  * @param params Various knowledge table related parameters
   * @param tokenizer A keyword tokenizer
   */
 class TableInterface @Inject() (
-    @Named("tables.folder") folder: String,
-    @Named("tables.questionToTablesCache") questionToTablesCache: String,
-    @Named("tables.useCachedTablesForQuestion") useCachedTablesForQuestion: Boolean,
-    @Named("tables.ignoreList") ignoreList: String,
+    params: TableParams,
     tokenizer: KeywordTokenizer
 ) extends Logging {
   /** All tables loaded from CSV files */
   val allTables = {
-    logger.info(s"Loading tables from folder $folder")
-    val files = new java.io.File(folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
+    logger.info(s"Loading tables from folder ${params.folder}")
+    val files = new java.io.File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
     val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
     logger.debug(s"${tables.size} tables loaded:\n" +
       files.zipWithIndex.map { case (file, idx) => s"\ntable $idx = $file" })
@@ -35,40 +28,44 @@ class TableInterface @Inject() (
   }
 
   /** a sequence of table indices to ignore */
-  private val tablesToIgnore = ignoreList.split(',').map(_.toInt).toSeq
-  logger.info("Ignoring table IDs " + tablesToIgnore.mkString(","))
+  logger.info("Ignoring table IDs " + params.ignoreList.toString())
 
-  if (useCachedTablesForQuestion) {
-    logger.info(s"Using CACHED tables for questions from $questionToTablesCache")
+  if (params.useCachedTablesForQuestion) {
+    logger.info(s"Using CACHED tables for questions from ${params.questionToTablesCache}")
   } else {
     logger.info("Using RANKED tables for questions")
   }
 
   /** a cheat sheet mapping training questions from question to tables */
-  private lazy val questionToTables = new Table(questionToTablesCache, tokenizer).contentMatrix
+  private lazy val questionToTables = new Table(params.questionToTablesCache, tokenizer)
+    .contentMatrix
 
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
 
   /** Get a subset of tables relevant for a given question */
   def getTablesForQuestion(question: String): Seq[Table] = {
-    val tables = if (useCachedTablesForQuestion) {
+    val tables = if (params.useCachedTablesForQuestion) {
       getCachedTablesForQuestion(question)
     } else {
       getRankedTablesForQuestion(question)
     }
     logger.debug(s"using ${tables.size} tables:\n" +
       tables.map("table: " + _.titleRow.mkString(",") + "\n"))
-    assert(tables.size <= 4, "Only up to 4 tables supported")
+    assert(
+      tables.size <= params.maxTablesPerQuestion,
+      s"Only max ${params.maxTablesPerQuestion} tables supported"
+    )
     tables
   }
 
+  private def sep = "-".r
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
   private def getCachedTablesForQuestion(question: String): Seq[Table] = {
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
-    val tablesOpt = questionToTablesOpt map { qToTables =>
-      qToTables(2).split('-').map(_.toInt).filterNot(tablesToIgnore.contains).map(allTables).toSeq
+    val tablesOpt = questionToTablesOpt map { qTables =>
+      sep.split(qTables(2)).map(_.toInt).filterNot(params.ignoreList.contains).map(allTables).toSeq
     } orElse {
       Some(Seq.empty)
     }
@@ -79,13 +76,11 @@ class TableInterface @Inject() (
   private def getRankedTablesForQuestion(question: String): Seq[Table] = {
     val withThreshold = false
     val thresholdValue = 0.17333
-    val topN = 1
-    // ignore table 18 (which has index 15)
-    val scoreIndexPairs = allTables.indices.filterNot(tablesToIgnore.contains).map { tableIdx =>
+    val scoreIndexPairs = allTables.indices.filterNot(params.ignoreList.contains).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
     (if (!withThreshold) {
-      scoreIndexPairs.sortBy(-_._2).slice(0, topN)
+      scoreIndexPairs.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
     } else {
       scoreIndexPairs.filter(_._2 > thresholdValue)
     }).map { case (idx, score) => allTables(idx) }
@@ -130,7 +125,8 @@ class TableInterface @Inject() (
     (tfMap, idfMap)
   }
 
-  private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int, questionRaw: String): Double = {
+  private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int,
+    questionRaw: String): Double = {
     val table = allTables(tableIdx).fullContentNormalized
     val qaTokens = tokenizer.stemmedKeywordTokenize(questionRaw.toLowerCase)
     val currentTableTokens = table.flatten.flatMap(_.values)
