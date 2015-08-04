@@ -183,6 +183,52 @@ class IlpModel(
         tableRowVars, 1d)
     }
 
+    // add question independent activity constraints
+    tables.indices.foreach { tableIdx =>
+      val table = tables(tableIdx)
+      table.contentMatrix.indices.foreach { rowIdx =>
+        val activeRowVar = activeRowVars((tableIdx, rowIdx))
+        val row = table.contentMatrix(rowIdx)
+        val activeCellVarsInRow = row.indices.map { colIdx =>
+          val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+          val activeCellVar = activeCellVars(cellIdx)
+          val activeColVar = activeColVars((tableIdx, colIdx))
+          // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
+          ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
+          ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
+          // return the active cell var
+          activeCellVar
+        }
+        // non-redundant use of tables: if a row is active, at least TWO of its cells must be
+        // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
+        // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
+        ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
+          activeCellVarsInRow, 2d)
+      }
+
+      table.titleRow.indices.foreach { colIdx =>
+        val activeColVar = activeColVars((tableIdx, colIdx))
+        val activeCellVarsInCol = table.contentMatrix.indices.map { rowIdx =>
+          val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+          val activeCellVar = activeCellVars(cellIdx)
+          activeCellVar
+        }
+        // non-redundant use of tables: if a col is active, at least ONE of its cells must be
+        // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
+        // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
+        ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
+          activeCellVarsInCol, 1d)
+      }
+
+      table.titleRow.indices.foreach { colIdx =>
+        val activeColVar = activeColVars((tableIdx, colIdx))
+        val activeTitleVar = activeTitleVars((tableIdx, colIdx))
+        // if title is active, column must be active
+        // otherwise we don't need, i.e.: activeTitleVar <= activeColVar
+        ilpSolver.addConsXLeqY("activeTitle", activeTitleVar, activeColVar)
+      }
+    }
+
     // at most k tables may be active
     val maxTables = ilpParams.maxTablesToChain
     ilpSolver.addConsAtMostK(s"atMost${maxTables}Tables", activeTableVars.values.toSeq, maxTables)
@@ -348,39 +394,9 @@ class IlpModel(
             "activeCellImpliesAtLeastOneExt",
             activeCellVar, extAlignmentVarsForCell, 1d
           )
-          // if any activeCellVar for a row is 1, make the corresponding activeRowVar be 1
-          ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
-          ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
           // return the active cell var
           activeCellVar
         }
-        // non-redundant use of tables: if a row is active, at least TWO of its cells must be
-        // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
-        // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
-        ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
-          activeCellVarsInRow, 2d)
-      }
-
-      table.titleRow.indices.foreach { colIdx =>
-        val activeColVar = activeColVars((tableIdx, colIdx))
-        val activeCellVarsInCol = table.contentMatrix.indices.map { rowIdx =>
-          val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
-          val activeCellVar = activeCellVars(cellIdx)
-          activeCellVar
-        }
-        // non-redundant use of tables: if a col is active, at least ONE of its cells must be
-        // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
-        // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
-        ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
-          activeCellVarsInCol, 1d)
-      }
-
-      table.titleRow.indices.foreach { colIdx =>
-        val activeColVar = activeColVars((tableIdx, colIdx))
-        val activeTitleVar = activeTitleVars((tableIdx, colIdx))
-        // if title is active, column must be active
-        // otherwise we don't need, i.e.: activeTitleVar <= activeColVar
-        ilpSolver.addConsXLeqY("activeTitle", activeTitleVar, activeColVar)
       }
 
       table.titleRow.indices.foreach { colIdx =>
