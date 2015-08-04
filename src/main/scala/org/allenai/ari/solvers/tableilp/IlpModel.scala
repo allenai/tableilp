@@ -161,31 +161,31 @@ class IlpModel(
       }
     }
 
-    // row activity constraint: allow at most 1 row per table to be active, unless otherwise
-    // specified in the configuration
-    // Note: question dependent variables may also make the row active; this constraint will
-    // take that into account as well
+    // add question independent activity constraints
     tables.indices.foreach { tableIdx =>
       val table = tables(tableIdx)
+
+      // row activity constraint: allow at most 1 row per table to be active, unless otherwise
+      // specified in the configuration
+      // Note: question dependent variables may also make the row active; this constraint will
+      // take that into account as well
       val tableRowVars = table.contentMatrix.indices.map(r => activeRowVars((tableIdx, r)))
       val ub = ilpParams.maxRowsPerTable
       ilpSolver.addConsAtMostK(s"atMost${ub}Rows_T=$tableIdx", tableRowVars, ub)
-      // table activity constraints:
+
+      // table activity constraints
       // (a) if a row is active, then the table is active (NOTE: if title is active, then a row must
       // be active, and then this constraint makes the table active as well);
-      // (b) if the table is active, then at least one row is active
       val activeTableVar = activeTableVars(tableIdx)
       tableRowVars.foreach { activeRowVar =>
         ilpSolver.addConsXLeqY(s"activeRowImpliesActiveTable_T=$tableIdx", activeRowVar,
           activeTableVar)
       }
+      // (b) if the table is active, then at least one row is active
       ilpSolver.addConsYImpliesAtLeastK(s"activeRowsImpliesActiveTable_T=$tableIdx", activeTableVar,
         tableRowVars, 1d)
-    }
 
-    // add question independent activity constraints
-    tables.indices.foreach { tableIdx =>
-      val table = tables(tableIdx)
+      // cell, row, and column activity constraints
       table.contentMatrix.indices.foreach { rowIdx =>
         val activeRowVar = activeRowVars((tableIdx, rowIdx))
         val row = table.contentMatrix(rowIdx)
@@ -206,6 +206,9 @@ class IlpModel(
           activeCellVarsInRow, 2d)
       }
 
+      // non-redundant use of tables: if a col is active, at least ONE of its cells must be
+      // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
+      // 0 <= sum(activeCellVarsInCol) - 1*activeRowVar
       table.titleRow.indices.foreach { colIdx =>
         val activeColVar = activeColVars((tableIdx, colIdx))
         val activeCellVarsInCol = table.contentMatrix.indices.map { rowIdx =>
@@ -213,18 +216,15 @@ class IlpModel(
           val activeCellVar = activeCellVars(cellIdx)
           activeCellVar
         }
-        // non-redundant use of tables: if a col is active, at least ONE of its cells must be
-        // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
-        // 0 <= sum(activeCellVarsInRow) - 1*activeRowVar
         ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
           activeCellVarsInCol, 1d)
       }
 
+      // if a title is active, then the corresponding column must be active
+      // otherwise we don't need, i.e.: activeTitleVar <= activeColVar
       table.titleRow.indices.foreach { colIdx =>
         val activeColVar = activeColVars((tableIdx, colIdx))
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
-        // if title is active, column must be active
-        // otherwise we don't need, i.e.: activeTitleVar <= activeColVar
         ilpSolver.addConsXLeqY("activeTitle", activeTitleVar, activeColVar)
       }
     }
@@ -399,8 +399,8 @@ class IlpModel(
         }
       }
 
+      // a title is active if and only if there is an external alignment to it
       table.titleRow.indices.foreach { colIdx =>
-        // for any title var, it is active, if there is any alignment to it, from any Q constituents
         val titleIdx = TitleIdx(tableIdx, colIdx)
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
