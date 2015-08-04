@@ -83,21 +83,20 @@ class TableIlpSolver @Inject() (
           Some(IlpSolutionFactory.makeRandomIlpSolution)
         }
 
-        ilpSolutionOpt match {
-          case Some(ilpSolution) => {
-            val ilpSolutionJson = ilpSolution.toJson
-            logger.debug(ilpSolutionJson.toString())
-            val ilpBestAnswer = SimpleAnswer(
-              question.selections(ilpSolution.bestChoice),
-              ilpSolution.bestChoiceScore,
-              Some(Map("ilpSolution" -> ilpSolutionJson))
-            )
-            val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
-              .map(defaultIlpAnswer)
-            ilpBestAnswer +: otherAnswers
-          }
-          case None => Seq.empty
+        val answersOpt = ilpSolutionOpt map { ilpSolution =>
+          val ilpSolutionJson = ilpSolution.toJson
+          logger.debug(ilpSolutionJson.toString())
+          val ilpBestAnswer = SimpleAnswer(
+            question.selections(ilpSolution.bestChoice),
+            ilpSolution.bestChoiceScore,
+            Some(Map("ilpSolution" -> ilpSolutionJson))
+          )
+          val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
+            .map(defaultIlpAnswer)
+          ilpBestAnswer +: otherAnswers
         }
+
+        answersOpt.getOrElse(Seq.empty)
       }
     }
   }
