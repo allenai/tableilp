@@ -18,22 +18,22 @@ import com.google.inject.name.Named
   * @param activeChoiceObjCoeff How much does an active choice contribute to the objective function
   */
 class IlpWeights @Inject() (
-  @Named("weights.minCellCellAlignment") val minCellCellAlignment: Double = 0.2,
-  @Named("weights.minCellQConsAlignment") val minCellQConsAlignment: Double = 0.2,
-  @Named("weights.minTitleQConsAlignment") val minTitleQConsAlignment: Double = 0.2,
-  @Named("weights.minCellQChoiceAlignment") val minCellQChoiceAlignment: Double = 0.2,
-  @Named("weights.minTitleQChoiceAlignment") val minTitleQChoiceAlignment: Double = 0.2,
-  @Named("weights.minTitleTitleAlignment") val minTitleTitleAlignment: Double = 0.2,
-  @Named("weights.activeCellObjCoeff") val activeCellObjCoeff: Double = 0d,
-  @Named("weights.activeRowObjCoeff") val activeRowObjCoeff: Double = 0d,
-  @Named("weights.activeColObjCoeff") val activeColObjCoeff: Double = 0d,
-  @Named("weights.activeTitleObjCoeff") val activeTitleObjCoeff: Double = 0d,
-  @Named("weights.activeTableObjCoeff") val activeTableObjCoeff: Double = 0d,
-  @Named("weights.activeQConsObjCoeff") val activeQConsObjCoeff: Double = 1d,
-  @Named("weights.activeChoiceObjCoeff") val activeChoiceObjCoeff: Double = 100d
+  @Named("weights.minCellCellAlignment") val minCellCellAlignment: Double,
+  @Named("weights.minCellQConsAlignment") val minCellQConsAlignment: Double,
+  @Named("weights.minTitleQConsAlignment") val minTitleQConsAlignment: Double,
+  @Named("weights.minCellQChoiceAlignment") val minCellQChoiceAlignment: Double,
+  @Named("weights.minTitleQChoiceAlignment") val minTitleQChoiceAlignment: Double,
+  @Named("weights.minTitleTitleAlignment") val minTitleTitleAlignment: Double,
+  @Named("weights.activeCellObjCoeff") val activeCellObjCoeff: Double,
+  @Named("weights.activeRowObjCoeff") val activeRowObjCoeff: Double,
+  @Named("weights.activeColObjCoeff") val activeColObjCoeff: Double,
+  @Named("weights.activeTitleObjCoeff") val activeTitleObjCoeff: Double,
+  @Named("weights.activeTableObjCoeff") val activeTableObjCoeff: Double,
+  @Named("weights.activeQConsObjCoeff") val activeQConsObjCoeff: Double,
+  @Named("weights.activeChoiceObjCoeff") val activeChoiceObjCoeff: Double
 ) {}
 
 /** An object to capture the default weight settings */
 object IlpWeights {
-  val Default = new IlpWeights()
+  val Default = new IlpWeights(0.2d, 0.2d, 0.2d, 0.2d, 0.2d, 0.2d, 0d, 0d, 0d, 0d, 0d, 1d, 100d)
 }

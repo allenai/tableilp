@@ -14,13 +14,13 @@ import com.google.inject.name.Named
   * @param useRankThreshold Whether to use the above threshold on rank
   */
 class TableParams @Inject() (
-    @Named("tables.folder") val folder: String = "data/allTables",
-    @Named("tables.ignoreList") ignoreListStr: String = "15",
-    @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int = 4,
-    @Named("tables.questionToTablesCache") val questionToTablesCache: String = "",
-    @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean = false,
-    @Named("tables.rankThreshold") val rankThreshold: Double = 0.25,
-    @Named("tables.useRankThreshold") val useRankThreshold: Boolean = false
+    @Named("tables.folder") val folder: String,
+    @Named("tables.ignoreList") ignoreListStr: String,
+    @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int,
+    @Named("tables.questionToTablesCache") val questionToTablesCache: String,
+    @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean,
+    @Named("tables.rankThreshold") val rankThreshold: Double,
+    @Named("tables.useRankThreshold") val useRankThreshold: Boolean
 ) {
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
     Seq.empty
@@ -31,5 +31,6 @@ class TableParams @Inject() (
 
 /** An object to capture the default knowledge table parameters */
 object TableParams {
-  val Default = new TableParams()
+  val Default = new TableParams("data/allTables", "15", 4, "", useCachedTablesForQuestion = false,
+    0.25d, useRankThreshold = false)
 }

@@ -11,13 +11,13 @@ import com.google.inject.name.Named
   * @param printVersion Integer, indicating whether to print SCIP's version to log
   */
 class ScipParams @Inject() (
-  @Named("scip.timeLimit") val timeLimit: Double = 60d,
-  @Named("scip.logFile") val logFile: String = "scip.log",
-  @Named("scip.messagehdlrQuiet") val messagehdlrQuiet: Boolean = false,
-  @Named("scip.printVersion") val printVersion: Int = 0
+  @Named("scip.timeLimit") val timeLimit: Double,
+  @Named("scip.logFile") val logFile: String,
+  @Named("scip.messagehdlrQuiet") val messagehdlrQuiet: Boolean,
+  @Named("scip.printVersion") val printVersion: Int
 ) {}
 
 /** An object to capture the default SCIP parameters */
 object ScipParams {
-  val Default = new ScipParams()
+  val Default = new ScipParams(180d, "scip.log", messagehdlrQuiet = false, 0)
 }

@@ -12,14 +12,14 @@ import com.google.inject.name.Named
   * @param maxRowsPerTable how many rows per table may an inference chain use inference
   */
 class IlpParams @Inject() (
-  @Named("model.alignmentType") val alignmentType: String = "Entailment",
-  @Named("model.entailmentScoreOffset") val entailmentScoreOffset: Double = 0.2d,
-  @Named("model.mustChooseAnAnswer") val mustChooseAnAnswer: Boolean = true,
-  @Named("model.maxTablesToChain") val maxTablesToChain: Int = 4,
-  @Named("model.maxRowsPerTable") val maxRowsPerTable: Int = 1
+  @Named("model.alignmentType") val alignmentType: String,
+  @Named("model.entailmentScoreOffset") val entailmentScoreOffset: Double,
+  @Named("model.mustChooseAnAnswer") val mustChooseAnAnswer: Boolean,
+  @Named("model.maxTablesToChain") val maxTablesToChain: Int,
+  @Named("model.maxRowsPerTable") val maxRowsPerTable: Int
 ) {}
 
 /** An object to capture the default ILP model parameters */
 object IlpParams {
-  val Default = new IlpParams()
+  val Default = new IlpParams("Entailment", 0.2d, mustChooseAnAnswer = true, 4, 1)
 }
