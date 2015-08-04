@@ -61,11 +61,11 @@ class TableIlpSolver @Inject() (
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
         val ilpSolution = if (useActualSolver) {
-          val tables = if (useTableSelection)
+          val tables = if (useTableSelection) {
             tableInterface.getRankedTablesForQuestion(question.rawQuestion)
-          else
+          } else {
             tableInterface.getTablesForQuestion(question.rawQuestion)
-
+          }
           val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(alignmentType, Some(entailmentService),
             entailmentScoreOffset, tokenizer)
