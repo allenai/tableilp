@@ -13,17 +13,30 @@ import scala.math._
   * @param folder Name of the folder from which to read tables
   * @param questionToTablesCache Name of the cheat sheet mapping question to relevant tables
   * @param useCachedTablesForQuestion Whether to use the above cheat sheet
+  * @param ignoreList A comma-separated list of able IDs to ignore
   * @param tokenizer A keyword tokenizer
   */
 class TableInterface @Inject() (
     @Named("tables.folder") folder: String,
     @Named("tables.questionToTablesCache") questionToTablesCache: String,
     @Named("tables.useCachedTablesForQuestion") useCachedTablesForQuestion: Boolean,
+    @Named("tables.ignoreList") ignoreList: String,
     tokenizer: KeywordTokenizer
 ) extends Logging {
+  /** All tables loaded from CSV files */
+  val allTables = {
+    logger.info(s"Loading tables from folder $folder")
+    val files = new java.io.File(folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
+    val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
+    logger.debug(s"${tables.size} tables loaded:\n" +
+      files.zipWithIndex.map { case (file, idx) => s"\ntable $idx = $file" })
+    if (internalLogger.isTraceEnabled) tables.foreach(t => logger.trace(t.titleRow.mkString(",")))
+    tables
+  }
 
-  /** config: whether or not to ignore table 18 */
-  private val ignoreTable18 = true
+  /** a sequence of table indices to ignore */
+  private val tablesToIgnore = ignoreList.split(',').map(_.toInt).toSeq
+  logger.info("Ignoring table IDs " + tablesToIgnore.mkString(","))
 
   if (useCachedTablesForQuestion) {
     logger.info(s"Using CACHED tables for questions from $questionToTablesCache")
@@ -33,16 +46,6 @@ class TableInterface @Inject() (
 
   /** a cheat sheet mapping training questions from question to tables */
   private lazy val questionToTables = new Table(questionToTablesCache, tokenizer).contentMatrix
-
-  /** All tables loaded from CSV files */
-  val allTables = {
-    logger.info(s"Loading tables from folder $folder")
-    val files = new java.io.File(folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
-    val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
-    logger.debug(s"${tables.size} tables loaded from files:\n" + files.mkString("\n"))
-    if (internalLogger.isTraceEnabled) tables.foreach(t => logger.trace(t.titleRow.mkString(",")))
-    tables
-  }
 
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
@@ -60,16 +63,12 @@ class TableInterface @Inject() (
     tables
   }
 
-  /** Get a subset of tables relevant for a given question, by looking up a cheat sheet
-    * Here we removed table 18, which contains a large dump of WordNet
-    * The index 18 gets converted to 15. Here is the list of tables and their indices
-    * https://docs.google.com/spreadsheets/d/1YTPuMOX8EB4YnCrKnQXOV99zZC8QYSkfbCDN3rsfcYM/edit#gid=506523592
-    */
+  /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
   private def getCachedTablesForQuestion(question: String): Seq[Table] = {
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qToTables =>
-      qToTables(2).split('-').filterNot(_.toInt == 15 && ignoreTable18).map(idx => allTables(idx.toInt)).toSeq
+      qToTables(2).split('-').map(_.toInt).filterNot(tablesToIgnore.contains).map(allTables).toSeq
     } orElse {
       Some(Seq.empty)
     }
@@ -82,7 +81,7 @@ class TableInterface @Inject() (
     val thresholdValue = 0.17333
     val topN = 1
     // ignore table 18 (which has index 15)
-    val scoreIndexPairs = allTables.indices.filterNot(_ == 15 && ignoreTable18).map { tableIdx =>
+    val scoreIndexPairs = allTables.indices.filterNot(tablesToIgnore.contains).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
     (if (!withThreshold) {

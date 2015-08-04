@@ -13,7 +13,7 @@ object IlpExamples extends Logging {
     tokenizer: KeywordTokenizer
   ): Unit = {
     val question = TableQuestionFactory.makeQuestion(questionChunks)
-    val tableInterface = new TableInterface("data/allTables", "", false, tokenizer)
+    val tableInterface = new TableInterface("data/allTables", "", false, "", tokenizer)
     val tables = tableInterface.allTables.slice(0, 2)
     val scipParams = ScipParams.Default
     val ilpParams = IlpParams.Default
