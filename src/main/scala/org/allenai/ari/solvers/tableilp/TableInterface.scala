@@ -66,7 +66,7 @@ class TableInterface @Inject() (
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qTables =>
-      sep.split(qTables(2)).map(_.toInt).filterNot(params.ignoreList.contains).map(allTables).toSeq
+      sep.split(qTables(2)).map(_.toInt).diff(params.ignoreList).map(allTables).toSeq
     } orElse {
       Some(Seq.empty)
     }
@@ -75,16 +75,14 @@ class TableInterface @Inject() (
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
   private def getRankedTablesForQuestion(question: String): Seq[Table] = {
-    val withThreshold = false
-    val thresholdValue = 0.17333
-    val scoreIndexPairs = allTables.indices.filterNot(params.ignoreList.contains).map { tableIdx =>
+    val scoreIndexPairs = allTables.indices.diff(params.ignoreList).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
-    (if (!withThreshold) {
+    (if (!params.useRankThreshold) {
       scoreIndexPairs.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
     } else {
-      scoreIndexPairs.filter(_._2 > thresholdValue)
-    }).map { case (idx, score) => allTables(idx) }
+      scoreIndexPairs.filter(_._2 > params.rankThreshold)
+    }).map { case (idx, _) => allTables(idx) }
   }
 
   /** Print all variables relevant to tables */

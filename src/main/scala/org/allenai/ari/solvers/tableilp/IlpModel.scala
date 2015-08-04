@@ -171,7 +171,8 @@ class IlpModel(
       val ub = ilpParams.maxRowsPerTable
       ilpSolver.addConsAtMostK(s"atMost${ub}Rows_T=$tableIdx", tableRowVars, ub)
       // table activity constraints:
-      // (a) if a row is active, then the table is active
+      // (a) if a row is active, then the table is active (NOTE: if title is active, then a row must
+      // be active, and then this constraint makes the table active as well);
       // (b) if the table is active, then at least one row is active
       val activeTableVar = activeTableVars(tableIdx)
       tableRowVars.foreach { activeRowVar =>
