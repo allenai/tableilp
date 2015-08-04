@@ -31,6 +31,13 @@ class TableParams @Inject() (
 
 /** An object to capture the default knowledge table parameters */
 object TableParams {
-  val Default = new TableParams("data/allTables", "15", 4, "", useCachedTablesForQuestion = false,
-    0.25d, useRankThreshold = false)
+  val Default = new TableParams(
+    folder = "data/allTables",
+    ignoreListStr = "15",
+    maxTablesPerQuestion = 4,
+    questionToTablesCache = "",
+    useCachedTablesForQuestion = false,
+    rankThreshold = 0.25d,
+    useRankThreshold = false
+  )
 }

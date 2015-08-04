@@ -35,5 +35,19 @@ class IlpWeights @Inject() (
 
 /** An object to capture the default weight settings */
 object IlpWeights {
-  val Default = new IlpWeights(0.2d, 0.2d, 0.2d, 0.2d, 0.2d, 0.2d, 0d, 0d, 0d, 0d, 0d, 1d, 100d)
+  val Default = new IlpWeights(
+    minCellCellAlignment = 0.2d,
+    minCellQConsAlignment = 0.2d,
+    minTitleQConsAlignment = 0.2d,
+    minCellQChoiceAlignment = 0.2d,
+    minTitleQChoiceAlignment = 0.2d,
+    minTitleTitleAlignment = 0.2d,
+    activeCellObjCoeff = 0d,
+    activeRowObjCoeff = 0d,
+    activeColObjCoeff = 0d,
+    activeTitleObjCoeff = 0d,
+    activeTableObjCoeff = 0d,
+    activeQConsObjCoeff = 1d,
+    activeChoiceObjCoeff = 100d
+  )
 }

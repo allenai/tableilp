@@ -19,5 +19,10 @@ class ScipParams @Inject() (
 
 /** An object to capture the default SCIP parameters */
 object ScipParams {
-  val Default = new ScipParams(180d, "scip.log", messagehdlrQuiet = false, 0)
+  val Default = new ScipParams(
+    timeLimit = 180d,
+    logFile = "scip.log",
+    messagehdlrQuiet = false,
+    printVersion = 0
+  )
 }

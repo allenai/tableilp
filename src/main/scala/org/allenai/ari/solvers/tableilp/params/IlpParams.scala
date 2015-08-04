@@ -21,5 +21,11 @@ class IlpParams @Inject() (
 
 /** An object to capture the default ILP model parameters */
 object IlpParams {
-  val Default = new IlpParams("Entailment", 0.2d, mustChooseAnAnswer = true, 4, 1)
+  val Default = new IlpParams(
+    alignmentType = "Entailment",
+    entailmentScoreOffset = 0.2d,
+    mustChooseAnAnswer = true,
+    maxTablesToChain = 4,
+    maxRowsPerTable = 1
+  )
 }
