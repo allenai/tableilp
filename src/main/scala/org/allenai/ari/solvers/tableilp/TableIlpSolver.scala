@@ -26,6 +26,7 @@ import scala.concurrent.Future
   * @param weights various weights for the ILP model
   * @param failOnUnansweredQuestions declare question "unanswered" when no answer choice is found
   * @param useFallbackSolver if this solver doesn't answer the question, use a fallback solver
+  * @param useFallbackSolverComponentId whether to use fallback solver's ID or TableIlp solver's ID
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
@@ -37,7 +38,8 @@ class TableIlpSolver @Inject() (
     weights: IlpWeights,
     lucienceSolver: LucienceSolver,
     @Named("solver.failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
-    @Named("solver.useFallbackSolver") useFallbackSolver: Boolean
+    @Named("solver.useFallbackSolver") useFallbackSolver: Boolean,
+    @Named("solver.useFallbackSolverComponentID") useFallbackSolverComponentId: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -63,9 +65,14 @@ class TableIlpSolver @Inject() (
           SolverAnswer(selection, Analysis(componentId, Some(score), analysis, features))
         }
       }
-      // If no answers returned and fallback solver is enabled, call the solver
+      // If no answers returned and fallback solver is enabled, call the fallback solver
       if (completeAnswers.isEmpty && useFallbackSolver) {
-        lucienceSolver.solveInternal(request)
+        val fallbackResponse = lucienceSolver.solveInternal(request)
+        if (useFallbackSolverComponentId) {
+          fallbackResponse
+        } else {
+          fallbackResponse.map(response => SolverResponse(componentId, response.answers))
+        }
       } else {
         Future(SolverResponse(componentId, completeAnswers.sorted))
       }
