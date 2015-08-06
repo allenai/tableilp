@@ -39,7 +39,7 @@ class TableIlpSolver @Inject() (
     lucienceSolver: LucienceSolver,
     @Named("solver.failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
     @Named("solver.useFallbackSolver") useFallbackSolver: Boolean,
-    @Named("solver.useFallbackSolverComponentID") useFallbackSolverComponentId: Boolean
+    @Named("solver.useFallbackSolverComponentId") useFallbackSolverComponentId: Boolean
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
