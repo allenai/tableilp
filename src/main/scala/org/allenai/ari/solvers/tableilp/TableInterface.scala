@@ -6,8 +6,6 @@ import org.allenai.common.Logging
 
 import com.google.inject.Inject
 
-import scala.math._
-
 /** A class for storing and processing multiple tables.
   *
   * @param params Various knowledge table related parameters
@@ -20,7 +18,8 @@ class TableInterface @Inject() (
   /** All tables loaded from CSV files */
   val allTables = {
     logger.info(s"Loading tables from folder ${params.folder}")
-    val files = new java.io.File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).toSeq
+    val files = new java.io.File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted
+      .toSeq
     val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
     logger.debug(s"${tables.size} tables loaded:\n" +
       files.zipWithIndex.map { case (file, idx) => s"\ntable $idx = $file" })
@@ -112,14 +111,14 @@ class TableInterface @Inject() (
       word <- allTableTokens
     } yield {
       val tfcount = eachTableTokens(tableIdx).count(_ == word).toDouble
-      ((word, tableIdx), if (tfcount == 0.0) { 0.0 } else { 1.0 + log10(tfcount) })
+      ((word, tableIdx), if (tfcount == 0.0) { 0.0 } else { 1.0 + math.log10(tfcount) })
     }).toMap
 
     val idfMap = (for {
       word <- allTableTokens
     } yield {
       val dfcount = eachTableTokens.count { table => table.contains(word) }.toDouble
-      (word, if (dfcount == 0.0) { 0.0 } else { log10(numberOfTables / dfcount) })
+      (word, if (dfcount == 0.0) { 0.0 } else { math.log10(numberOfTables / dfcount) })
     }).toMap
     (tfMap, idfMap)
   }
