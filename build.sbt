@@ -25,6 +25,11 @@ libraryDependencies ++= Seq(
 // Copy local data files to the staging directory.
 mappings in Universal ++= directory(baseDirectory.value / "data")
 
+mappings in Universal += {
+  ((baseDirectory in lucienceSolver).value / "src" / "main" / "resources" / "application.conf") ->
+      "conf/lucience.conf"
+}
+
 // You can increase the solver memory settings here, if you need to.
 javaOptions ++= Seq(s"-Dlogback.appname=${name.value}", "-Djava.library.path=lib")
 
