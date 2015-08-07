@@ -70,7 +70,7 @@ class TableIlpSolver @Inject() (
         val fallbackResponse = lucienceSolver.solveInternal(request)
         fallbackResponse.map { response =>
           val compId = if (useFallbackSolverComponentId) response.solver else componentId
-          val features = Map("fallbackSolverUsed" -> 0d)
+          val features = Map("fallbackSolverUsed" -> 1d)
           SolverResponse(compId, response.answers.seq.map { answer =>
             SolverAnswer(
               answer.selection,
