@@ -230,8 +230,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** Adds the constraint sum_i x_i = 1 */
   def addConsExactlyOne(name: String, X: Seq[Long]): Unit = {
     // use special implementation if all variables are binary
-    val areVarsBinary = X.map(x => envVar.varGetType(x) == JniScipVartype.SCIP_VARTYPE_BINARY)
-    if (areVarsBinary.forall(_ == true)) {
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
       addReleaseCons(createConsBasicSetpart(name, X))
     } else {
       val coeffs = Seq.fill(X.size)(1d)
@@ -248,8 +247,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** Adds the constraint sum_i x_i <= 1 */
   def addConsAtMostOne(name: String, X: Seq[Long]): Unit = {
     // use special implementation if all variables are binary
-    val areVarsBinary = X.map(x => envVar.varGetType(x) == JniScipVartype.SCIP_VARTYPE_BINARY)
-    if (areVarsBinary.forall(_ == true)) {
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
       addReleaseCons(createConsBasicSetpack(name, X))
     } else {
       val coeffs = Seq.fill(X.size)(1d)
@@ -265,8 +263,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** Adds the constraint sum_i x_i >= 1 */
   def addConsAtLeastOne(name: String, X: Seq[Long]): Unit = {
     // use special implementation if all variables are binary
-    val areVarsBinary = X.map(x => envVar.varGetType(x) == JniScipVartype.SCIP_VARTYPE_BINARY)
-    if (areVarsBinary.forall(_ == true)) {
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
       addReleaseCons(createConsBasicSetcover(name, X))
     } else {
       val coeffs = Seq.fill(X.size)(1d)

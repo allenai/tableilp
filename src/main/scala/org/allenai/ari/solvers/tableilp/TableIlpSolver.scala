@@ -71,7 +71,7 @@ class TableIlpSolver @Inject() (
         fallbackResponse.map { response =>
           val compId = if (useFallbackSolverComponentId) response.solver else componentId
           val features = Map("fallbackSolverUsed" -> 1d)
-          SolverResponse(compId, response.answers.seq.map { answer =>
+          SolverResponse(compId, response.answers.map { answer =>
             SolverAnswer(
               answer.selection,
               Analysis(compId, answer.analysis.confidence, answer.analysis.analysis, Some(features))
