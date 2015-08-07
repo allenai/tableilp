@@ -68,10 +68,15 @@ class TableIlpSolver @Inject() (
       // If no answers returned and fallback solver is enabled, call the fallback solver
       if (completeAnswers.isEmpty && useFallbackSolver) {
         val fallbackResponse = lucienceSolver.solveInternal(request)
-        if (useFallbackSolverComponentId) {
-          fallbackResponse
-        } else {
-          fallbackResponse.map(response => SolverResponse(componentId, response.answers))
+        fallbackResponse.map { response =>
+          val compId = if (useFallbackSolverComponentId) response.solver else componentId
+          val features = Map("fallbackSolverUsed" -> 0d)
+          SolverResponse(compId, response.answers.seq.map { answer =>
+            SolverAnswer(
+              answer.selection,
+              Analysis(compId, answer.analysis.confidence, answer.analysis.analysis, Some(features))
+            )
+          })
         }
       } else {
         Future(SolverResponse(componentId, completeAnswers.sorted))
@@ -107,13 +112,15 @@ class TableIlpSolver @Inject() (
           Some(IlpSolutionFactory.makeRandomIlpSolution)
         }
 
+        val features = Map("fallbackSolverUsed" -> 0d)
         val answersOpt = ilpSolutionOpt map { ilpSolution =>
           val ilpSolutionJson = ilpSolution.toJson
           logger.debug(ilpSolutionJson.toString())
           val ilpBestAnswer = SimpleAnswer(
             question.selections(ilpSolution.bestChoice),
             ilpSolution.bestChoiceScore,
-            Some(Map("ilpSolution" -> ilpSolutionJson))
+            Some(Map("ilpSolution" -> ilpSolutionJson)),
+            Some(features)
           )
           val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
             .map(defaultIlpAnswer)
