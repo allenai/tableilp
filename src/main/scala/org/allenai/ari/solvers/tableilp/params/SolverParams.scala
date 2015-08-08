@@ -3,7 +3,7 @@ package org.allenai.ari.solvers.tableilp.params
 import com.google.inject.Inject
 import com.google.inject.name.Named
 
-/** Various parameters of the ILP model.
+/** Various high level parameters of the main Aristo solver.
   *
   * @param failOnUnansweredQuestions declare question "unanswered" when no answer choice is found
   * @param useFallbackSolver if this solver doesn't answer the question, use a fallback solver
@@ -13,7 +13,7 @@ import com.google.inject.name.Named
 class SolverParams @Inject() (
   @Named("solver.failOnUnansweredQuestions") val failOnUnansweredQuestions: Boolean,
   @Named("solver.useFallbackSolver") val useFallbackSolver: Boolean,
-  @Named("solver.useFallbackSolverComponentId") val useFallbackSolverCompId: Boolean,
+  @Named("solver.useFallbackSolverCompId") val useFallbackSolverCompId: Boolean,
   @Named("solver.checkForTies") val checkForTies: Boolean
 ) {}
 
