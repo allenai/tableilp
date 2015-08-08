@@ -388,6 +388,14 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     logger.info(s"Objective value: $getPrimalbound")
   }
 
+  /** Reset after calling solve() so that more constraint may be added */
+  def resetSolve(): Unit = {
+    val origScipStage = env.getStage(scip)
+    env.freeTransform(scip)
+    val newScipStage = env.getStage(scip)
+    logger.debug(s"SCIP solver stage changed from $origScipStage to $newScipStage")
+  }
+
   /** Print result of the call to solve(), along with solution values of vars */
   def printResult(vars: Seq[Long]): Unit = {
     // retrieve best solution found so far

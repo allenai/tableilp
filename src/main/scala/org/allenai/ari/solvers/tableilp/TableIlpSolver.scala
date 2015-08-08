@@ -53,6 +53,9 @@ class TableIlpSolver @Inject() (
     SimpleAnswer(selection, score, Some(Map("ilpSolution" -> JsNull)))
   }
 
+  /** For storing a tied choice along with its score */
+  private case class TiedChoice(choice: Int, score: Double)
+
   /** Override SimpleSolver's implementation of solveInternal to allow calling a fallback solver */
   override protected[ari] def solveInternal(request: SolverRequest): Future[SolverResponse] = {
     handleQuestion(request.question) flatMap { simpleAnswers =>
@@ -93,7 +96,7 @@ class TableIlpSolver @Inject() (
         logger.info(s"Question: ${question.rawQuestion}")
         // create an ILP model, solve it to obtain the best answer choice, along with (optionally)
         // a tied answer choice index for which the ILP has the same score
-        val ilpSolutionWithTieOpt: Option[(IlpSolution, Option[Int])] = if (useActualSolver) {
+        val ilpSolutionWithTie: Option[(IlpSolution, Option[TiedChoice])] = if (useActualSolver) {
           val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
           val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
@@ -107,15 +110,20 @@ class TableIlpSolver @Inject() (
           } else {
             val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
               questionIlp, tables)
+            logger.info(s"Best answer choice = ${ilpSolution.bestChoice}")
             val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0 && solverParams.checkForTies) {
+              logger.info("Checking for a tie")
+              ilpSolver.resetSolve()
               ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(ilpSolution.bestChoice))
               ilpSolver.solve()
               if (ilpSolver.hasSolution) {
-                val (choiceIdx, score) = IlpSolutionFactory.getBestChoiceAndScore(
-                  allVariables,
-                  ilpSolver
-                )
-                if (score == ilpSolution.bestChoiceScore) Some(choiceIdx) else None
+                val (choiceIdx, score) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
+                if (score >= ilpSolution.bestChoiceScore - solverParams.tieThreshold) {
+                  logger.info(s"Tied answer choice = $choiceIdx")
+                  Some(TiedChoice(choiceIdx, score))
+                } else {
+                  None
+                }
               } else {
                 None
               }
@@ -129,7 +137,7 @@ class TableIlpSolver @Inject() (
         }
 
         val features = Map("fallbackSolverUsed" -> 0d)
-        val answersOpt = ilpSolutionWithTieOpt map {
+        val answersOpt = ilpSolutionWithTie map {
           case (ilpSolution, tiedChoiceOpt) => {
             val ilpSolutionJson = ilpSolution.toJson
             val bestChoice = ilpSolution.bestChoice
@@ -141,8 +149,9 @@ class TableIlpSolver @Inject() (
               Some(Map("ilpSolution" -> ilpSolutionJson)),
               Some(features)
             )
-            val ilpTiedAnswerOpt = tiedChoiceOpt map { tiedChoice =>
-              defaultIlpAnswerWithScore(question.selections(tiedChoice), bestChoiceScore)
+            val ilpTiedAnswerOpt = tiedChoiceOpt map {
+              case TiedChoice(choiceIdx, score) =>
+                defaultIlpAnswerWithScore(question.selections(choiceIdx), score)
             }
             val coveredChoices = Seq(bestChoice) ++ tiedChoiceOpt
             val remainingAnswers = question.selections

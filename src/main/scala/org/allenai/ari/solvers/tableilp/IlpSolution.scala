@@ -166,7 +166,7 @@ object IlpSolutionFactory extends Logging {
     * @param ilpSolver a reference to the SCIP solver object
     * @return index of the chosen answer and its score
     */
-  def getBestChoiceAndScore(allVariables: AllVariables, ilpSolver: ScipInterface): (Int, Double) = {
+  def getBestChoice(allVariables: AllVariables, ilpSolver: ScipInterface): (Int, Double) = {
     val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
     val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 == 1d) match {
       case Some((choiceIdx, _)) => (choiceIdx, ilpSolver.getPrimalbound)
@@ -305,7 +305,7 @@ object IlpSolutionFactory extends Logging {
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
 
     // determine selected answer choice and its score
-    val (bestChoice, bestChoiceScore) = getBestChoiceAndScore(allVariables, ilpSolver)
+    val (bestChoice, bestChoiceScore) = getBestChoice(allVariables, ilpSolver)
 
     // extract solution quality
     val solutionQuality = SolutionQuality(ilpSolver.getStatus, ilpSolver.getPrimalbound,
