@@ -54,6 +54,14 @@ class IlpModel(
     allVars
   }
 
+  /** Set a particular answer choice variable to 0, preventing it from being selected by the ILP.
+    *
+    * @param activeChoiceVar an answer choice selection indicator variable
+    */
+  def disableAnswerChoice(activeChoiceVar: Long): Unit = {
+    ilpSolver.chgVarUb(activeChoiceVar, 0d)
+  }
+
   /** Auxiliary variables: whether a cell within a given table is "active" */
   private val activeCellVars: Map[CellIdx, Long] = (for {
     tableIdx <- tables.indices
@@ -239,7 +247,7 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables,
-      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty)
+      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, Map.empty)
   }
 
   /** The main method to build the question dependent aspects of the ILP model.
@@ -460,7 +468,7 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables, questionTableVariables,
-      questionTitleVariables, qChoiceTableVariables, qChoiceTitleVariables)
+      questionTitleVariables, qChoiceTableVariables, qChoiceTitleVariables, activeChoiceVars)
   }
 
   /** An internal method to create an intra-table variable */

@@ -160,40 +160,55 @@ object IlpSolutionFactory extends Logging {
   /** config: a threshold above which alignment is considered active */
   private val alignmentThreshold = 0.999
 
+  /** Process the solution found by SCIP to deduce the selected answer and its score.
+    *
+    * @param allVariables all core decision variables in the ILP model
+    * @param ilpSolver a reference to the SCIP solver object
+    * @return index of the chosen answer and its score
+    */
+  def getBestChoiceAndScore(allVariables: AllVariables, ilpSolver: ScipInterface): (Int, Double) = {
+    val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
+    val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 == 1d) match {
+      case Some((choiceIdx, _)) => (choiceIdx, ilpSolver.getPrimalbound)
+      case None => (0, 0d) // the default, helpful for debugging
+    }
+    (bestChoice, bestChoiceScore)
+  }
+
   /** Process the solution found by SCIP to deduce which parts of the question + tables align with
     * which other parts. This information can then be visualized or presented in another format.
     * @param allVariables all core decision variables in the ILP model
-    * @param scipSolver a reference to the SCIP solver object
+    * @param ilpSolver a reference to the SCIP solver object
     * @param question the question
     * @param tables the tables used
     * @return an AlignmentSolution object
     */
-  def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface,
-    question: TableQuestion, tables: Seq[Table]): IlpSolution = {
+  def makeIlpSolution(allVariables: AllVariables, ilpSolver: ScipInterface, question: TableQuestion,
+    tables: Seq[Table]): IlpSolution = {
     // populate problem stats
     val problemStats = ProblemStats(
-      scipSolver.getNOrigVars,
-      scipSolver.getNOrigBinVars,
-      scipSolver.getNOrigIntVars,
-      scipSolver.getNOrigContVars,
-      scipSolver.getNOrigConss,
-      scipSolver.getNVars,
-      scipSolver.getNBinVars,
-      scipSolver.getNIntVars,
-      scipSolver.getNContVars,
-      scipSolver.getNConss
+      ilpSolver.getNOrigVars,
+      ilpSolver.getNOrigBinVars,
+      ilpSolver.getNOrigIntVars,
+      ilpSolver.getNOrigContVars,
+      ilpSolver.getNOrigConss,
+      ilpSolver.getNVars,
+      ilpSolver.getNBinVars,
+      ilpSolver.getNIntVars,
+      ilpSolver.getNContVars,
+      ilpSolver.getNConss
     )
 
     // populate search stats
-    val searchStats = SearchStats(scipSolver.getNNodes, scipSolver.getNLPIterations,
-      scipSolver.getMaxDepth)
+    val searchStats = SearchStats(ilpSolver.getNNodes, ilpSolver.getNLPIterations,
+      ilpSolver.getMaxDepth)
 
     // populate timing stats
-    val timingStats = new TimingStats(scipSolver.getPresolvingTime, scipSolver.getSolvingTime,
-      scipSolver.getTotalTime)
+    val timingStats = new TimingStats(ilpSolver.getPresolvingTime, ilpSolver.getSolvingTime,
+      ilpSolver.getTotalTime)
 
     // If no solution is found, return an empty IlpSolution
-    if (!scipSolver.hasSolution) {
+    if (!ilpSolver.hasSolution) {
       return new IlpSolution(SolutionQuality(IlpStatusInfeasible), problemStats, searchStats,
         timingStats)
     }
@@ -210,62 +225,62 @@ object IlpSolutionFactory extends Logging {
     // inter-table alignments
     val interTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.interTableVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell1 = tableAlignments(entry.tableIdx1).contentAlignments(entry.rowIdx1)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx2).contentAlignments(entry.rowIdx2)(entry.colIdx2)
-      (cell1, cell2, scipSolver.getVarObjCoeff(entry.variable))
+      (cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // intra-table alignments
     val intraTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.intraTableVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
-      weight = scipSolver
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
+      weight = ilpSolver
     } yield {
       val cell1 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx2)
-      (cell1, cell2, scipSolver.getVarObjCoeff(entry.variable))
+      (cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // question table alignments
     val questionTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTableVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, scipSolver.getVarObjCoeff(entry.variable))
+      (cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // question title alignments
     val questionTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.questionTitleVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, scipSolver.getVarObjCoeff(entry.variable))
+      (cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // choice title alignments
     val choiceTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTitleVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qChoiceCons = choiceAlignments(entry.qChoiceIdx)
-      (cell, qChoiceCons, scipSolver.getVarObjCoeff(entry.variable))
+      (cell, qChoiceCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // choice table alignments
     val choiceTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
       entry <- allVariables.qChoiceTableVariables
-      if scipSolver.getSolVal(entry.variable) > alignmentThreshold
+      if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qOptCons = choiceAlignments(entry.qChoiceIdx)
-      (cell, qOptCons, scipSolver.getVarObjCoeff(entry.variable))
+      (cell, qOptCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
@@ -289,26 +304,12 @@ object IlpSolutionFactory extends Logging {
     // create a new question alignment object
     val questionAlignment = QuestionAlignment(qConsAlignments, choiceAlignments)
 
-    // choose answer choice and its score
-    val nQChoicePossibleAlignments = allVariables.qChoiceTableVariables.length +
-      allVariables.qChoiceTitleVariables.length
-    logger.debug(s"number of potential choice alignments = $nQChoicePossibleAlignments")
-    val (bestChoice, bestChoiceScore) = if (nQChoicePossibleAlignments > 0) {
-      val choiceScorePair = allVariables.qChoiceTableVariables.map { variable =>
-        (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
-      } ++ allVariables.qChoiceTitleVariables.map { variable =>
-        (variable.qChoiceIdx, scipSolver.getSolVal(variable.variable))
-      }
-      val choiceIdx = choiceScorePair.maxBy(_._2)._1
-      (choiceIdx, scipSolver.getPrimalbound)
-    } else {
-      // The default, helpful for initial debugging
-      (0, 0d)
-    }
+    // determine selected answer choice and its score
+    val (bestChoice, bestChoiceScore) = getBestChoiceAndScore(allVariables, ilpSolver)
 
     // extract solution quality
-    val solutionQuality = SolutionQuality(scipSolver.getStatus, scipSolver.getPrimalbound,
-      scipSolver.getDualbound, scipSolver.getGap)
+    val solutionQuality = SolutionQuality(ilpSolver.getStatus, ilpSolver.getPrimalbound,
+      ilpSolver.getDualbound, ilpSolver.getGap)
 
     // populate all the valid alignment scores
     val alignmentIdToScore = allAlignmentTriplesWithIndex.map {
