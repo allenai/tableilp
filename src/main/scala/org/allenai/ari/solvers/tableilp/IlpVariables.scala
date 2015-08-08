@@ -8,6 +8,7 @@ package org.allenai.ari.solvers.tableilp
   * @param questionTitleVariables variables involving a question constituent and a table title
   * @param qChoiceTableVariables variables involving an answer choice and a table cell
   * @param qChoiceTitleVariables variables involving an answer choice and a table title
+  * @param activeChoiceVars variables indicating whether a choice was active, i.e., selected
   */
 case class AllVariables(
     intraTableVariables: IndexedSeq[IntraTableVariable],
@@ -15,7 +16,8 @@ case class AllVariables(
     questionTableVariables: IndexedSeq[QuestionTableVariable],
     questionTitleVariables: IndexedSeq[QuestionTitleVariable],
     qChoiceTableVariables: IndexedSeq[ChoiceTableVariable],
-    qChoiceTitleVariables: IndexedSeq[ChoiceTitleVariable]
+    qChoiceTitleVariables: IndexedSeq[ChoiceTitleVariable],
+    activeChoiceVars: Map[Int, Long]
 ) {
   def ++(that: AllVariables): AllVariables = {
     AllVariables(
@@ -24,14 +26,16 @@ case class AllVariables(
       questionTableVariables ++ that.questionTableVariables,
       questionTitleVariables ++ that.questionTitleVariables,
       qChoiceTableVariables ++ that.qChoiceTableVariables,
-      qChoiceTitleVariables ++ that.qChoiceTitleVariables
+      qChoiceTitleVariables ++ that.qChoiceTitleVariables,
+      activeChoiceVars ++ that.activeChoiceVars
     )
   }
 
   lazy val ilpVars: Seq[Long] = {
     intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
       questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
-      qChoiceTitleVariables.map(_.variable) ++ qChoiceTableVariables.map(_.variable)
+      qChoiceTitleVariables.map(_.variable) ++ qChoiceTableVariables.map(_.variable) ++
+      activeChoiceVars.values
   }
 }
 
