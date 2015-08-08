@@ -5,12 +5,11 @@ import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.lucience.LucienceSolver
 import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipInterface, ScipParams }
-import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights }
+import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights, SolverParams }
 import org.allenai.common.Version
 
 import akka.actor.ActorSystem
 import com.google.inject.Inject
-import com.google.inject.name.Named
 import spray.json._
 
 import scala.concurrent.Future
@@ -21,25 +20,21 @@ import scala.concurrent.Future
   * @param entailmentService service for computing entailment score between two text sequences
   * @param tokenizer keyword tokenizer, also does stemming
   * @param tableInterface interface to access CSV tables from files
+  * @param solverParams various high level parameters of the Aristo solver
   * @param scipParams various parameters for the SCIP solver
   * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
-  * @param failOnUnansweredQuestions declare question "unanswered" when no answer choice is found
-  * @param useFallbackSolver if this solver doesn't answer the question, use a fallback solver
-  * @param useFallbackSolverComponentId whether to use fallback solver's ID or TableIlp solver's ID
   * @param actorSystem the actor system
   */
 class TableIlpSolver @Inject() (
     entailmentService: EntailmentService,
     tokenizer: KeywordTokenizer,
     tableInterface: TableInterface,
+    solverParams: SolverParams,
     scipParams: ScipParams,
     ilpParams: IlpParams,
     weights: IlpWeights,
-    lucienceSolver: LucienceSolver,
-    @Named("solver.failOnUnansweredQuestions") failOnUnansweredQuestions: Boolean,
-    @Named("solver.useFallbackSolver") useFallbackSolver: Boolean,
-    @Named("solver.useFallbackSolverComponentId") useFallbackSolverComponentId: Boolean
+    lucienceSolver: LucienceSolver
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -54,9 +49,11 @@ class TableIlpSolver @Inject() (
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
     SimpleAnswer(selection, defaultScore, Some(Map("ilpSolution" -> JsNull)))
   }
+  private def defaultIlpAnswerWithScore(selection: MultipleChoiceSelection, score: Double) = {
+    SimpleAnswer(selection, score, Some(Map("ilpSolution" -> JsNull)))
+  }
 
-  /** Override SimpleSolver's implementation of solveInternal to be able to call a fallback solver
-    */
+  /** Override SimpleSolver's implementation of solveInternal to allow calling a fallback solver */
   override protected[ari] def solveInternal(request: SolverRequest): Future[SolverResponse] = {
     handleQuestion(request.question) flatMap { simpleAnswers =>
       val completeAnswers = simpleAnswers map {
@@ -66,10 +63,10 @@ class TableIlpSolver @Inject() (
         }
       }
       // If no answers returned and fallback solver is enabled, call the fallback solver
-      if (completeAnswers.isEmpty && useFallbackSolver) {
+      if (completeAnswers.isEmpty && solverParams.useFallbackSolver) {
         val fallbackResponse = lucienceSolver.solveInternal(request)
         fallbackResponse.map { response =>
-          val compId = if (useFallbackSolverComponentId) response.solver else componentId
+          val compId = if (solverParams.useFallbackSolverCompId) response.solver else componentId
           val features = Map("fallbackSolverUsed" -> 1d)
           SolverResponse(compId, response.answers.map { answer =>
             SolverAnswer(
@@ -94,37 +91,64 @@ class TableIlpSolver @Inject() (
     } else {
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
-        val ilpSolutionOpt = if (useActualSolver) {
+        // create an ILP model, solve it to obtain the best answer choice, along with (optionally)
+        // a tied answer choice index for which the ILP has the same score
+        val ilpSolutionWithTieOpt: Option[(IlpSolution, Option[Int])] = if (useActualSolver) {
           val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
-          val scipSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
+          val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer)
-          val ilpModel = new IlpModel(scipSolver, tables, aligner, ilpParams, weights)
+          val ilpModel = new IlpModel(ilpSolver, tables, aligner, ilpParams, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
-          scipSolver.solve()
-          if (failOnUnansweredQuestions && !scipSolver.hasSolution) {
+          ilpSolver.solve()
+          if (solverParams.failOnUnansweredQuestions && !ilpSolver.hasSolution) {
             None
           } else {
-            Some(IlpSolutionFactory.makeIlpSolution(allVariables, scipSolver, questionIlp, tables))
+            val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
+              questionIlp, tables)
+            val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0 && solverParams.checkForTies) {
+              ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(ilpSolution.bestChoice))
+              ilpSolver.solve()
+              if (ilpSolver.hasSolution) {
+                val (choiceIdx, score) = IlpSolutionFactory.getBestChoiceAndScore(
+                  allVariables,
+                  ilpSolver
+                )
+                if (score == ilpSolution.bestChoiceScore) Some(choiceIdx) else None
+              } else {
+                None
+              }
+            } else {
+              None
+            }
+            Some((ilpSolution, tiedChoiceOpt))
           }
         } else {
-          Some(IlpSolutionFactory.makeRandomIlpSolution)
+          Some((IlpSolutionFactory.makeRandomIlpSolution, None))
         }
 
         val features = Map("fallbackSolverUsed" -> 0d)
-        val answersOpt = ilpSolutionOpt map { ilpSolution =>
-          val ilpSolutionJson = ilpSolution.toJson
-          logger.debug(ilpSolutionJson.toString())
-          val ilpBestAnswer = SimpleAnswer(
-            question.selections(ilpSolution.bestChoice),
-            ilpSolution.bestChoiceScore,
-            Some(Map("ilpSolution" -> ilpSolutionJson)),
-            Some(features)
-          )
-          val otherAnswers = question.selections.filterNot(_.index == ilpSolution.bestChoice)
-            .map(defaultIlpAnswer)
-          ilpBestAnswer +: otherAnswers
+        val answersOpt = ilpSolutionWithTieOpt map {
+          case (ilpSolution, tiedChoiceOpt) => {
+            val ilpSolutionJson = ilpSolution.toJson
+            val bestChoice = ilpSolution.bestChoice
+            val bestChoiceScore = ilpSolution.bestChoiceScore
+            logger.debug(ilpSolutionJson.toString())
+            val ilpBestAnswer = SimpleAnswer(
+              question.selections(bestChoice),
+              bestChoiceScore,
+              Some(Map("ilpSolution" -> ilpSolutionJson)),
+              Some(features)
+            )
+            val ilpTiedAnswerOpt = tiedChoiceOpt map { tiedChoice =>
+              defaultIlpAnswerWithScore(question.selections(tiedChoice), bestChoiceScore)
+            }
+            val coveredChoices = Seq(bestChoice) ++ tiedChoiceOpt
+            val remainingAnswers = question.selections
+              .filterNot(s => coveredChoices.contains(s.index)).map(defaultIlpAnswer)
+            Seq(ilpBestAnswer) ++ ilpTiedAnswerOpt ++ remainingAnswers
+          }
         }
         answersOpt.getOrElse(Seq.empty)
       }
