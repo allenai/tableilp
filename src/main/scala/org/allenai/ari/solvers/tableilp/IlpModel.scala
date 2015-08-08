@@ -59,10 +59,9 @@ class IlpModel(
     rowIdx <- table.contentMatrix.indices
     row = table.contentMatrix(rowIdx)
     colIdx <- row.indices
-    x = ilpSolver.createBinaryVar(
-      s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx",
-      weights.activeCellObjCoeff
-    )
+    name = s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx"
+    objCoeff = weights.activeCellObjCoeff
+    x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)
     CellIdx(tableIdx, rowIdx, colIdx) -> x
@@ -73,10 +72,9 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     rowIdx <- table.contentMatrix.indices
-    x = ilpSolver.createBinaryVar(
-      s"activeRow_t=${tableIdx}_r=$rowIdx",
-      weights.activeRowObjCoeff
-    )
+    name = s"activeRow_t=${tableIdx}_r=$rowIdx"
+    objCoeff = weights.activeRowObjCoeff
+    x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)
     (tableIdx, rowIdx) -> x
@@ -88,9 +86,10 @@ class IlpModel(
     table = tables(tableIdx)
     if table.contentMatrix.indices.nonEmpty
     colIdx <- table.contentMatrix.head.indices
+    name = s"activeCol_t=${tableIdx}_r=$colIdx"
     // prefer larger fraction of columns matching
     objCoeff = weights.activeColObjCoeff / table.contentMatrix.head.indices.size
-    x = ilpSolver.createBinaryVar(s"activeCol_t=${tableIdx}_r=$colIdx", objCoeff)
+    x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)
     (tableIdx, colIdx) -> x
@@ -101,10 +100,9 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     colIdx <- table.titleRow.indices
-    x = ilpSolver.createBinaryVar(
-      s"activeTitle_t=${tableIdx}_r=$colIdx",
-      weights.activeTitleObjCoeff
-    )
+    name = s"activeTitle_t=${tableIdx}_r=$colIdx"
+    objCoeff = weights.activeTitleObjCoeff
+    x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)
     (tableIdx, colIdx) -> x
@@ -113,7 +111,9 @@ class IlpModel(
   /** Auxiliary variables: whether a table is "active" */
   private val activeTableVars: Map[Int, Long] = (for {
     tableIdx <- tables.indices
-    x = ilpSolver.createBinaryVar(s"activeTable_t=$tableIdx", weights.activeTableObjCoeff)
+    name = s"activeTable_t=$tableIdx"
+    objCoeff = weights.activeTableObjCoeff
+    x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)
     tableIdx -> x
@@ -292,7 +292,9 @@ class IlpModel(
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
-      x = ilpSolver.createBinaryVar(s"choice=$choiceIdx", weights.activeChoiceObjCoeff)
+      name = s"choice=$choiceIdx"
+      objCoeff = weights.activeChoiceObjCoeff
+      x = createPossiblyRelaxedBinaryVar(name, objCoeff)
     } yield {
       ilpSolver.addVar(x)
       choiceIdx -> x
@@ -301,7 +303,9 @@ class IlpModel(
     // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
       qConsIdx <- question.questionCons.indices
-      x = ilpSolver.createBinaryVar(s"activeQuestion_t=$qConsIdx", weights.activeQConsObjCoeff)
+      name = s"activeQuestion_t=$qConsIdx"
+      objCoeff = weights.activeQConsObjCoeff
+      x = createPossiblyRelaxedBinaryVar(name, objCoeff)
     } yield {
       ilpSolver.addVar(x)
       qConsIdx -> x
@@ -541,6 +545,14 @@ class IlpModel(
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceTableVariable(qChoiceIdx, tableIdx, rowIdx, colIdx, variable))
+    }
+  }
+
+  private def createPossiblyRelaxedBinaryVar(name: String, objCoeff: Double) = {
+    if (ilpParams.useRelaxedVars) {
+      ilpSolver.createRelaxedBinaryVar(name, objCoeff)
+    } else {
+      ilpSolver.createBinaryVar(name, objCoeff)
     }
   }
 }

@@ -56,11 +56,20 @@ case class SolutionQuality(
 /** Metrics to capture ILP problem complexity.
   *
   * @param nOrigVars Number of variables in the original ILP.
+  * @param nOrigBinVars Number of binary variables in the original ILP.
+  * @param nOrigIntVars Number of integer variables in the original ILP.
+  * @param nOrigContVars Number of continous variables in the original ILP.
   * @param nOrigCons Number of constraints in the original ILP.
   * @param nVars Number of variables after presolve.
+  * @param nBinVars Number of binary variables after presolve.
+  * @param nIntVars Number of integer variables after presolve.
+  * @param nContVars Number of continuous variables after presolve.
   * @param nCons Number of constraints after presolve.
   */
-case class ProblemStats(nOrigVars: Int, nOrigCons: Int, nVars: Int, nCons: Int)
+case class ProblemStats(
+  nOrigVars: Int, nOrigBinVars: Int, nOrigIntVars: Int, nOrigContVars: Int, nOrigCons: Int,
+  nVars: Int, nBinVars: Int, nIntVars: Int, nContVars: Int, nCons: Int
+)
 
 /** Metrics to capture branch and bound search stats.
   *
@@ -134,7 +143,7 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
     { status: IlpStatus => JsString(status.toString) }
   )
   implicit val solutionQualityJsonFormat = jsonFormat4(SolutionQuality.apply)
-  implicit val problemStatsJsonFormat = jsonFormat4(ProblemStats.apply)
+  implicit val problemStatsJsonFormat = jsonFormat10(ProblemStats.apply)
   implicit val searchStatsJsonFormat = jsonFormat3(SearchStats.apply)
   implicit val timingStatsJsonFormat = jsonFormat4(TimingStats.apply)
   implicit val ilpSolutionJsonFormat = jsonFormat9(IlpSolution.apply)
@@ -162,8 +171,18 @@ object IlpSolutionFactory extends Logging {
   def makeIlpSolution(allVariables: AllVariables, scipSolver: ScipInterface,
     question: TableQuestion, tables: Seq[Table]): IlpSolution = {
     // populate problem stats
-    val problemStats = ProblemStats(scipSolver.getNOrigVars, scipSolver.getNOrigConss,
-      scipSolver.getNVars, scipSolver.getNConss)
+    val problemStats = ProblemStats(
+      scipSolver.getNOrigVars,
+      scipSolver.getNOrigBinVars,
+      scipSolver.getNOrigIntVars,
+      scipSolver.getNOrigContVars,
+      scipSolver.getNOrigConss,
+      scipSolver.getNVars,
+      scipSolver.getNBinVars,
+      scipSolver.getNIntVars,
+      scipSolver.getNContVars,
+      scipSolver.getNConss
+    )
 
     // populate search stats
     val searchStats = SearchStats(scipSolver.getNNodes, scipSolver.getNLPIterations,
@@ -350,7 +369,7 @@ object IlpSolutionFactory extends Logging {
     val solutionQuality = SolutionQuality(IlpStatusFeasible, 0.5d, 1d, 1d)
 
     // Populate dummy problem stats
-    val problemStats = ProblemStats(10, 12, 4, 5)
+    val problemStats = ProblemStats(10, 10, 0, 0, 12, 4, 4, 0, 0, 5)
 
     // Populate dummy search stats
     val searchStats = SearchStats(1L, 5L, 0)

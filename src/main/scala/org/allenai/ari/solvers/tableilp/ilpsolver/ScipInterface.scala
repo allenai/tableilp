@@ -61,6 +61,11 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     env.createVarBasic(scip, name, 0, 1, obj, JniScipVartype.SCIP_VARTYPE_BINARY)
   }
 
+  /** create a relaxed binary variable, that is, a continuous various with domain [0,1] */
+  def createRelaxedBinaryVar(name: String, obj: Double): Long = {
+    env.createVarBasic(scip, name, 0, 1, obj, JniScipVartype.SCIP_VARTYPE_CONTINUOUS)
+  }
+
   /** create an integer variable */
   def createIntegerVar(name: String, lb: Double, ub: Double, objCoeff: Double): Long = {
     env.createVarBasic(scip, name, lb, ub, objCoeff, JniScipVartype.SCIP_VARTYPE_INTEGER)
@@ -86,11 +91,29 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** get number of variables in the original ILP */
   def getNOrigVars: Int = env.getNOrigVars(scip)
 
+  /** get number of binary variables in the original ILP */
+  def getNOrigBinVars: Int = env.getNOrigBinVars(scip)
+
+  /** get number of integer variables in the original ILP */
+  def getNOrigIntVars: Int = env.getNOrigIntVars(scip)
+
+  /** get number of continuous variables in the original ILP */
+  def getNOrigContVars: Int = env.getNOrigContVars(scip)
+
   /** get number of constraints in the original ILP */
   def getNOrigConss: Int = env.getNOrigConss(scip)
 
   /** get number of active variables, after presolve */
   def getNVars: Int = env.getNVars(scip)
+
+  /** get number of binary variables, after presolve */
+  def getNBinVars: Int = env.getNBinVars(scip)
+
+  /** get number of integer variables, after presolve */
+  def getNIntVars: Int = env.getNIntVars(scip)
+
+  /** get number of continuous variables, after presolve */
+  def getNContVars: Int = env.getNContVars(scip)
 
   /** get number of active variables, after presolve */
   def getNConss: Int = env.getNConss(scip)
@@ -205,8 +228,15 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   def getValsLinear(cons: Long): Seq[Double] = envConsLinear.getValsLinear(scip, cons)
 
   /** Adds the constraint sum_i x_i = 1 */
-  def addConsExactlyOne(name: String, vars: Seq[Long]): Unit = {
-    addReleaseCons(createConsBasicSetpart(name, vars))
+  def addConsExactlyOne(name: String, X: Seq[Long]): Unit = {
+    // use special implementation if all variables are binary
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
+      addReleaseCons(createConsBasicSetpart(name, X))
+    } else {
+      val coeffs = Seq.fill(X.size)(1d)
+      addConsBasicLinear(name, X, coeffs, Some(1d), Some(1d))
+    }
+
   }
 
   /** If triggered, imposes a set partitioning constraint, sum_i x_i = 1; trigger is binary var */
@@ -215,8 +245,14 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   }
 
   /** Adds the constraint sum_i x_i <= 1 */
-  def addConsAtMostOne(name: String, vars: Seq[Long]): Unit = {
-    addReleaseCons(createConsBasicSetpack(name, vars))
+  def addConsAtMostOne(name: String, X: Seq[Long]): Unit = {
+    // use special implementation if all variables are binary
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
+      addReleaseCons(createConsBasicSetpack(name, X))
+    } else {
+      val coeffs = Seq.fill(X.size)(1d)
+      addConsBasicLinear(name, X, coeffs, None, Some(1d))
+    }
   }
 
   /** If triggered, imposes a set packing constraint, sum_i x_i <= 1; trigger is binary variable */
@@ -225,8 +261,14 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   }
 
   /** Adds the constraint sum_i x_i >= 1 */
-  def addConsAtLeastOne(name: String, vars: Seq[Long]): Unit = {
-    addReleaseCons(createConsBasicSetcover(name, vars))
+  def addConsAtLeastOne(name: String, X: Seq[Long]): Unit = {
+    // use special implementation if all variables are binary
+    if (X.forall(envVar.varGetType(_) == JniScipVartype.SCIP_VARTYPE_BINARY)) {
+      addReleaseCons(createConsBasicSetcover(name, X))
+    } else {
+      val coeffs = Seq.fill(X.size)(1d)
+      addConsBasicLinear(name, X, coeffs, Some(1d), None)
+    }
   }
 
   /** If triggered, imposes a set covering constraint, sum_i x_i >= 1; trigger is binary variable */
