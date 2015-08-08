@@ -42,10 +42,12 @@ class IlpModel(
     ilpSolver.setAsMaximization()
 
     // build the question independent part of the model
+    logger.info("Building question independent model")
     val allVarsQuestionIndependent = buildQuestionIndependentModel
 
     // add the question dependent part of the model; allVars is guaranteed to be a superset of
     // allVarsQuestionIndependent
+    logger.info("Building question dependent model")
     val allVars = buildQuestionDependentModel(question, allVarsQuestionIndependent)
 
     // return all variables
@@ -124,7 +126,7 @@ class IlpModel(
     *
     * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
-  private val buildQuestionIndependentModel: AllVariables = {
+  private lazy val buildQuestionIndependentModel: AllVariables = {
     // Intra-table variables
     val intraTableVariables = for {
       tableIdx <- tables.indices
@@ -160,6 +162,8 @@ class IlpModel(
         ilpSolver.chgVarUb(entry.variable, 0d)
       }
     }
+    logger.debug(s"\t${intraTableVariables.size} intra-table vars, " +
+      s"${interTableVariables.size} inter-table vars")
 
     // add question independent activity constraints
     tables.indices.foreach { tableIdx =>
@@ -288,6 +292,11 @@ class IlpModel(
       colIdx <- table.titleRow.indices
       x <- addQChoiceTitleVariable(qChoiceCons, qChoiceIdx, tableIdx, colIdx)
     } yield x
+
+    logger.debug(s"\t${questionTableVariables.size} question-table vars, " +
+      s"${questionTitleVariables.size} question-title vars, " +
+      s"${qChoiceTableVariables.size} choice-table vars, " +
+      s"${qChoiceTitleVariables.size} choice-title vars")
 
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
