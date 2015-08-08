@@ -168,7 +168,8 @@ object IlpSolutionFactory extends Logging {
     */
   def getBestChoice(allVariables: AllVariables, ilpSolver: ScipInterface): (Int, Double) = {
     val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
-    val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 == 1d) match {
+    // adjust for floating point errors
+    val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 >= 0.999d) match {
       case Some((choiceIdx, _)) => (choiceIdx, ilpSolver.getPrimalbound)
       case None => (0, 0d) // the default, helpful for debugging
     }
