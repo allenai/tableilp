@@ -111,7 +111,7 @@ class TableIlpSolver @Inject() (
             val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
               questionIlp, tables)
             logger.info(s"Best answer choice = ${ilpSolution.bestChoice}")
-            val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0 && solverParams.checkForTies) {
+            val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0d && solverParams.checkForTies) {
               logger.info("Checking for a tie")
               ilpSolver.resetSolve()
               ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(ilpSolution.bestChoice))

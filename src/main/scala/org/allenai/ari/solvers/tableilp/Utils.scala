@@ -10,4 +10,7 @@ object Utils {
   def toMapUsingGroupByFirst[T1, T2](x: Seq[(T1, T2)]): Map[T1, Seq[T2]] = {
     x.groupBy(_._1).mapValues(_.unzip._2)
   }
+
+  /** A small value to handle floating point mismatches. */
+  val eps = 1e-6
 }

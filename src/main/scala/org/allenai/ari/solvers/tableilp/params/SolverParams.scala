@@ -1,5 +1,7 @@
 package org.allenai.ari.solvers.tableilp.params
 
+import org.allenai.ari.solvers.tableilp.Utils
+
 import com.google.inject.Inject
 import com.google.inject.name.Named
 
@@ -26,6 +28,6 @@ object SolverParams {
     useFallbackSolver = true,
     useFallbackSolverCompId = true,
     checkForTies = true,
-    tieThreshold = 0.001d
+    tieThreshold = Utils.eps
   )
 }

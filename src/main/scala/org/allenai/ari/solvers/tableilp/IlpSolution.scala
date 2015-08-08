@@ -158,7 +158,7 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
 /** A container object to generate IlpSolution object based on the ILP model output */
 object IlpSolutionFactory extends Logging {
   /** config: a threshold above which alignment is considered active */
-  private val alignmentThreshold = 0.999
+  private val alignmentThreshold = 1d - Utils.eps
 
   /** Process the solution found by SCIP to deduce the selected answer and its score.
     *
@@ -168,8 +168,8 @@ object IlpSolutionFactory extends Logging {
     */
   def getBestChoice(allVariables: AllVariables, ilpSolver: ScipInterface): (Int, Double) = {
     val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
-    // adjust for floating point errors
-    val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 >= 0.999d) match {
+    // adjust for floating point differences
+    val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 >= 1d - Utils.eps) match {
       case Some((choiceIdx, _)) => (choiceIdx, ilpSolver.getPrimalbound)
       case None => (0, 0d) // the default, helpful for debugging
     }
