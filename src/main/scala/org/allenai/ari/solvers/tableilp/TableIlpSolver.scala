@@ -118,8 +118,8 @@ class TableIlpSolver @Inject() (
               ilpSolver.solve()
               if (ilpSolver.hasSolution) {
                 val (choiceIdx, score) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
+                logger.info(s"Second best answer choice = $choiceIdx")
                 if (score >= ilpSolution.bestChoiceScore - solverParams.tieThreshold) {
-                  logger.info(s"Tied answer choice = $choiceIdx")
                   Some(TiedChoice(choiceIdx, score))
                 } else {
                   None
@@ -153,7 +153,7 @@ class TableIlpSolver @Inject() (
               case TiedChoice(choiceIdx, score) =>
                 defaultIlpAnswerWithScore(question.selections(choiceIdx), score)
             }
-            val coveredChoices = Seq(bestChoice) ++ tiedChoiceOpt
+            val coveredChoices = Seq(bestChoice) ++ tiedChoiceOpt.map(_.choice)
             val remainingAnswers = question.selections
               .filterNot(s => coveredChoices.contains(s.index)).map(defaultIlpAnswer)
             Seq(ilpBestAnswer) ++ ilpTiedAnswerOpt ++ remainingAnswers
