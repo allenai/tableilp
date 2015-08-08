@@ -1,6 +1,7 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.models.Question
+import org.allenai.common.Logging
 import org.allenai.nlpstack.core.Chunker
 import org.allenai.nlpstack.chunk.OpenNlpChunker
 import org.allenai.nlpstack.postag.defaultPostagger
@@ -19,7 +20,7 @@ case class TableQuestion(
 )
 
 /** Various ways to build a TableQuestion instance */
-object TableQuestionFactory {
+object TableQuestionFactory extends Logging {
   private val spaceSep = " ".r
   private val defaultSplittingType = "SpaceSplit"
 
@@ -45,8 +46,10 @@ object TableQuestionFactory {
       case _: String =>
         throw new IllegalArgumentException(s"Split type $splittingType not recognized")
     }
-    TableQuestion(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
+    val question = TableQuestion(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
       aristoQuestion.selections.map(_.focus))
+    logger.info("Question constituents: " + question.questionCons.mkString(","))
+    question
   }
 }
 
