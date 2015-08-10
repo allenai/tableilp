@@ -7,14 +7,14 @@ import org.allenai.common.Logging
 /** The ILP model for Table Inference.
   *
   * @param ilpSolver a ScipInterface object; safest to create a new instance of it per question
-  * @param tables a seq of tables as the knowledge base
+  * @param tablesWithScores a seq of tables as the knowledge, along with a question dependent score
   * @param aligner a blackbox to align textual mentions
   * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
   */
 class IlpModel(
     ilpSolver: ScipInterface,
-    tables: Seq[Table],
+    tablesWithScores: Seq[(Table, Double)],
     aligner: AlignmentFunction,
     ilpParams: IlpParams,
     weights: IlpWeights
@@ -31,6 +31,9 @@ class IlpModel(
 
   // these set of words in the question text will be ignored before alignment
   private val ignoredWords = Set("?", ":", ",")
+
+  // just the tables, no scores
+  private val tables = tablesWithScores.map(_._1)
 
   /** The main method to build an ILP model for a question.
     *
@@ -120,9 +123,10 @@ class IlpModel(
 
   /** Auxiliary variables: whether a table is "active" */
   private val activeTableVars: Map[Int, Long] = (for {
-    tableIdx <- tables.indices
+    tableIdx <- tablesWithScores.indices
+    tableScore = tablesWithScores(tableIdx)._2
     name = s"activeTable_t=$tableIdx"
-    objCoeff = weights.activeTableObjCoeff
+    objCoeff = weights.activeTableObjCoeff + weights.tableScoreObjCoeff * tableScore
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)

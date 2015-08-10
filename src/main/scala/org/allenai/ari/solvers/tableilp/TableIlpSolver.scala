@@ -97,11 +97,11 @@ class TableIlpSolver @Inject() (
         // create an ILP model, solve it to obtain the best answer choice, along with (optionally)
         // a tied answer choice index for which the ILP has the same score
         val ilpSolutionWithTie: Option[(IlpSolution, Option[TiedChoice])] = if (useActualSolver) {
-          val tables = tableInterface.getTablesForQuestion(question.rawQuestion)
+          val tablesWithScores = tableInterface.getTablesForQuestion(question.rawQuestion)
           val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer)
-          val ilpModel = new IlpModel(ilpSolver, tables, aligner, ilpParams, weights)
+          val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
           ilpSolver.solve()
@@ -109,7 +109,7 @@ class TableIlpSolver @Inject() (
             None
           } else {
             val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
-              questionIlp, tables)
+              questionIlp, tablesWithScores.map(_._1))
             logger.info(s"Best answer choice = ${ilpSolution.bestChoice}")
             val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0d && solverParams.checkForTies) {
               logger.info("Checking for a tie")

@@ -43,25 +43,25 @@ class TableInterface @Inject() (
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
 
-  /** Get a subset of tables relevant for a given question */
-  def getTablesForQuestion(question: String): Seq[Table] = {
-    val tables = if (params.useCachedTablesForQuestion) {
+  /** Get a subset of tables (with scores) relevant for a given question */
+  def getTablesForQuestion(question: String): Seq[(Table, Double)] = {
+    val tablesWithScores = if (params.useCachedTablesForQuestion) {
       getCachedTablesForQuestion(question)
     } else {
       getRankedTablesForQuestion(question)
     }
-    logger.debug(s"using ${tables.size} tables:\n" +
-      tables.map("table: " + _.titleRow.mkString(",") + "\n"))
+    logger.debug(s"using ${tablesWithScores.size} tables:\n" +
+      tablesWithScores.map("table: " + _._1.titleRow.mkString(",") + "\n"))
     assert(
-      tables.size <= params.maxTablesPerQuestion,
+      tablesWithScores.size <= params.maxTablesPerQuestion,
       s"Only max ${params.maxTablesPerQuestion} tables supported"
     )
-    tables
+    tablesWithScores
   }
 
   private def sep = "-".r
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
-  private def getCachedTablesForQuestion(question: String): Seq[Table] = {
+  private def getCachedTablesForQuestion(question: String): Seq[(Table, Double)] = {
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
     val tablesOpt = questionToTablesOpt map { qTables =>
@@ -69,11 +69,13 @@ class TableInterface @Inject() (
     } orElse {
       Some(Seq.empty)
     }
-    tablesOpt.get
+    val tables = tablesOpt.get
+    val defaultScores = Seq.fill(tables.size)(1d)
+    tables.zip(defaultScores)
   }
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
-  private def getRankedTablesForQuestion(question: String): Seq[Table] = {
+  private def getRankedTablesForQuestion(question: String): Seq[(Table, Double)] = {
     val scoreIndexPairs = allTables.indices.diff(params.ignoreList).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
@@ -81,7 +83,7 @@ class TableInterface @Inject() (
       scoreIndexPairs.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
     } else {
       scoreIndexPairs.filter(_._2 > params.rankThreshold)
-    }).map { case (idx, _) => allTables(idx) }
+    }).map { case (idx, score) => (allTables(idx), score) }
   }
 
   /** Print all variables relevant to tables */

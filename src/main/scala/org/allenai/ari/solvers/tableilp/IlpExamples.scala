@@ -15,7 +15,10 @@ object IlpExamples extends Logging {
   ): Unit = {
     val question = TableQuestionFactory.makeQuestion(questionChunks)
     val tableInterface = new TableInterface(TableParams.Default, tokenizer)
-    val tables = tableInterface.allTables.slice(0, 2)
+    val numTables = 2
+    val tables = tableInterface.allTables.slice(0, numTables)
+    val scores = Seq.fill(numTables)(1d)
+    val tablesWithScores = tables.zip(scores)
     val scipParams = ScipParams.Default
     val ilpParams = IlpParams.Default
     val weights = IlpWeights.Default
@@ -23,7 +26,7 @@ object IlpExamples extends Logging {
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt,
       ilpParams.entailmentScoreOffset, tokenizer)
     val ilpSolver = new ScipInterface("sampleExample", scipParams)
-    val ilpModel = new IlpModel(ilpSolver, tables, aligner, ilpParams, weights)
+    val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
     val allVariables = ilpModel.buildModel(question)
     val vars = allVariables.ilpVars
     ilpSolver.solve()
