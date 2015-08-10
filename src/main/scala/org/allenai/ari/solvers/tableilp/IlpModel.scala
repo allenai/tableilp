@@ -126,7 +126,7 @@ class IlpModel(
     tableIdx <- tablesWithScores.indices
     tableScore = tablesWithScores(tableIdx)._2
     name = s"activeTable_t=$tableIdx"
-    objCoeff = weights.activeTableObjCoeff + weights.tableScoreObjCoeff * tableScore
+    objCoeff = (weights.tableScoreObjCoeff * tableScore) - weights.tableUsagePenalty
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     ilpSolver.addVar(x)

@@ -70,6 +70,7 @@ class TableInterface @Inject() (
       Some(Seq.empty)
     }
     val tables = tablesOpt.get
+    // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic
     val defaultScores = Seq.fill(tables.size)(1d)
     tables.zip(defaultScores)
   }
