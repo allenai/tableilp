@@ -243,6 +243,14 @@ class IlpModel(
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         ilpSolver.addConsXLeqY("activeTitle", activeTitleVar, activeColVar)
       }
+
+      // (optional) if a table is active, then all its KEY columns must be active
+      if (ilpParams.keyColumnsMustMatch) {
+        val activeKeyColVars = table.keyColumns.map { colIdx => activeColVars((tableIdx, colIdx)) }
+        activeKeyColVars.foreach { activeKeyColVar =>
+          ilpSolver.addConsXLeqY("activeKeyColumn", activeTableVar, activeKeyColVar)
+        }
+      }
     }
 
     // at most k tables may be active

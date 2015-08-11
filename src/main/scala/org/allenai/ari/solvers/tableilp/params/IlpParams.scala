@@ -11,6 +11,7 @@ import com.google.inject.name.Named
   * @param maxTablesToChain maximum number of tables that may be chained together in the solution
   * @param maxRowsPerTable how many rows per table may an inference chain use inference
   * @param useRelaxedVars whether to use relaxed (continuous) variables, where possible
+  * @param keyColumnsMustMatch whether columns identified as KEY must match when a table is used
   */
 class IlpParams @Inject() (
   @Named("model.alignmentType") val alignmentType: String,
@@ -18,7 +19,8 @@ class IlpParams @Inject() (
   @Named("model.mustChooseAnAnswer") val mustChooseAnAnswer: Boolean,
   @Named("model.maxTablesToChain") val maxTablesToChain: Int,
   @Named("model.maxRowsPerTable") val maxRowsPerTable: Int,
-  @Named("model.useRelaxedVars") val useRelaxedVars: Boolean
+  @Named("model.useRelaxedVars") val useRelaxedVars: Boolean,
+  @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -29,6 +31,7 @@ object IlpParams {
     mustChooseAnAnswer = true,
     maxTablesToChain = 4,
     maxRowsPerTable = 1,
-    useRelaxedVars = true
+    useRelaxedVars = false,
+    keyColumnsMustMatch = true
   )
 }

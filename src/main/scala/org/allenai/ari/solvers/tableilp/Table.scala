@@ -20,9 +20,16 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
   val tokenizeCells = true
 
   // extract title row and the rest of the content matrix from a CSV file
-  val (titleRow, contentMatrix, fullContentNormalized) = readCSV(fileName)
+  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = readCSV(fileName)
 
-  private def readCSV(file: String): (Seq[String], Seq[Seq[String]], Seq[Seq[TokenizedCell]]) = {
+  /** Create a Table by reading a CSV file.
+    *
+    * @param file a CSV file with a header
+    * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
+    */
+  private def readCSV(
+    file: String
+  ): (Seq[String], Seq[Int], Seq[Seq[String]], Seq[Seq[TokenizedCell]]) = {
     val reader = new CSVReader(new FileReader(file))
     val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
 
@@ -30,6 +37,7 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
     val filteredColIndices = for {
       (title, idx) <- fullContents.head.zipWithIndex
       if !ignoreTableColumnFillers || title != ""
+      // skip columns whose header starts with the word "SKIP"
       if !ignoreTableColumnsMarkedSkip || sep.split(title)(0) != "SKIP"
     } yield idx
     val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
@@ -42,6 +50,10 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
       Seq(Seq[TokenizedCell]())
     }
 
-    (fullContentsFiltered.head, fullContentsFiltered.tail, fullContentNormalized)
+    val titleRow = fullContentsFiltered.head
+    // retrieve indices of columns whose header starts with the word "KEY"
+    val keyColumns = titleRow.map(sep.split(_)(0) == "KEY").zipWithIndex.filter(_._1).map(_._2)
+    val contentMatrix = fullContentsFiltered.tail
+    (titleRow, keyColumns, contentMatrix, fullContentNormalized)
   }
 }
