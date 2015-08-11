@@ -24,8 +24,8 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
   val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = readCSV(fileName)
 
   /** Create a Table by reading a CSV file with the following convention:
-    * //   columns with header starting with prefix "KEY" are designated as key columns;
-    * //   columns with header starting with the prefix "SKIP" are skipped
+    *   columns with header starting with prefix "KEY" are designated as key columns;
+    *   columns with header starting with the prefix "SKIP" are skipped
     *
     * @param file a CSV file with a header
     * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
