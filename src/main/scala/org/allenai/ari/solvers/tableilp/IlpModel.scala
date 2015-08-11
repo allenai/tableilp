@@ -245,7 +245,7 @@ class IlpModel(
       }
 
       // (optional) if a table is active, then at least one of its KEY columns must be active
-      if (ilpParams.keyColumnsMustMatch) {
+      if (ilpParams.keyColumnsMustMatch && table.keyColumns.nonEmpty) {
         val activeKeyColVars = table.keyColumns.map { colIdx => activeColVars((tableIdx, colIdx)) }
         ilpSolver.addConsYImpliesAtLeastK("activeKeyColumns", activeTableVar, activeKeyColVars, 1d)
       }
