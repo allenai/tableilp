@@ -19,10 +19,13 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
   // config: keep tokenized values
   val tokenizeCells = true
 
-  // extract title row and the rest of the content matrix from a CSV file
+  // title row, key columns, the rest of the content matrix, and also tokenized content cells if
+  // tokenizeCells = true
   val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = readCSV(fileName)
 
-  /** Create a Table by reading a CSV file.
+  /** Create a Table by reading a CSV file with the following convention:
+    * //   columns with header starting with prefix "KEY" are designated as key columns;
+    * //   columns with header starting with the prefix "SKIP" are skipped
     *
     * @param file a CSV file with a header
     * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
@@ -42,7 +45,9 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
     } yield idx
     val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
 
-    val fullContentNormalized = if (tokenizeCells) {
+    // optionally tokenize every cell (include column headers) of the table
+    // TODO: create a case class for each cell to keep its rawText, tokens, etc., together
+    val fullContentTokenized = if (tokenizeCells) {
       fullContentsFiltered.map { row =>
         row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
       }
@@ -55,6 +60,6 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
     val keyColumns = titleRowOrig.zipWithIndex.filter(_._1.startsWith("KEY ")).map(_._2)
     val titleRow = titleRowOrig.map(_.stripPrefix("KEY "))
     val contentMatrix = fullContentsFiltered.tail
-    (titleRow, keyColumns, contentMatrix, fullContentNormalized)
+    (titleRow, keyColumns, contentMatrix, fullContentTokenized)
   }
 }
