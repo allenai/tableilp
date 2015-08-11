@@ -12,3 +12,6 @@ is used to measure	volume	0.2
 is used to measure	liquid volume	0.2
 is used to measure	mass	0.2
 is used to measure	weight	0.2
+plants	plate	0.0
+green plants	plate	0.0
+energy	SOURCE	0.3
