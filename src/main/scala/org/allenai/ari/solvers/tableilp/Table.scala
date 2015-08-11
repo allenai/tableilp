@@ -50,9 +50,10 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
       Seq(Seq[TokenizedCell]())
     }
 
-    val titleRow = fullContentsFiltered.head
+    val titleRowOrig = fullContentsFiltered.head
     // retrieve indices of columns whose header starts with the word "KEY"
-    val keyColumns = titleRow.map(sep.split(_)(0) == "KEY").zipWithIndex.filter(_._1).map(_._2)
+    val keyColumns = titleRowOrig.zipWithIndex.filter(_._1.startsWith("KEY ")).map(_._2)
+    val titleRow = titleRowOrig.map(_.stripPrefix("KEY "))
     val contentMatrix = fullContentsFiltered.tail
     (titleRow, keyColumns, contentMatrix, fullContentNormalized)
   }

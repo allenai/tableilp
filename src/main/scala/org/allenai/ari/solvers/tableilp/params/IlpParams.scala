@@ -11,7 +11,7 @@ import com.google.inject.name.Named
   * @param maxTablesToChain maximum number of tables that may be chained together in the solution
   * @param maxRowsPerTable how many rows per table may an inference chain use inference
   * @param useRelaxedVars whether to use relaxed (continuous) variables, where possible
-  * @param keyColumnsMustMatch whether columns identified as KEY must match when a table is used
+  * @param keyColumnsMustMatch whether at least one KEY column must match when a table is used
   */
 class IlpParams @Inject() (
   @Named("model.alignmentType") val alignmentType: String,
