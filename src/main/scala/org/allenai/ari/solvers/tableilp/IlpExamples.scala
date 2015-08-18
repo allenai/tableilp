@@ -24,7 +24,7 @@ object IlpExamples extends Logging {
     val weights = IlpWeights.Default
     val alignmentType = if (entailmentServiceOpt.isDefined) "Entailment" else "WordOverlap"
     val aligner = new AlignmentFunction(alignmentType, entailmentServiceOpt,
-      ilpParams.entailmentScoreOffset, tokenizer)
+      ilpParams.entailmentScoreOffset, tokenizer, useRedisCache = false)
     val ilpSolver = new ScipInterface("sampleExample", scipParams)
     val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
     val allVariables = ilpModel.buildModel(question)

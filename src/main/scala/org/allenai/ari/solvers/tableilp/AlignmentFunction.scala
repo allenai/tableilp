@@ -35,16 +35,18 @@ class AlignmentFunction(
     alignmentType: String,
     entailmentServiceOpt: Option[EntailmentService],
     entailmentScoreOffset: Double,
-    tokenizer: KeywordTokenizer
+    tokenizer: KeywordTokenizer,
+    useRedisCache: Boolean
 ) extends Logging {
   private val similarityFunction: SimilarityType = alignmentType match {
     case "Entailment" => {
       logger.info("Using entailment for alignment score computation")
+      if (useRedisCache) logger.info("  Using Redis cache for entailment scores")
       val teService = entailmentServiceOpt match {
         case Some(entailmentService) => entailmentService
         case None => throw new IllegalStateException("No entailment service available")
       }
-      new EntailmentSimilarity(teService, entailmentScoreOffset, tokenizer)
+      new EntailmentSimilarity(teService, entailmentScoreOffset, tokenizer, useRedisCache)
     }
     case "Word2Vec" => {
       logger.info("Using word2vec for alignment score computation")
@@ -95,9 +97,12 @@ class AlignmentFunction(
 private class EntailmentSimilarity(
     entailmentService: EntailmentService,
     entailmentScoreOffset: Double,
-    tokenizer: KeywordTokenizer
-) extends SimilarityType {
-  val redis = new RedisClient("localhost", 6379)
+    tokenizer: KeywordTokenizer,
+    useRedisCache: Boolean
+) extends SimilarityType with Logging {
+
+  private val redisOpt = if (useRedisCache) Some(new RedisClient("localhost", 6379)) else None
+
   def scoreTitleTitle(titleStr1: String, titleStr2: String): Double = {
     getSymmetricScore(titleStr1, titleStr2, getEntailmentScore)
   }
@@ -128,7 +133,9 @@ private class EntailmentSimilarity(
 
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
-    val score = redis.get(key) match {
+    // If Redis cache is being used and contains 'key', return the stored value; otherwise
+    // compute the score and, if Redis is being use, save it as the value for 'key'
+    val score = redisOpt.flatMap(_.get(key)) match {
       case Some(value) => value.toDouble
       case None => {
         val text1StemmedTokens = splitStemKeywordTokenizeFilter(text1)
@@ -138,7 +145,7 @@ private class EntailmentSimilarity(
           text2Seq <- text2StemmedTokens
         } yield entailmentService.entail(text1Seq, text2Seq).confidence
         val scoreMax = if (scores.nonEmpty) scores.max else 0d
-        redis.set(key, scoreMax)
+        redisOpt.foreach(_.set(key, scoreMax))
         scoreMax
       }
     }

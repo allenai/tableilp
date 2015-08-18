@@ -12,13 +12,16 @@ import com.google.inject.name.Named
   * @param useFallbackSolverCompId whether to use fallback solver's ID or TableIlp solver's ID
   * @param checkForTies check whether there another answer choice is as good as the best one
   * @param tieThreshold scores within this of the optimal are considered tied with the optimal
+  * @param useRedisCache use a local Redis cache for entailment scores; requires redis-server
+  *   running on localhost:6739
   */
 class SolverParams @Inject() (
   @Named("solver.failOnUnansweredQuestions") val failOnUnansweredQuestions: Boolean,
   @Named("solver.useFallbackSolver") val useFallbackSolver: Boolean,
   @Named("solver.useFallbackSolverCompId") val useFallbackSolverCompId: Boolean,
   @Named("solver.checkForTies") val checkForTies: Boolean,
-  @Named("solver.tieThreshold") val tieThreshold: Double
+  @Named("solver.tieThreshold") val tieThreshold: Double,
+  @Named("solver.useRedisCache") val useRedisCache: Boolean
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -28,6 +31,7 @@ object SolverParams {
     useFallbackSolver = true,
     useFallbackSolverCompId = true,
     checkForTies = true,
-    tieThreshold = Utils.eps
+    tieThreshold = Utils.eps,
+    useRedisCache = false
   )
 }
