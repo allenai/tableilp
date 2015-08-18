@@ -1,0 +1,26 @@
+// a tab-separated list, with an optional comment at the end:
+//   text \t hypothesis \t score [\t comment]
+
+adaptation	adapt to their environment	1.0	// original score = 0.0
+duck	mate	0.0	// original score = 0.92 (Otter)
+duck	attract a mate	0.0	// original score = 0.47 (duck -> mate: Otter)
+One way animals	mammal	0.75	// original score = 0.0
+a person	mammal	1.0	// original score = 0.0
+measuring a quantity of water	ruler	0.0	// original score = 0.9 (Otter)
+measuring	ruler	0.2	// original score = 0.9 (Otter)
+to measure	ruler	0.2	// original score = 0.9 (Otter)
+is used to measure	ruler	0.25	// original score = 0.9 (measure -> ruler: Otter)
+is used to measure	length	0.2	// original score = 0.0
+is used to measure	size	0.2	// original score = 0.77 (Otter)
+is used to measure	distance	0.2	// original score = 0.9 (Otter)
+is used to measure	volume	0.2	// original score = 0.0
+is used to measure	liquid volume	0.2	// original score = 0.0
+is used to measure	mass	0.2	// original score = 0.0
+is used to measure	weight	0.2	// original score = 0.77 (Otter)
+plants	plate	0.0	// original score = 1.0 (morphological variant)
+green plants	plate	0.0	// original score = 1.0 (plants -> plate: morphological variant)
+energy	SOURCE	0.3	// original score = 0.96 (Otter)
+the entire container	mammal	0.0	// original score = 1.0 (entire NN -> stallion -> ... -> mammal)
+a basic need	good	0.0	// original score = 0.5 (basic -> commodity -> good NN)
+rubber	matches	0.0	// original score = 0.71 (Otter)
+Bruce using	objects straight up or down	0.0	// original score for Bruce -> objects = 1.0
