@@ -1,5 +1,5 @@
-// a tab-separated list, with an optional comment at the end separated by white space:
-//   text \t hypothesis \t score [\w comment]
+// a tab-separated list, with an optional comment at the end:
+//   text \t hypothesis \t score [\t comment]
 
 adaptation	adapt to their environment	1.0	// original score = 0.0
 duck	mate	0.0	// original score = 0.92 (Otter)
