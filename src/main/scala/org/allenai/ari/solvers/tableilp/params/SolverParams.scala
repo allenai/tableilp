@@ -32,6 +32,6 @@ object SolverParams {
     useFallbackSolverCompId = true,
     checkForTies = true,
     tieThreshold = Utils.eps,
-    useRedisCache = false
+    useRedisCache = true
   )
 }
