@@ -151,19 +151,23 @@ class IlpModel(
     } yield x
 
     // Inter-table variables
-    val interTableVariables = for {
-      tableIdx1 <- tables.indices
-      tableIdx2 <- tableIdx1 + 1 until tables.length
-      table1 = tables(tableIdx1)
-      table2 = tables(tableIdx2)
-      rowIdx1 <- table1.contentMatrix.indices
-      rowIdx2 <- table2.contentMatrix.indices
-      row1 = table1.contentMatrix(rowIdx1)
-      row2 = table2.contentMatrix(rowIdx2)
-      colIdx1 <- row1.indices
-      colIdx2 <- row2.indices
-      x <- addInterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2)
-    } yield x
+    val interTableVariables = if (ilpParams.maxTablesToChain <= 1) {
+      IndexedSeq.empty
+    } else {
+      for {
+        tableIdx1 <- tables.indices
+        tableIdx2 <- tableIdx1 + 1 until tables.length
+        table1 = tables(tableIdx1)
+        table2 = tables(tableIdx2)
+        rowIdx1 <- table1.contentMatrix.indices
+        rowIdx2 <- table2.contentMatrix.indices
+        row1 = table1.contentMatrix(rowIdx1)
+        row2 = table2.contentMatrix(rowIdx2)
+        colIdx1 <- row1.indices
+        colIdx2 <- row2.indices
+        x <- addInterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2)
+      } yield x
+    }
 
     // allow inter-table cell alignment only if the titles match
     interTableVariables.foreach { entry =>
