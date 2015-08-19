@@ -9,6 +9,7 @@ a person	mammal	1.0	// original score = 0.0
 measuring a quantity of water	ruler	0.0	// original score = 0.9 (Otter)
 measuring	ruler	0.0	// original score = 0.9 (Otter)
 to measure	ruler	0.0	// original score = 0.9 (Otter)
+measuring cup	ruler	0.0	// original score = 0.9 (Otter)
 is used to measure	ruler	0.0	// original score = 0.9 (measure -> ruler: Otter)
 is used to measure	length	0.25	// original score = 0.0
 is used to measure	size	0.25	// original score = 0.77 (Otter)
