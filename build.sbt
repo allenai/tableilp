@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   nlpstack("tokenize"),
   nlpstack("postag"),
   nlpstack("core"),
+  word2VecJava,
   "net.debasishg" %% "redisclient" % "3.0"
 )
 
