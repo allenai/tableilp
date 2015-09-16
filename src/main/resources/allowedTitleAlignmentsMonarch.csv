@@ -1,0 +1,7 @@
+// biology
+zmonarch_table1.csv,0,zmonarch_table14.csv,1      // organ in tables 1 and 14
+zmonarch_table18.csv,0,zmonarch_table23.csv,0     // organism in tables 18 and 23
+
+// physics
+zmonarch_table11.csv,0,zmonarch_table15.csv,0     // material in tables 11 and 15
+zmonarch_table6.csv,0,zmonarch_table16.csv,0      // force in tables 6 and 16
