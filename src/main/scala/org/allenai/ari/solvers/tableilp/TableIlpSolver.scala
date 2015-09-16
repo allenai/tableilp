@@ -94,73 +94,99 @@ class TableIlpSolver @Inject() (
     } else {
       Future {
         logger.info(s"Question: ${question.rawQuestion}")
-        // create an ILP model, solve it to obtain the best answer choice, along with (optionally)
-        // a tied answer choice index for which the ILP has the same score
-        val ilpSolutionWithTie: Option[(IlpSolution, Option[TiedChoice])] = if (useActualSolver) {
-          val tablesWithScores = tableInterface.getTablesForQuestion(question.rawQuestion)
+        // create an ILP model, solve it recursively to obtain solutions for all the answer choices
+        val allSolutions: Seq[IlpSolution] = if (useActualSolver) {
+          val tableIdsWithScores = tableInterface.getTableIdsForQuestion(question.rawQuestion)
           val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer, solverParams.useRedisCache)
-          val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
-          val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
+          val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
+            tableIdsWithScores)
+          val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize")
           val allVariables = ilpModel.buildModel(questionIlp)
-          ilpSolver.solve()
-          if (solverParams.failOnUnansweredQuestions && !ilpSolver.hasSolution) {
-            None
-          } else {
-            val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
-              questionIlp, tablesWithScores.map(_._1))
-            logger.info(s"Best answer choice = ${ilpSolution.bestChoice}")
-            val tiedChoiceOpt = if (ilpSolution.bestChoiceScore > 0d && solverParams.checkForTies) {
-              logger.info("Checking for a tie")
-              ilpSolver.resetSolve()
-              ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(ilpSolution.bestChoice))
-              ilpSolver.solve()
-              if (ilpSolver.hasSolution) {
-                val (choiceIdx, score) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
-                logger.info(s"Second best answer choice = $choiceIdx")
-                if (score >= ilpSolution.bestChoiceScore - solverParams.tieThreshold) {
-                  Some(TiedChoice(choiceIdx, score))
-                } else {
-                  None
-                }
-              } else {
-                None
-              }
-            } else {
-              None
-            }
-            Some((ilpSolution, tiedChoiceOpt))
-          }
+          val tablesUsed = tableIdsWithScores.map { case (t, _) => tableInterface.allTables(t) }
+          solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp, tablesUsed,
+            Set.empty)
         } else {
-          Some((IlpSolutionFactory.makeRandomIlpSolution, None))
+          Seq(IlpSolutionFactory.makeRandomIlpSolution)
         }
 
         val features = Map("fallbackSolverUsed" -> 0d)
-        val answersOpt = ilpSolutionWithTie map {
-          case (ilpSolution, tiedChoiceOpt) => {
-            val ilpSolutionJson = ilpSolution.toJson
-            val bestChoice = ilpSolution.bestChoice
-            val bestChoiceScore = ilpSolution.bestChoiceScore
-            logger.debug(ilpSolutionJson.toString())
-            val ilpBestAnswer = SimpleAnswer(
+
+        // Only return answers if some solution was found
+        if (allSolutions.isEmpty) {
+          Seq.empty
+        } else {
+          val answeredSolutions = (allSolutions map { solution =>
+            val ilpSolutionJson = solution.toJson
+            val bestChoice = solution.bestChoice
+            val bestChoiceScore = solution.bestChoiceScore
+            val ilpFeatures = new IlpFeatures(solution)
+            SimpleAnswer(
               question.selections(bestChoice),
               bestChoiceScore,
               Some(Map("ilpSolution" -> ilpSolutionJson)),
-              Some(features)
+              Some(features ++ ilpFeatures.featureMap)
             )
-            val ilpTiedAnswerOpt = tiedChoiceOpt map {
-              case TiedChoice(choiceIdx, score) =>
-                defaultIlpAnswerWithScore(question.selections(choiceIdx), score)
-            }
-            val coveredChoices = Seq(bestChoice) ++ tiedChoiceOpt.map(_.choice)
-            val remainingAnswers = question.selections
-              .filterNot(s => coveredChoices.contains(s.index)).map(defaultIlpAnswer)
-            Seq(ilpBestAnswer) ++ ilpTiedAnswerOpt ++ remainingAnswers
-          }
+            // Sorting is currently redundant but ensures any future changes to
+            // solveForAllAnswerChoices which is not required to return answers sorted by score
+          }).sortBy(-_.score).toSeq
+          // Find the selections that were unanswered
+          val choicesAnswered = allSolutions.map(_.bestChoice)
+          val selectionsUnanswered = question.selections.filterNot(
+            sel => choicesAnswered.contains(sel.index)
+          )
+          answeredSolutions ++ selectionsUnanswered.map(defaultIlpAnswer)
         }
-        answersOpt.getOrElse(Seq.empty)
       }
+    }
+  }
+
+  /** Get all solutions for the currently active choices. The caller is responsible for disabling
+    * answer choices in the ilpModel. The recursive call in this function should also
+    * ensure that.
+    * @param disabledChoices the current set of answer choice indices disabled in the ilpModel
+    */
+  private def solveForAllAnswerChoices(
+    ilpSolver: ScipInterface,
+    ilpModel: IlpModel,
+    allVariables: AllVariables,
+    questionIlp: TableQuestion,
+    tablesUsed: Seq[Table],
+    disabledChoices: Set[Int]
+  ): Seq[IlpSolution] = {
+    ilpSolver.solve()
+    if (ilpSolver.hasSolution) {
+      val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
+      // Solver picks a disabled choice
+      if (disabledChoices.contains(choiceIdx)) {
+        assert(!ilpParams.mustChooseAnAnswer, "Should never return the same choice if " +
+          "mustChooseAnswer is set to true")
+        logger.error(s"ILP Solver picked a disabled choice: $choiceIdx")
+        logger.debug("Not calling solver on other options.")
+        Seq.empty
+      } else {
+        logger.debug(s"Found a solution: $choiceIdx")
+        val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
+          questionIlp, tablesUsed)
+        // If the number of disabled choices plus the current choice matches the number of
+        // choices in the question, solver won't be able to find any further solutions.
+        if (questionIlp.choices.size == disabledChoices.size + 1) {
+          logger.debug("All choices explored, no further calls needed.")
+          Seq(ilpSolution)
+        } else {
+          // Reset solution for any future calls to solve
+          ilpSolver.resetSolve()
+          logger.debug(s"Disabling choice:  $choiceIdx")
+          ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
+          // Call the method again with the best choice disabled
+          ilpSolution +: solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
+            tablesUsed, disabledChoices + choiceIdx)
+        }
+      }
+    } else {
+      logger.debug("No more solutions!")
+      Seq.empty
     }
   }
 }
