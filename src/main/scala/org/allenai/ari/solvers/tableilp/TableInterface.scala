@@ -174,8 +174,11 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     } yield row.map(stripComments(_).trim)
     val allowedAlignments = fullContentsWithoutCommentsAndEmptyLines map {
       case Seq(table1Name, col1IdxStr, table2Name, col2IdxStr) => {
-        assert(allTableNames.contains(table1Name), s"table $table1Name does not exist")
-        assert(allTableNames.contains(table2Name), s"table $table2Name does not exist")
+        Seq(table1Name, table2Name).foreach { name =>
+          if (!allTableNames.contains(name)) {
+            throw new IllegalArgumentException(s"table $name does not exist")
+          }
+        }
         AllowedTitleAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
       }
       case _ => {
