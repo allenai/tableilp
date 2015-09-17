@@ -1,14 +1,15 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.ari.models.Question
+import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.common.Logging
 import org.allenai.nlpstack.core.Chunker
 import org.allenai.nlpstack.chunk.OpenNlpChunker
 import org.allenai.nlpstack.postag.defaultPostagger
 import org.allenai.nlpstack.tokenize.defaultTokenizer
 
-/** This class contains the question raw string, its chunked format and some other processing on
-  * them.
+/** This class contains the question raw string, its chunked format, and some other processing.
+  *
   * @param questionRaw the raw string of the question
   * @param questionCons the question text, chunked into strings
   * @param choices answer choices
@@ -25,7 +26,6 @@ object TableQuestionFactory extends Logging {
   private val defaultSplittingType = "SpaceSplit"
 
   def makeQuestion(questionRaw: String): TableQuestion = {
-    // TODO: consider adding chunker here
     TableQuestion(questionRaw, spaceSep.split(questionRaw), Seq.empty)
   }
 
@@ -60,7 +60,14 @@ sealed trait Splitter {
 
 /** Split text based on tokenization */
 private class TokenSplitter extends Splitter {
-  def split(str: String): Seq[String] = defaultTokenizer.tokenize(str).map(_.toString())
+  private val useStemmedKeywordTokenizer = true
+  def split(str: String): Seq[String] = {
+    if (useStemmedKeywordTokenizer) {
+      KeywordTokenizer.Default.stemmedKeywordTokenize(str)
+    } else {
+      defaultTokenizer.tokenize(str).map(_.string)
+    }
+  }
 }
 
 /** Split text based on chunking */
