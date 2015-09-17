@@ -24,10 +24,11 @@ class TableParams @Inject() (
     @Named("tables.useRankThreshold") val useRankThreshold: Boolean,
     @Named("tables.allowedTitleAlignmentsFile") val allowedTitleAlignmentsFile: String
 ) {
+  val commaSep = ",".r
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
     Seq.empty
   } else {
-    ignoreListStr.split(',').map(_.toInt)
+    commaSep.split(ignoreListStr).map(_.toInt)
   }
 }
 
