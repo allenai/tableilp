@@ -351,6 +351,24 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     addConsBasicLinear(name, X, coeffs, None, Some(k), trigger)
   }
 
+  /** Adds the Horn constraint x1 AND x2 AND ... AND xk => y;
+    * modeled as: sum(X) - y <= |X| - 1
+    */
+  def addConsHorn(name: String, body: Seq[Long], head: Long): Unit = {
+    val vars = body :+ head
+    val coeffs = Seq.fill(body.size)(1d) :+ (-1d)
+    addConsBasicLinear(name, vars, coeffs, None, Some(body.size - 1))
+  }
+
+  /** If triggered, adds the Horn constraint x1 AND x2 AND ... AND xk => y;
+    * modeled as: sum(X) - y + trigger <= |X|
+    */
+  def addConsHorn(name: String, body: Seq[Long], head: Long, trigger: Long): Unit = {
+    val vars = body ++ Seq(head, trigger)
+    val coeffs = Seq.fill(body.size)(1d) ++ Seq(-1d, 1d)
+    addConsBasicLinear(name, vars, coeffs, None, Some(body.size))
+  }
+
   /** Adds the constraint sum(X) >= k * y */
   def addConsYImpliesAtLeastK(name: String, y: Long, X: Seq[Long], k: Double): Unit = {
     val vars = X :+ y
