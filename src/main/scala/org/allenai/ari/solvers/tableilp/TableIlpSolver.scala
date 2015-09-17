@@ -146,7 +146,7 @@ class TableIlpSolver @Inject() (
     * answer choices in the ilpModel. The recursive call in this function should also
     * ensure that.
     *
-    * @param ilpSolutions the current set of solutions, passed on for tail recursion using @tailrec
+    * @param ilpSolutionsSoFar the current set of solutions, passed on for tail recursion
     * @param disabledChoices the current set of answer choice indices disabled in the ilpModel
     */
   @tailrec private def solveForAllAnswerChoices(
@@ -155,7 +155,7 @@ class TableIlpSolver @Inject() (
     allVariables: AllVariables,
     questionIlp: TableQuestion,
     tablesUsed: Seq[Table],
-    ilpSolutions: Seq[IlpSolution],
+    ilpSolutionsSoFar: Seq[IlpSolution],
     disabledChoices: Set[Int]
   ): Seq[IlpSolution] = {
     ilpSolver.solve()
@@ -169,7 +169,7 @@ class TableIlpSolver @Inject() (
         }
         logger.error(s"ILP Solver picked a disabled choice: $choiceIdx")
         logger.debug("Not calling solver on other options.")
-        Seq.empty
+        ilpSolutionsSoFar
       } else {
         logger.debug(s"Found a solution: $choiceIdx")
         val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
@@ -178,7 +178,7 @@ class TableIlpSolver @Inject() (
         // choices in the question, solver won't be able to find any further solutions.
         if (questionIlp.choices.size == disabledChoices.size + 1) {
           logger.debug("All choices explored, no further calls needed.")
-          Seq(ilpSolution)
+          ilpSolutionsSoFar :+ ilpSolution
         } else {
           // Reset solution for any future calls to solve
           ilpSolver.resetSolve()
@@ -186,12 +186,12 @@ class TableIlpSolver @Inject() (
           ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
           // Call the method again with the best choice disabled
           solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
-            tablesUsed, ilpSolutions :+ ilpSolution, disabledChoices + choiceIdx)
+            tablesUsed, ilpSolutionsSoFar :+ ilpSolution, disabledChoices + choiceIdx)
         }
       }
     } else {
       logger.debug("No more solutions!")
-      Seq.empty
+      ilpSolutionsSoFar
     }
   }
 }
