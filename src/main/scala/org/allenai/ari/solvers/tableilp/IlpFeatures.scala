@@ -120,7 +120,7 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
     localMap
   }
 
-  /** Names of all features; NOTE that this will NOT preserve order from run to run;
+  /** Names of all features; note that this will NOT preserve order from run to run;
     * use LinkedHashMap or ListMap if you want to preserve the order in which features are added
     */
   val featureNames: Iterable[String] = featureMap.keys
