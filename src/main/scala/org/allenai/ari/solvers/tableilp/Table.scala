@@ -5,13 +5,13 @@ import org.allenai.common.Logging
 
 import au.com.bytecode.opencsv.CSVReader
 
-import java.io.FileReader
+import java.io.{ File, FileReader }
 
 import scala.collection.JavaConverters._
 
 case class TokenizedCell(values: Seq[String])
 
-class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
+class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
   val ignoreTableColumnFillers = true
   // config: ignore columns whose title starts with the word SKIP
@@ -19,9 +19,13 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
   // config: keep tokenized values
   val tokenizeCells = true
 
+  // record the file name from which this table was read
+  val fileName = file.getName
+  val filePath = file.getAbsolutePath
+
   // title row, key columns, the rest of the content matrix, and also tokenized content cells if
   // tokenizeCells = true
-  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = readCSV(fileName)
+  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = makeTableFromCsv(filePath)
 
   /** Create a Table by reading a CSV file with the following convention:
     *   columns with header starting with prefix "KEY" are designated as key columns;
@@ -30,7 +34,7 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
     * @param file a CSV file with a header
     * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
     */
-  private def readCSV(
+  private def makeTableFromCsv(
     file: String
   ): (Seq[String], Seq[Int], Seq[Seq[String]], Seq[Seq[TokenizedCell]]) = {
     val reader = new CSVReader(new FileReader(file))
@@ -41,7 +45,8 @@ class Table(fileName: String, tokenizer: KeywordTokenizer) extends Logging {
       (title, idx) <- fullContents.head.zipWithIndex
       if !ignoreTableColumnFillers || title != ""
       // skip columns whose header starts with the word "SKIP"
-      if !ignoreTableColumnsMarkedSkip || sep.split(title)(0) != "SKIP"
+      firstWord = sep.split(title)(0)
+      if !ignoreTableColumnsMarkedSkip || !Seq("SKIP", "[SKIP]").contains(firstWord)
     } yield idx
     val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
 
