@@ -12,6 +12,7 @@ import akka.actor.ActorSystem
 import com.google.inject.Inject
 import spray.json._
 
+import scala.annotation.tailrec
 import scala.concurrent.Future
 
 /** An Aristo solver that uses an Integer Linear Programming (ILP) formulation to find the best
@@ -105,7 +106,7 @@ class TableIlpSolver @Inject() (
           val allVariables = ilpModel.buildModel(questionIlp)
           val tablesUsed = tablesWithScores.map(_._1)
           solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp, tablesUsed,
-            Set.empty)
+            Seq.empty, Set.empty)
         } else {
           Seq(IlpSolutionFactory.makeRandomIlpSolution)
         }
@@ -129,7 +130,7 @@ class TableIlpSolver @Inject() (
             )
             // Sorting is currently redundant but ensures any future changes to
             // solveForAllAnswerChoices which is not required to return answers sorted by score
-          }).sortBy(-_.score).toSeq
+          }).sortBy(-_.score)
           // Find the selections that were unanswered
           val choicesAnswered = allSolutions.map(_.bestChoice)
           val selectionsUnanswered = question.selections.filterNot(
@@ -144,14 +145,17 @@ class TableIlpSolver @Inject() (
   /** Get all solutions for the currently active choices. The caller is responsible for disabling
     * answer choices in the ilpModel. The recursive call in this function should also
     * ensure that.
+    *
+    * @param ilpSolutions the current set of solutions, passed on for tail recursion using @tailrec
     * @param disabledChoices the current set of answer choice indices disabled in the ilpModel
     */
-  private def solveForAllAnswerChoices(
+  @tailrec private def solveForAllAnswerChoices(
     ilpSolver: ScipInterface,
     ilpModel: IlpModel,
     allVariables: AllVariables,
     questionIlp: TableQuestion,
     tablesUsed: Seq[Table],
+    ilpSolutions: Seq[IlpSolution],
     disabledChoices: Set[Int]
   ): Seq[IlpSolution] = {
     ilpSolver.solve()
@@ -159,8 +163,10 @@ class TableIlpSolver @Inject() (
       val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
       // Solver picks a disabled choice
       if (disabledChoices.contains(choiceIdx)) {
-        assert(!ilpParams.mustChooseAnAnswer, "Should never return the same choice if " +
-          "mustChooseAnswer is set to true")
+        if (ilpParams.mustChooseAnAnswer) {
+          throw new IllegalStateException("Should never return the same choice if " +
+            "mustChooseAnswer is set to true")
+        }
         logger.error(s"ILP Solver picked a disabled choice: $choiceIdx")
         logger.debug("Not calling solver on other options.")
         Seq.empty
@@ -179,8 +185,8 @@ class TableIlpSolver @Inject() (
           logger.debug(s"Disabling choice:  $choiceIdx")
           ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
           // Call the method again with the best choice disabled
-          ilpSolution +: solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
-            tablesUsed, disabledChoices + choiceIdx)
+          solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
+            tablesUsed, ilpSolutions :+ ilpSolution, disabledChoices + choiceIdx)
         }
       }
     } else {
