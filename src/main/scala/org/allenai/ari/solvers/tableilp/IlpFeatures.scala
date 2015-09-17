@@ -7,14 +7,8 @@ import org.allenai.common.Logging
   */
 class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
 
-  /** A map from feature names to values */
-  val featureMap: Map[String, Double] = buildFeatureMap()
-
-  /** Names of all features */
-  lazy val featureNames: Seq[String] = featureMap.keys.toSeq
-
-  /** An internal method to process IlpSolution and build a feature map. */
-  private def buildFeatureMap(): Map[String, Double] = {
+  /** A map from feature names to values, obtained by processing IlpSolution */
+  val featureMap: Map[String, Double] = {
     // number of active cells for each table
     val numActiveCellsPerTable: Seq[Int] = ilpSolution.tableAlignments.map { table =>
       table.contentAlignments.map(row => row.count(cell => cell.alignmentIds.nonEmpty)).sum
@@ -125,4 +119,7 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
 
     localMap
   }
+
+  /** Names of all features */
+  val featureNames: Seq[String] = featureMap.keys.toSeq
 }
