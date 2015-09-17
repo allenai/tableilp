@@ -7,9 +7,9 @@ import org.allenai.common.Logging
 import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
 
-import scala.collection.JavaConverters._
-
 import java.io.{ File, FileReader }
+
+import scala.collection.JavaConverters._
 
 /** A structure to store which two columns in two tables are allowed to be joined/aligned.
   *
