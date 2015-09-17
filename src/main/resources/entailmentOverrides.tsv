@@ -20,7 +20,7 @@ is used to measure	mass	0.25	// original score = 0.0
 is used to measure	weight	0.25	// original score = 0.77 (Otter)
 plants	plate	0.0	// original score = 1.0 (morphological variant)
 green plants	plate	0.0	// original score = 1.0 (plants -> plate: morphological variant)
-energy	SOURCE	0.3	// original score = 0.96 (Otter)
+energy	SOURCE	0.25	// original score = 0.96 (Otter)
 the entire container	mammal	0.0	// original score = 1.0 (entire NN -> stallion -> ... -> mammal)
 the entire container	animal	0.0	// original score = 1.0 (entire NN -> stallion -> ... -> animal)
 a student use	UNIT	0.0	// original score = 1.0 (student -> ... -> person -> ... -> whole)
@@ -40,9 +40,9 @@ water	a person	0.0	// original score = 0.94 (Otter)
 gas	a person	0.0	// original score = 0.81 (Otter)
 Which form	a person	0.0	// original score = 0.81 (Otter)
 downhill	down	0.75	// original score = 0.0
-downhill	down the hill	0.75	// original score = 0.0
+downhill	down the hill	1.0	// original score = 0.0
 down	downhill	0.25	// original score = 0.0
-down the hill	downhill	0.75	// original score = 0.0
+down the hill	downhill	1.0	// original score = 0.0
 sense	touch	0.25	// original score = 0.9 (Otter)
 sense	smell	0.25	// original score = 0.0
 sense	see	0.25	// original score = 0.02 (sense -> smell -> perceive -> understand -> see)
@@ -70,3 +70,36 @@ mouth	part	0.25	// original score = 0.42
 flag	object	1.0	// original score = 0.43 (but flagpole -> object is 1.0)
 the faster	EVENT	0.0	// original score = 0.5 (fast NN -> abstinence -> ... -> act -> event)
 will transfer	EVENT	0.0	// original score = 0.43 (transfer -> transportation -> ... -> event)
+bottom	power	0.0	// original score = 0.90 (Otter)
+has	organism	0.0	// original score = 0.5 (rich person -> person -> organism)
+have	organism	0.0	// original score = 0.5 (rich person -> person -> organism)
+inherit	acquire	0.0	// original score = 0.94 (inherit -> get), but need a clear distinction for biology
+
+
+// Tushar's entries for word overrides
+animal	mammal	0.75
+person	mammal	1.0
+measure	ruler	0.0
+measuring	ruler	0.0
+measure	length	0.25	// original score = 0.0
+measure	size	0.25	// original score = 0.77 (Otter)
+measure	distance	0.25	// original score = 0.9 (Otter)
+measure	volume	0.25	// original score = 0.0
+measure	liquid	0.25	// original score = 0.0
+measure	mass	0.25	// original score = 0.0
+measure	weight	0.25	// original score = 0.77 (Otter)
+entire	mammal	0.0
+student	UNIT	0.0	// original score = 1.0 (student -> ... -> person -> ... -> whole)
+student	whole	0.0	// original score = 1.0 (student -> ... -> person -> ... -> whole)
+student	object	0.0	// original score = 1.0 (student -> ... -> person -> ... -> object)
+wheat	grass	0.0	// original score = 0.5 (wheat -> cereal -> grass)
+instrument	device	0.75	// original score = 0.37 (but tool -> device is 0.9)
+chicks	sense	0.0	// original score = 0.94 (Otter)
+faster	EVENT	0.0	// original score = 0.5 (fast NN -> abstinence -> ... -> act -> event)
+transfer	EVENT	0.0	// original score = 0.43 (transfer -> transportation -> ... -> event)
+causes	EVENT	0.0
+fall	EVENT	0.0
+ground	EVENT	0.0
+look	viewing	0.75	// original score = 0.0
+form	person	0.0	// original score = 0.81 (Otter)
+ball	move	0.0
