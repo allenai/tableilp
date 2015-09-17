@@ -12,6 +12,8 @@ import com.google.inject.name.Named
   * @param maxRowsPerTable how many rows per table may an inference chain use inference
   * @param useRelaxedVars whether to use relaxed (continuous) variables, where possible
   * @param keyColumnsMustMatch whether at least one KEY column must match when a table is used
+  * @param useCachedTitleAlignmentFile whether to use the title alignment using the annotated
+  *                                    document containing the valid alignments .
   */
 class IlpParams @Inject() (
   @Named("model.alignmentType") val alignmentType: String,
@@ -20,7 +22,8 @@ class IlpParams @Inject() (
   @Named("model.maxTablesToChain") val maxTablesToChain: Int,
   @Named("model.maxRowsPerTable") val maxRowsPerTable: Int,
   @Named("model.useRelaxedVars") val useRelaxedVars: Boolean,
-  @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean
+  @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean,
+  @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -32,6 +35,7 @@ object IlpParams {
     maxTablesToChain = 4,
     maxRowsPerTable = 1,
     useRelaxedVars = false,
-    keyColumnsMustMatch = true
+    keyColumnsMustMatch = true,
+    useCachedTitleAlignmentFile = false
   )
 }
