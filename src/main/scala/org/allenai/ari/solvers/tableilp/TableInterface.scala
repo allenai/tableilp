@@ -4,28 +4,39 @@ import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
 
+import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
+
+import scala.collection.JavaConverters._
+
+import java.io.{ File, FileReader }
+
+/** A structure to store which two columns in two tables are allowed to be joined/aligned.
+  *
+  * @param table1Name first table
+  * @param col1Idx column index in first table
+  * @param table2Name second table
+  * @param col2Idx column index in second table
+  */
+case class AllowedTitleAlignment(table1Name: String, col1Idx: Int, table2Name: String, col2Idx: Int)
 
 /** A class for storing and processing multiple tables.
   *
   * @param params Various knowledge table related parameters
   * @param tokenizer A keyword tokenizer
   */
-class TableInterface @Inject() (
-    params: TableParams,
-    tokenizer: KeywordTokenizer
-) extends Logging {
+class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
+
   /** All tables loaded from CSV files */
-  val allTables = {
+  val allTables: Seq[Table] = {
     logger.info(s"Loading tables from folder ${params.folder}")
-    val files = new java.io.File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted
-      .toSeq
-    val tables = files.map(file => new Table(file.getAbsolutePath, tokenizer))
-    logger.debug(s"${tables.size} tables loaded:\n" +
-      files.zipWithIndex.map { case (file, idx) => s"\ntable $idx = $file" })
-    if (internalLogger.isTraceEnabled) tables.foreach(t => logger.trace(t.titleRow.mkString(",")))
-    tables
+    val files = new File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
+    files.map(file => new Table(file, tokenizer))
   }
+  logger.debug(s"${allTables.size} tables loaded")
+  private val allTableNames = allTables.map(_.fileName)
+  logger.debug("tables with internal IDs:\n\t" + allTableNames.zipWithIndex.toString())
+  if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
 
   /** a sequence of table indices to ignore */
   logger.info("Ignoring table IDs " + params.ignoreList.toString())
@@ -36,55 +47,58 @@ class TableInterface @Inject() (
     logger.info("Using RANKED tables for questions")
   }
 
+  /** titles that are allowed to be aligned */
+  val allowedTitleAlignments: Seq[AllowedTitleAlignment] = {
+    if (params.allowedTitleAlignmentsFile.isEmpty) Seq.empty else readAllowedTitleAlignments()
+  }
+
   /** a cheat sheet mapping training questions from question to tables */
-  private lazy val questionToTables = new Table(params.questionToTablesCache, tokenizer)
+  private lazy val questionToTables = new Table(new File(params.questionToTablesCache), tokenizer)
     .contentMatrix
 
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
 
   /** Get a subset of tables (with scores) relevant for a given question */
-  def getTablesForQuestion(question: String): Seq[(Table, Double)] = {
-    val tablesWithScores = if (params.useCachedTablesForQuestion) {
-      getCachedTablesForQuestion(question)
+  def getTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
+    val tableIdsWithScores = if (params.useCachedTablesForQuestion) {
+      getCachedTableIdsForQuestion(question)
     } else {
-      getRankedTablesForQuestion(question)
+      getRankedTableIdsForQuestion(question)
     }
-    logger.debug(s"using ${tablesWithScores.size} tables:\n" +
-      tablesWithScores.map("table: " + _._1.titleRow.mkString(",") + "\n"))
-    assert(
-      tablesWithScores.size <= params.maxTablesPerQuestion,
-      s"Only max ${params.maxTablesPerQuestion} tables supported"
-    )
-    tablesWithScores
+    logger.debug(s"using ${tableIdsWithScores.size} tables:\n" +
+      tableIdsWithScores.map {
+        case (t, s) => s"table $t: " + allTables(t).titleRow.mkString(",") + "\n"
+      })
+    tableIdsWithScores
   }
 
-  private def sep = "-".r
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
-  private def getCachedTablesForQuestion(question: String): Seq[(Table, Double)] = {
+  private def getCachedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
+    val hyphenSep = "-".r
     val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
       questionToTables.find(_(1).trim == question.trim)
-    val tablesOpt = questionToTablesOpt map { qTables =>
-      sep.split(qTables(2)).map(_.toInt).diff(params.ignoreList).map(allTables).toSeq
+    val tableIdsOpt = questionToTablesOpt map { qTables =>
+      hyphenSep.split(qTables(2)).map(_.toInt).diff(params.ignoreList).toSeq
     } orElse {
       Some(Seq.empty)
     }
-    val tables = tablesOpt.get
+    val tableIds = tableIdsOpt.get
     // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic
-    val defaultScores = Seq.fill(tables.size)(1d)
-    tables.zip(defaultScores)
+    val defaultScores = Seq.fill(tableIds.size)(1d)
+    tableIds.zip(defaultScores)
   }
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
-  private def getRankedTablesForQuestion(question: String): Seq[(Table, Double)] = {
+  private def getRankedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
     val scoreIndexPairs = allTables.indices.diff(params.ignoreList).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
-    (if (!params.useRankThreshold) {
+    if (!params.useRankThreshold) {
       scoreIndexPairs.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
     } else {
       scoreIndexPairs.filter(_._2 > params.rankThreshold)
-    }).map { case (idx, score) => (allTables(idx), score) }
+    }
   }
 
   /** Print all variables relevant to tables */
@@ -140,5 +154,35 @@ class TableInterface @Inject() (
       if (commonTokenSet.contains(token)) 1 else 0
     }.sum.toDouble / currentTableTokens.length.toDouble
     currentTableScore * qaOverlapScore * tableOverlapScore
+  }
+
+  private def stripComments(inputString: String): String = {
+    // remove all comments of the form "// blah blah"
+    val commentRegex = "//[\\S\\s]+?.*".r
+    commentRegex.replaceAllIn(inputString, "")
+  }
+
+  private def readAllowedTitleAlignments(): Seq[AllowedTitleAlignment] = {
+    logger.info("Reading list of titles that are allowed to be aligned")
+    val reader = new CSVReader(new FileReader(params.allowedTitleAlignmentsFile))
+    val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
+    val fullContentsWithoutCommentsAndEmptyLines = for {
+      row <- fullContents
+      // TODO(tushar) figure out why row.nonEmpty doesn't work below
+      if row.size > 1
+      if !row.head.startsWith("//")
+    } yield row.map(stripComments(_).trim)
+    val allowedAlignments = fullContentsWithoutCommentsAndEmptyLines map {
+      case Seq(table1Name, col1IdxStr, table2Name, col2IdxStr) => {
+        assert(allTableNames.contains(table1Name), s"table $table1Name does not exist")
+        assert(allTableNames.contains(table2Name), s"table $table2Name does not exist")
+        AllowedTitleAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
+      }
+      case _ => {
+        throw new IllegalArgumentException(s"Error processing ${params.allowedTitleAlignmentsFile}")
+      }
+    }
+    logger.debug(allowedAlignments.toString())
+    allowedAlignments
   }
 }

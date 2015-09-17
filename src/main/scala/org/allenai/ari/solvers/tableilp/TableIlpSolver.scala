@@ -97,10 +97,14 @@ class TableIlpSolver @Inject() (
         logger.info(s"Question: ${question.rawQuestion}")
         // create an ILP model, solve it recursively to obtain solutions for all the answer choices
         val allSolutions: Seq[IlpSolution] = if (useActualSolver) {
-          val tablesWithScores = tableInterface.getTablesForQuestion(question.rawQuestion)
+          val tableIdsWithScores = tableInterface.getTableIdsForQuestion(question.rawQuestion)
           val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer, solverParams.useRedisCache)
+          // Note: tablesWithScores is a temporary thing that will drop in the next piecemeal PR!
+          val tablesWithScores = tableIdsWithScores.map {
+            case (t, s) => (tableInterface.allTables(t), s)
+          }
           val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
           val allVariables = ilpModel.buildModel(questionIlp)
