@@ -52,9 +52,19 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     if (params.allowedTitleAlignmentsFile.isEmpty) Seq.empty else readAllowedTitleAlignments()
   }
 
-  /** a cheat sheet mapping training questions from question to tables */
-  private lazy val questionToTables = new Table(new File(params.questionToTablesCache), tokenizer)
-    .contentMatrix
+  /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
+    * format: question number (ignore), question text, hyphen-separated table IDs, other info
+    */
+  private lazy val questionToTablesMap: Map[String, Seq[Int]] = {
+    val mapData: Seq[Seq[String]] = new Table(new File(params.questionToTablesCache), tokenizer)
+      .contentMatrix
+    val hyphenSep = "-".r
+    mapData.map { row =>
+      val trimmedQuestion = row(1).trim
+      val tableIds = hyphenSep.split(row(2)).map(_.toInt).toSeq
+      trimmedQuestion -> tableIds.diff(params.ignoreList)
+    }.toMap
+  }
 
   /** td idf maps */
   val (tfMap, idfMap) = calculateAllTFIDFScores()
@@ -75,15 +85,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
   private def getCachedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
-    val hyphenSep = "-".r
-    val questionToTablesOpt = questionToTables.find(_(1) == question) orElse
-      questionToTables.find(_(1).trim == question.trim)
-    val tableIdsOpt = questionToTablesOpt map { qTables =>
-      hyphenSep.split(qTables(2)).map(_.toInt).diff(params.ignoreList).toSeq
-    } orElse {
-      Some(Seq.empty)
-    }
-    val tableIds = tableIdsOpt.get
+    val tableIds: Seq[Int] = questionToTablesMap.getOrElse(question.trim, Seq.empty)
     // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic
     val defaultScores = Seq.fill(tableIds.size)(1d)
     tableIds.zip(defaultScores)
@@ -126,17 +128,15 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     val tfMap = (for {
       tableIdx <- allTables.indices
       word <- allTableTokens
-    } yield {
-      val tfcount = eachTableTokens(tableIdx).count(_ == word).toDouble
-      ((word, tableIdx), if (tfcount == 0.0) { 0.0 } else { 1.0 + math.log10(tfcount) })
-    }).toMap
+      tfcount = eachTableTokens(tableIdx).count(_ == word)
+      score = if (tfcount == 0) 0d else 1d + math.log10(tfcount)
+    } yield ((word, tableIdx), score)).toMap
 
     val idfMap = (for {
       word <- allTableTokens
-    } yield {
-      val dfcount = eachTableTokens.count { table => table.contains(word) }.toDouble
-      (word, if (dfcount == 0.0) { 0.0 } else { math.log10(numberOfTables / dfcount) })
-    }).toMap
+      dfcount = eachTableTokens.count { table => table.contains(word) }
+      score = if (dfcount == 0) 0d else math.log10(numberOfTables / dfcount)
+    } yield (word, score)).toMap
     (tfMap, idfMap)
   }
 
