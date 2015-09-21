@@ -135,7 +135,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     val idfMap = (for {
       word <- allTableTokens
       dfcount = eachTableTokens.count { table => table.contains(word) }
-      score = if (dfcount == 0) 0d else math.log10(numberOfTables / dfcount)
+      score = if (dfcount == 0) 0d else math.log10(numberOfTables / dfcount.toDouble)
     } yield (word, score)).toMap
     (tfMap, idfMap)
   }
