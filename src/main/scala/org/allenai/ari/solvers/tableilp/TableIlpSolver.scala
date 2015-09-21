@@ -101,14 +101,11 @@ class TableIlpSolver @Inject() (
           val ilpSolver = new ScipInterface("aristo-tableilp-solver", scipParams)
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer, solverParams.useRedisCache)
-          // Note: tablesWithScores is a temporary thing that will drop in the next piecemeal PR!
-          val tablesWithScores = tableIdsWithScores.map {
-            case (t, s) => (tableInterface.allTables(t), s)
-          }
-          val ilpModel = new IlpModel(ilpSolver, tablesWithScores, aligner, ilpParams, weights)
-          val questionIlp = TableQuestionFactory.makeQuestion(question, "Chunk")
+          val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
+            tableIdsWithScores)
+          val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize")
           val allVariables = ilpModel.buildModel(questionIlp)
-          val tablesUsed = tablesWithScores.map(_._1)
+          val tablesUsed = tableIdsWithScores.map { case (t, _) => tableInterface.allTables(t) }
           solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp, tablesUsed,
             Seq.empty, Set.empty)
         } else {
