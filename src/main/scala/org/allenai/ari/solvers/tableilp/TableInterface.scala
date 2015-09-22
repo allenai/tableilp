@@ -28,11 +28,11 @@ case class AllowedTitleAlignment(table1Name: String, col1Idx: Int, table2Name: S
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
   /** All tables loaded from CSV files */
-  val allTables: Seq[Table] = {
+  val allTables: IndexedSeq[Table] = {
     logger.info(s"Loading tables from folder ${params.folder}")
     val files = new File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
     files.map(file => new Table(file, tokenizer))
-  }
+  }.toIndexedSeq
   logger.debug(s"${allTables.size} tables loaded")
   private val allTableNames = allTables.map(_.fileName)
   logger.debug("tables with internal IDs:\n\t" + allTableNames.zipWithIndex.toString())

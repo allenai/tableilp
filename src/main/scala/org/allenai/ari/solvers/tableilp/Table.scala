@@ -13,15 +13,15 @@ case class TokenizedCell(values: Seq[String])
 
 class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
-  val ignoreTableColumnFillers = true
+  val ignoreTableColumnFillers: Boolean = true
   // config: ignore columns whose title starts with the word SKIP
-  val ignoreTableColumnsMarkedSkip = true
+  val ignoreTableColumnsMarkedSkip: Boolean = true
   // config: keep tokenized values
-  val tokenizeCells = true
+  val tokenizeCells: Boolean = true
 
   // record the file name from which this table was read
-  val fileName = file.getName
-  val filePath = file.getAbsolutePath
+  val fileName: String = file.getName
+  val filePath: String = file.getAbsolutePath
 
   // title row, key columns, the rest of the content matrix, and also tokenized content cells if
   // tokenizeCells = true
@@ -36,19 +36,19 @@ class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
     */
   private def makeTableFromCsv(
     file: String
-  ): (Seq[String], Seq[Int], Seq[Seq[String]], Seq[Seq[TokenizedCell]]) = {
+  ): (IndexedSeq[String], Seq[Int], IndexedSeq[IndexedSeq[String]], IndexedSeq[IndexedSeq[TokenizedCell]]) = {
     val reader = new CSVReader(new FileReader(file))
     val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
 
     val sep = "\\s+".r
-    val filteredColIndices = for {
+    val filteredColIndices = (for {
       (title, idx) <- fullContents.head.zipWithIndex
       if !ignoreTableColumnFillers || title != ""
       // skip columns whose header starts with the word "SKIP"
       firstWord = sep.split(title)(0)
       if !ignoreTableColumnsMarkedSkip || !Seq("SKIP", "[SKIP]").contains(firstWord)
-    } yield idx
-    val fullContentsFiltered = fullContents.map(filteredColIndices collect _)
+    } yield idx).toIndexedSeq
+    val fullContentsFiltered = fullContents.map(filteredColIndices collect _).toIndexedSeq
 
     // optionally tokenize every cell (include column headers) of the table
     // TODO: create a case class for each cell to keep its rawText, tokens, etc., together
@@ -57,7 +57,7 @@ class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
         row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
       }
     } else {
-      Seq(Seq[TokenizedCell]())
+      IndexedSeq.empty
     }
 
     val titleRowOrig = fullContentsFiltered.head

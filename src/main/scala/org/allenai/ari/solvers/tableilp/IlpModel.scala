@@ -35,13 +35,13 @@ class IlpModel(
   private case class QuestionIdx(qConsIdx: Int)
 
   // these set of words in the question text will be ignored before alignment
-  private val ignoredWords = Set("?", ":", ",")
+  private val ignoredWords: Set[String] = Set("?", ":", ",")
 
   // gather info about the few tables relevant to this ILP model
-  private val tableIds = tableIdsWithScores.map(_._1)
-  private val tableScores = tableIdsWithScores.map(_._2)
-  private val tables = tableIds.map(tableInterface.allTables)
-  private val tableNames = tables.map(_.fileName)
+  private val tableIds: Seq[Int] = tableIdsWithScores.map(_._1)
+  private val tableScores: IndexedSeq[Double] = tableIdsWithScores.map(_._2).toIndexedSeq
+  private val tables: IndexedSeq[Table] = tableIds.map(tableInterface.allTables).toIndexedSeq
+  private val tableNameToIdx: Map[String, Int] = tables.map(_.fileName).zipWithIndex.toMap
 
   /** The main method to build an ILP model for a question.
     *
@@ -97,7 +97,7 @@ class IlpModel(
     // do NOT yet add activeCellVar to IlpSolver; while the variable is being created here, its
     // addition to the solver is delayed, contingent upon the cell having some external alignment
     CellIdx(tableIdx, rowIdx, colIdx) -> x
-  }).toMap
+  })
 
   /** Auxiliary variables: whether a row within a given table is "active" */
   private val activeRowVars: mutable.Map[(Int, Int), Long] = mutable.Map() ++ (for {
@@ -112,7 +112,7 @@ class IlpModel(
     // do NOT yet add activeRowVar to IlpSolver; while the variable is being created here, its
     // addition to the solver is delayed, contingent upon the row having potentially active cells
     (tableIdx, rowIdx) -> x
-  }).toMap
+  })
 
   /** Auxiliary variables: whether a column within a given table is "active" */
   private val activeColVars: mutable.Map[(Int, Int), Long] = mutable.Map() ++ (for {
@@ -128,7 +128,7 @@ class IlpModel(
     // do NOT yet add activeColVar to IlpSolver; while the variable is being created here, its
     // addition to the solver is delayed, contingent upon the column having potentially active cells
     (tableIdx, colIdx) -> x
-  }).toMap
+  })
 
   /** Auxiliary variables: whether a title column of a given table is "active" */
   private val activeTitleVars: Map[(Int, Int), Long] = (for {
@@ -180,10 +180,8 @@ class IlpModel(
       val tableColumnPairs: Seq[(Int, Int, Int, Int)] = if (ilpParams.useCachedTitleAlignmentFile) {
         for {
           allowedTitleAlignment <- tableInterface.allowedTitleAlignments
-          tableIdx1 = tableNames.indexOf(allowedTitleAlignment.table1Name)
-          if tableIdx1 != -1
-          tableIdx2 = tableNames.indexOf(allowedTitleAlignment.table2Name)
-          if tableIdx2 != -1
+          tableIdx1 <- tableNameToIdx.get(allowedTitleAlignment.table1Name)
+          tableIdx2 <- tableNameToIdx.get(allowedTitleAlignment.table2Name)
           _ = require(tableIdx1 != tableIdx2, "Table indices must be different")
           // switch, if needed, so that the table with a lower index appears first;
           // this ensures that the tuples generated here form a subset of the
@@ -398,7 +396,9 @@ class IlpModel(
           val activeCellVar = activeCellVars(cellIdx)
           cellToExtAlignmentVars.get(cellIdx) match {
             case Some(extAlignmentVarsForCell) => {
-              assert(extAlignmentVarsForCell.nonEmpty)
+              if (extAlignmentVarsForCell.isEmpty) {
+                throw new IllegalStateException("Cell must have some external alignments")
+              }
               // add activeCellVar to IlpSolver; while the variable was created much earlier, its
               // addition to the solver had been delayed as it is contingent upon potential external
               // alignments existing; without such potential alignments, this variable has no use

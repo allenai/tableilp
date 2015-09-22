@@ -16,8 +16,8 @@ import org.allenai.nlpstack.tokenize.defaultTokenizer
   */
 case class TableQuestion(
   questionRaw: String,
-  questionCons: Seq[String],
-  choices: Seq[String]
+  questionCons: IndexedSeq[String],
+  choices: IndexedSeq[String]
 )
 
 /** Various ways to build a TableQuestion instance */
@@ -26,16 +26,16 @@ object TableQuestionFactory extends Logging {
   private val defaultSplittingType = "SpaceSplit"
 
   def makeQuestion(questionRaw: String): TableQuestion = {
-    TableQuestion(questionRaw, spaceSep.split(questionRaw), Seq.empty)
+    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty)
   }
 
   def makeQuestion(questionCons: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons, Seq.empty)
+    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty)
   }
 
   def makeQuestion(aristoQuestion: Question): TableQuestion = {
     TableQuestion(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
-      aristoQuestion.selections.map(_.focus))
+      aristoQuestion.selections.map(_.focus).toIndexedSeq)
   }
 
   def makeQuestion(aristoQuestion: Question, splittingType: String): TableQuestion = {
@@ -46,8 +46,11 @@ object TableQuestionFactory extends Logging {
       case _: String =>
         throw new IllegalArgumentException(s"Split type $splittingType not recognized")
     }
-    val question = TableQuestion(aristoQuestion.rawQuestion, splitter.split(aristoQuestion.text.get),
-      aristoQuestion.selections.map(_.focus))
+    val question = TableQuestion(
+      aristoQuestion.rawQuestion,
+      splitter.split(aristoQuestion.text.get).toIndexedSeq,
+      aristoQuestion.selections.map(_.focus).toIndexedSeq
+    )
     logger.info("Question constituents: " + question.questionCons.mkString(","))
     question
   }
