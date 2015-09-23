@@ -13,51 +13,44 @@ case class TokenizedCell(values: Seq[String])
 
 class Table(val fileName: String, fileReader: Reader, tokenizer: KeywordTokenizer) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
-  val ignoreTableColumnFillers: Boolean = true
+  private val ignoreTableColumnFillers: Boolean = true
   // config: ignore columns whose title starts with the word SKIP
-  val ignoreTableColumnsMarkedSkip: Boolean = true
+  private val ignoreTableColumnsMarkedSkip: Boolean = true
   // config: keep tokenized values
-  val tokenizeCells: Boolean = true
+  private val tokenizeCells: Boolean = true
 
-  // title row, key columns, the rest of the content matrix, and also tokenized content cells if
-  // tokenizeCells = true
-  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = makeTableFromCsv()
+  // extract title row, key columns, the rest of the content matrix, and also tokenized content
+  // cells if tokenizeCells = true; reads the input CSV file with the following convention:
+  //   columns with header starting with prefix "KEY" are designated as key columns;
+  //   columns with header starting with the prefix "SKIP" are skipped
+  private val csvReader = new CSVReader(fileReader)
+  private val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
 
-  /** Create a Table by reading a CSV file with the following convention:
-    *   columns with header starting with prefix "KEY" are designated as key columns;
-    *   columns with header starting with the prefix "SKIP" are skipped
-    *
-    * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
-    */
-  private def makeTableFromCsv(): (IndexedSeq[String], Seq[Int], IndexedSeq[IndexedSeq[String]], IndexedSeq[IndexedSeq[TokenizedCell]]) = {
-    val csvReader = new CSVReader(fileReader)
-    val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+  private val sep = "\\s+".r
+  private val filteredColIndices = (for {
+    (title, idx) <- fullContents.head.zipWithIndex
+    if !ignoreTableColumnFillers || title != ""
+    // skip columns whose header starts with the word "SKIP"
+    firstWord = sep.split(title)(0)
+    if !ignoreTableColumnsMarkedSkip || !Seq("SKIP", "[SKIP]").contains(firstWord)
+  } yield idx).toIndexedSeq
+  private val fullContentsFiltered = fullContents.map(filteredColIndices collect _).toIndexedSeq
 
-    val sep = "\\s+".r
-    val filteredColIndices = (for {
-      (title, idx) <- fullContents.head.zipWithIndex
-      if !ignoreTableColumnFillers || title != ""
-      // skip columns whose header starts with the word "SKIP"
-      firstWord = sep.split(title)(0)
-      if !ignoreTableColumnsMarkedSkip || !Seq("SKIP", "[SKIP]").contains(firstWord)
-    } yield idx).toIndexedSeq
-    val fullContentsFiltered = fullContents.map(filteredColIndices collect _).toIndexedSeq
-
-    // optionally tokenize every cell (include column headers) of the table
-    // TODO: create a case class for each cell to keep its rawText, tokens, etc., together
-    val fullContentTokenized = if (tokenizeCells) {
-      fullContentsFiltered.map { row =>
-        row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
-      }
-    } else {
-      IndexedSeq.empty
+  // optionally tokenize every cell (include column headers) of the table
+  // TODO: create a case class for each cell to keep its rawText, tokens, etc., together
+  val fullContentTokenized: IndexedSeq[IndexedSeq[TokenizedCell]] = if (tokenizeCells) {
+    fullContentsFiltered.map { row =>
+      row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
     }
-
-    val titleRowOrig = fullContentsFiltered.head
-    // retrieve indices of columns whose header starts with the word "KEY"
-    val keyColumns = titleRowOrig.zipWithIndex.filter(_._1.startsWith("KEY ")).map(_._2)
-    val titleRow = titleRowOrig.map(_.stripPrefix("KEY "))
-    val contentMatrix = fullContentsFiltered.tail
-    (titleRow, keyColumns, contentMatrix, fullContentTokenized)
+  } else {
+    IndexedSeq.empty
   }
+
+  private val titleRowOrig = fullContentsFiltered.head
+
+  // retrieve indices of columns whose header starts with the word "KEY"
+  val keyColumns: Seq[Int] = titleRowOrig.zipWithIndex.filter(_._1.startsWith("KEY ")).map(_._2)
+
+  val titleRow: IndexedSeq[String] = titleRowOrig.map(_.stripPrefix("KEY "))
+  val contentMatrix: IndexedSeq[IndexedSeq[String]] = fullContentsFiltered.tail
 }
