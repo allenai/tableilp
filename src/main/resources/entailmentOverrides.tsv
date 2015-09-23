@@ -74,6 +74,8 @@ bottom	power	0.0	// original score = 0.90 (Otter)
 has	organism	0.0	// original score = 0.5 (rich person -> person -> organism)
 have	organism	0.0	// original score = 0.5 (rich person -> person -> organism)
 inherit	acquire	0.0	// original score = 0.94 (inherit -> get), but need a clear distinction for biology
+fox	mammal	1.0	// original score = 0.18 (fox -> canine -> ... -> mammal)
+fox	fish	0.0	// original score = 0.9 (Otter)
 
 
 // Tushar's entries for word overrides
