@@ -12,7 +12,7 @@ import com.google.inject.name.Named
   * @param useCachedTablesForQuestion Whether to use the above cheat sheet
   * @param rankThreshold Table rank must be at most this much for selection, if useThreshold = true
   * @param useRankThreshold Whether to use the above threshold on rank
-  * @param allowedTitleAlignmentsFile A CSV file specifying which columns in two tables may align
+  * @param allowedColumnAlignmentsFile A CSV file specifying which columns in two tables may align
   */
 class TableParams @Inject() (
     @Named("tables.folder") val folder: String,
@@ -22,7 +22,7 @@ class TableParams @Inject() (
     @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean,
     @Named("tables.rankThreshold") val rankThreshold: Double,
     @Named("tables.useRankThreshold") val useRankThreshold: Boolean,
-    @Named("tables.allowedTitleAlignmentsFile") val allowedTitleAlignmentsFile: String
+    @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String
 ) {
   val commaSep = ",".r
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
@@ -42,6 +42,6 @@ object TableParams {
     useCachedTablesForQuestion = false,
     rankThreshold = 0.25d,
     useRankThreshold = false,
-    allowedTitleAlignmentsFile = ""
+    allowedColumnAlignmentsFile = ""
   )
 }

@@ -31,7 +31,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   val allTables: IndexedSeq[Table] = {
     logger.info(s"Loading tables from folder ${params.folder}")
     val files = new File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
-    files.map(file => new Table(file, tokenizer))
+    files.map(file => new Table(file.getName, new FileReader(file), tokenizer))
   }.toIndexedSeq
   logger.debug(s"${allTables.size} tables loaded")
   private val allTableNames = allTables.map(_.fileName)
@@ -49,15 +49,18 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** titles that are allowed to be aligned */
   val allowedTitleAlignments: Seq[AllowedTitleAlignment] = {
-    if (params.allowedTitleAlignmentsFile.isEmpty) Seq.empty else readAllowedTitleAlignments()
+    if (params.allowedColumnAlignmentsFile.isEmpty) Seq.empty else readAllowedTitleAlignments()
   }
 
   /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
     * format: question number (ignore), question text, hyphen-separated table IDs, other info
     */
   private lazy val questionToTablesMap: Map[String, Seq[Int]] = {
-    val mapData: Seq[Seq[String]] = new Table(new File(params.questionToTablesCache), tokenizer)
-      .contentMatrix
+    val mapData: Seq[Seq[String]] = new Table(
+      params.questionToTablesCache,
+      Utils.getResourceAsReader(params.questionToTablesCache),
+      tokenizer
+    ).contentMatrix
     val hyphenSep = "-".r
     mapData.map { row =>
       val trimmedQuestion = row(1).trim
@@ -164,7 +167,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   private def readAllowedTitleAlignments(): Seq[AllowedTitleAlignment] = {
     logger.info("Reading list of titles that are allowed to be aligned")
-    val reader = new CSVReader(new FileReader(params.allowedTitleAlignmentsFile))
+    val reader = new CSVReader(Utils.getResourceAsReader(params.allowedColumnAlignmentsFile))
     val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
     val fullContentsWithoutCommentsAndEmptyLines = for {
       row <- fullContents
@@ -182,7 +185,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         AllowedTitleAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
       }
       case _ => {
-        throw new IllegalArgumentException(s"Error processing ${params.allowedTitleAlignmentsFile}")
+        throw new IllegalArgumentException(s"Error processing ${params.allowedColumnAlignmentsFile}")
       }
     }
     logger.debug(allowedAlignments.toString())

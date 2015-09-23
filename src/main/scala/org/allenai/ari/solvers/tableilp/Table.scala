@@ -5,13 +5,13 @@ import org.allenai.common.Logging
 
 import au.com.bytecode.opencsv.CSVReader
 
-import java.io.{ File, FileReader }
+import java.io.Reader
 
 import scala.collection.JavaConverters._
 
 case class TokenizedCell(values: Seq[String])
 
-class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
+class Table(val fileName: String, fileReader: Reader, tokenizer: KeywordTokenizer) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
   val ignoreTableColumnFillers: Boolean = true
   // config: ignore columns whose title starts with the word SKIP
@@ -19,26 +19,19 @@ class Table(file: File, tokenizer: KeywordTokenizer) extends Logging {
   // config: keep tokenized values
   val tokenizeCells: Boolean = true
 
-  // record the file name from which this table was read
-  val fileName: String = file.getName
-  val filePath: String = file.getAbsolutePath
-
   // title row, key columns, the rest of the content matrix, and also tokenized content cells if
   // tokenizeCells = true
-  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = makeTableFromCsv(filePath)
+  val (titleRow, keyColumns, contentMatrix, fullContentNormalized) = makeTableFromCsv()
 
   /** Create a Table by reading a CSV file with the following convention:
     *   columns with header starting with prefix "KEY" are designated as key columns;
     *   columns with header starting with the prefix "SKIP" are skipped
     *
-    * @param file a CSV file with a header
     * @return a tuple (titleRow, keyColumns, contentMatrix, fullContentMatrixNormalized)
     */
-  private def makeTableFromCsv(
-    file: String
-  ): (IndexedSeq[String], Seq[Int], IndexedSeq[IndexedSeq[String]], IndexedSeq[IndexedSeq[TokenizedCell]]) = {
-    val reader = new CSVReader(new FileReader(file))
-    val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
+  private def makeTableFromCsv(): (IndexedSeq[String], Seq[Int], IndexedSeq[IndexedSeq[String]], IndexedSeq[IndexedSeq[TokenizedCell]]) = {
+    val csvReader = new CSVReader(fileReader)
+    val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
 
     val sep = "\\s+".r
     val filteredColIndices = (for {
