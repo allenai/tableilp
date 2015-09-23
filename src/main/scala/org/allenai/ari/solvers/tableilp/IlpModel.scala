@@ -38,9 +38,10 @@ class IlpModel(
   private val ignoredWords: Set[String] = Set("?", ":", ",")
 
   // gather info about the few tables relevant to this ILP model
-  private val tableIds: Seq[Int] = tableIdsWithScores.map(_._1)
-  private val tableScores: IndexedSeq[Double] = tableIdsWithScores.map(_._2).toIndexedSeq
-  private val tables: IndexedSeq[Table] = tableIds.map(tableInterface.allTables).toIndexedSeq
+  private val (tableIds: IndexedSeq[Int], tableScores: IndexedSeq[Double]) = {
+    tableIdsWithScores.toIndexedSeq.unzip
+  }
+  private val tables: IndexedSeq[Table] = tableIds.map(tableInterface.allTables)
   private val tableNameToIdx: Map[String, Int] = tables.map(_.fileName).zipWithIndex.toMap
 
   /** The main method to build an ILP model for a question.
