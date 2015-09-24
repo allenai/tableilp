@@ -127,7 +127,7 @@ class TableIlpSolver @Inject() (
             val ilpFeatures = new IlpFeatures(solution)
             SimpleAnswer(
               question.selections(bestChoice),
-              bestChoiceScore,  // NOTE: unnormalized; may be negative even for a desirable answer
+              bestChoiceScore, // NOTE: unnormalized; may be negative even for a desirable answer
               Some(Map("ilpSolution" -> ilpSolutionJson)),
               Some(features ++ ilpFeatures.featureMap)
             )
