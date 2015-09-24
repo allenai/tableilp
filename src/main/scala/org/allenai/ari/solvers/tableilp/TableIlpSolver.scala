@@ -47,7 +47,7 @@ class TableIlpSolver @Inject() (
   private val useActualSolver = true
 
   // TODO(ashish33) A defaultScore of 0 would have been nicer, but would currently violate the
-  // requirement that it be smaller than scores of all answer choices the solver can find links to
+  // requirement that it must be smaller than scores of all answer choices the solver finds links to
   private val defaultScore = -10d
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
     SimpleAnswer(selection, defaultScore, Some(Map("ilpSolution" -> JsNull)))
