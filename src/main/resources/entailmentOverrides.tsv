@@ -76,6 +76,8 @@ have	organism	0.0	// original score = 0.5 (rich person -> person -> organism)
 inherit	acquire	0.0	// original score = 0.94 (inherit -> get), but need a clear distinction for biology
 fox	mammal	1.0	// original score = 0.18 (fox -> canine -> ... -> mammal)
 fox	fish	0.0	// original score = 0.9 (Otter)
+thick	region	0.0	// original score = 1.0 (thick -> midst -> inside -> region)
+thick	equatorial region	0.0	// original score = 0.36 (due to thick -> ... -> region)
 
 
 // Tushar's entries for word overrides
@@ -104,4 +106,4 @@ fall	EVENT	0.0
 ground	EVENT	0.0
 look	viewing	0.75	// original score = 0.0
 form	person	0.0	// original score = 0.81 (Otter)
-ball	move	0.0
+ball	move	0.0	// original score = 0.5 (ball -> wind -> move)
