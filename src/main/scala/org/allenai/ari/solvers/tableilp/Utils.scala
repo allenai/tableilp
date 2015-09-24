@@ -2,7 +2,7 @@ package org.allenai.ari.solvers.tableilp
 
 import org.allenai.common.{ Logging, Resource }
 
-import java.io.{ InputStreamReader, InputStream }
+import java.io.{ BufferedInputStream, BufferedReader, InputStreamReader }
 
 import scala.io.{ BufferedSource, Source }
 
@@ -21,13 +21,13 @@ object Utils extends Logging {
   val eps = 1e-6
 
   /** Get a resource file as a Stream */
-  def getResourceAsStream(name: String): InputStream = {
-    getClass.getClassLoader.getResourceAsStream(name)
+  def getResourceAsStream(name: String): BufferedInputStream = {
+    new BufferedInputStream(getClass.getClassLoader.getResourceAsStream(name))
   }
 
   /** Get a resource file as a Reader */
-  def getResourceAsReader(name: String): InputStreamReader = {
-    new InputStreamReader(getResourceAsStream(name))
+  def getResourceAsReader(name: String): BufferedReader = {
+    new BufferedReader(new InputStreamReader(getResourceAsStream(name)))
   }
 
   /** Get a resource file as a buffered Source */

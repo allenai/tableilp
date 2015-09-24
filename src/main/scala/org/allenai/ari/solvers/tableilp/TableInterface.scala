@@ -167,8 +167,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   private def readAllowedTitleAlignments(): Seq[AllowedTitleAlignment] = {
     logger.info("Reading list of titles that are allowed to be aligned")
-    val reader = new CSVReader(Utils.getResourceAsReader(params.allowedColumnAlignmentsFile))
-    val fullContents: Seq[Seq[String]] = reader.readAll.asScala.map(_.toSeq)
+    val csvReader = new CSVReader(Utils.getResourceAsReader(params.allowedColumnAlignmentsFile))
+    val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
     val fullContentsWithoutCommentsAndEmptyLines = for {
       row <- fullContents
       // TODO(tushar) figure out why row.nonEmpty doesn't work below
