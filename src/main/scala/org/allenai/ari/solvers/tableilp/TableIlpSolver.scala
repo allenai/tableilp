@@ -46,7 +46,9 @@ class TableIlpSolver @Inject() (
   /** config: run actual solver or simply generate a random alignement for debugging */
   private val useActualSolver = true
 
-  private val defaultScore = 0d
+  // TODO(ashish33) A defaultScore of 0 would have been nicer, but would currently violate the
+  // requirement that it be smaller than scores of all answer choices the solver can find links to
+  private val defaultScore = -10d
   private def defaultIlpAnswer(selection: MultipleChoiceSelection) = {
     SimpleAnswer(selection, defaultScore, Some(Map("ilpSolution" -> JsNull)))
   }
@@ -125,7 +127,7 @@ class TableIlpSolver @Inject() (
             val ilpFeatures = new IlpFeatures(solution)
             SimpleAnswer(
               question.selections(bestChoice),
-              bestChoiceScore,
+              bestChoiceScore,  // NOTE: unnormalized; may be negative even for a desirable answer
               Some(Map("ilpSolution" -> ilpSolutionJson)),
               Some(features ++ ilpFeatures.featureMap)
             )
