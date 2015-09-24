@@ -190,7 +190,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         AllowedColumnAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
       }
       case _ => {
-        throw new IllegalArgumentException(s"Error processing ${params.allowedColumnAlignmentsFile}")
+        throw new IllegalStateException(s"Error processing ${params.allowedColumnAlignmentsFile}")
       }
     }
     logger.debug(allowedAlignments.toString())
