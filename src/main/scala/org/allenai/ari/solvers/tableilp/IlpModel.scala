@@ -278,7 +278,9 @@ class IlpModel(
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
       name = s"choice=$choiceIdx"
-      objCoeff = weights.activeChoiceObjCoeff
+      // use a non-zero activeChoiceObjCoeff only if mustChooseAnAnswer isn't true;
+      // otherwise this only shifts all answer choices by a fixed amount
+      objCoeff = if (ilpParams.mustChooseAnAnswer) 0d else weights.activeChoiceObjCoeff
       x = createPossiblyRelaxedBinaryVar(name, objCoeff)
     } yield {
       ilpSolver.addVar(x)
