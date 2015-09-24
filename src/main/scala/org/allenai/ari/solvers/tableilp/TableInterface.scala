@@ -18,7 +18,12 @@ import scala.collection.JavaConverters._
   * @param table2Name second table
   * @param col2Idx column index in second table
   */
-case class AllowedTitleAlignment(table1Name: String, col1Idx: Int, table2Name: String, col2Idx: Int)
+case class AllowedColumnAlignment(
+  table1Name: String,
+  col1Idx: Int,
+  table2Name: String,
+  col2Idx: Int
+)
 
 /** A class for storing and processing multiple tables.
   *
@@ -47,9 +52,9 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     logger.info("Using RANKED tables for questions")
   }
 
-  /** titles that are allowed to be aligned */
-  val allowedTitleAlignments: Seq[AllowedTitleAlignment] = {
-    if (params.allowedColumnAlignmentsFile.isEmpty) Seq.empty else readAllowedTitleAlignments()
+  /** pairs of columns (in two tables) that are allowed to be aligned */
+  val allowedColumnAlignments: Seq[AllowedColumnAlignment] = {
+    if (params.allowedColumnAlignmentsFile.isEmpty) Seq.empty else readAllowedColumnAlignments()
   }
 
   /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
@@ -165,7 +170,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     commentRegex.replaceAllIn(inputString, "")
   }
 
-  private def readAllowedTitleAlignments(): Seq[AllowedTitleAlignment] = {
+  private def readAllowedColumnAlignments(): Seq[AllowedColumnAlignment] = {
     logger.info("Reading list of titles that are allowed to be aligned")
     val csvReader = new CSVReader(Utils.getResourceAsReader(params.allowedColumnAlignmentsFile))
     val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
@@ -182,7 +187,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
             throw new IllegalArgumentException(s"table $name does not exist")
           }
         }
-        AllowedTitleAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
+        AllowedColumnAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
       }
       case _ => {
         throw new IllegalArgumentException(s"Error processing ${params.allowedColumnAlignmentsFile}")

@@ -180,17 +180,17 @@ class IlpModel(
       // collect tuples of the form (table1,col1,table2,col2) for which to create inter-table vars
       val tableColumnPairs: Seq[(Int, Int, Int, Int)] = if (ilpParams.useCachedTitleAlignmentFile) {
         for {
-          allowedTitleAlignment <- tableInterface.allowedTitleAlignments
-          tableIdx1 <- tableNameToIdx.get(allowedTitleAlignment.table1Name)
-          tableIdx2 <- tableNameToIdx.get(allowedTitleAlignment.table2Name)
+          allowedColumnAlignment <- tableInterface.allowedColumnAlignments
+          tableIdx1 <- tableNameToIdx.get(allowedColumnAlignment.table1Name)
+          tableIdx2 <- tableNameToIdx.get(allowedColumnAlignment.table2Name)
           _ = require(tableIdx1 != tableIdx2, "Table indices must be different")
           // switch, if needed, so that the table with a lower index appears first;
           // this ensures that the tuples generated here form a subset of the
           // all-undirectional-pairs case in the else { ... } block below
           (t1, c1, t2, c2) = if (tableIdx1 < tableIdx2) {
-            (tableIdx1, allowedTitleAlignment.col1Idx, tableIdx2, allowedTitleAlignment.col2Idx)
+            (tableIdx1, allowedColumnAlignment.col1Idx, tableIdx2, allowedColumnAlignment.col2Idx)
           } else {
-            (tableIdx2, allowedTitleAlignment.col2Idx, tableIdx1, allowedTitleAlignment.col1Idx)
+            (tableIdx2, allowedColumnAlignment.col2Idx, tableIdx1, allowedColumnAlignment.col1Idx)
           }
         } yield (t1, c1, t2, c2)
       } else {
