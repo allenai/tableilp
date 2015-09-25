@@ -3,11 +3,14 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
+import org.allenai.datastore.Datastore
 
 import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
+import com.typesafe.config.Config
 
 import java.io.{ File, FileReader }
+import java.nio.file.Path
 
 import scala.collection.JavaConverters._
 
@@ -34,11 +37,26 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** All tables loaded from CSV files */
   val allTables: IndexedSeq[Table] = {
-    logger.info(s"Loading tables from folder ${params.folder}")
-    val files = new File(params.folder).listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
+    val folder = if (params.useLocal) {
+      // read tables from the specified local folder
+      logger.info(s"Loading tables from local folder ${params.localFolder}")
+      new File(params.localFolder)
+    } else {
+      // read tables from the specified Datastore folder
+      val config: Config = params.datastoreFolderConfig
+      val datastoreName = config.getString("datastore")
+      val group = config.getString("group")
+      val name = config.getString("name")
+      val version = config.getInt("version")
+      logger.info(s"Loading from $datastoreName datastore, $group/$name-v$version")
+      val folderPath: Path = Datastore(datastoreName).directoryPath(group, name, version)
+      new File(folderPath.toString)
+    }
+    val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
     files.map(file => new Table(file.getName, new FileReader(file), tokenizer))
   }.toIndexedSeq
   logger.debug(s"${allTables.size} tables loaded")
+
   private val allTableNames = allTables.map(_.fileName)
   logger.debug("tables with internal IDs:\n\t" + allTableNames.zipWithIndex.toString())
   if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
