@@ -30,8 +30,8 @@ case class AllowedColumnAlignment(
 
 /** A class for storing and processing multiple tables.
   *
-  * @param params Various knowledge table related parameters
-  * @param tokenizer A keyword tokenizer
+  * @param params various knowledge table related parameters
+  * @param tokenizer a keyword tokenizer
   */
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
@@ -49,8 +49,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       val name = config.getString("name")
       val version = config.getInt("version")
       logger.info(s"Loading from $datastoreName datastore, $group/$name-v$version")
-      val folderPath: Path = Datastore(datastoreName).directoryPath(group, name, version)
-      new File(folderPath.toString)
+      Datastore(datastoreName).directoryPath(group, name, version).toFile
     }
     val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
     files.map(file => new Table(file.getName, new FileReader(file), tokenizer))
