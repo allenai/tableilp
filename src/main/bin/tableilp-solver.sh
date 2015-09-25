@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Include datastore credentials.
+source /opt/ops/var/s3/ops-keystore/aws/datastore/credentials.sh
+
 JVM_ARGS="-Xms4g -Xmx4g"
 
 CLASS_NAME="org.allenai.ari.solvers.tableilp.TableIlpServer"
