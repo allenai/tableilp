@@ -41,7 +41,7 @@ class TableParams @Inject() (
 object TableParams {
   val Default = new TableParams(
     useLocal = true,
-    localFolder = "data/allTables",
+    localFolder = "data/SampleTables",
     datastoreFolderConfig = ConfigFactory.empty(),
     ignoreListStr = "15",
     maxTablesPerQuestion = 4,
