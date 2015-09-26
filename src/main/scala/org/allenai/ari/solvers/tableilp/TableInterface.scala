@@ -10,7 +10,6 @@ import com.google.inject.Inject
 import com.typesafe.config.Config
 
 import java.io.{ File, FileReader }
-import java.nio.file.Path
 
 import scala.collection.JavaConverters._
 
@@ -145,40 +144,60 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
+  /** Compute TF-IDF scores for all words in relevant tables */
   private def calculateAllTFIDFScores(): (Map[(String, Int), Double], Map[String, Double]) = {
-    val numberOfTables = allTables.size
-    val eachTableTokens = allTables.map(tab => tab.fullContentTokenized.flatten.flatMap(_.values))
-    val allTableTokens = eachTableTokens.flatMap(toks => toks)
+    val numberOfTables: Int = allTables.size
+    val perTableTokens: IndexedSeq[IndexedSeq[String]] = allTables.map { table =>
+      table.fullContentTokenized.flatten.flatMap(_.values)
+    }
 
-    val tfMap = (for {
+    // collect all distinct words
+    val allTokensWithDupes: IndexedSeq[String] = perTableTokens.flatten
+    val allTableTokens: IndexedSeq[String] = allTokensWithDupes.distinct
+    logger.debug(s"tables have ${allTokensWithDupes.size} tokens (${allTableTokens.size} distinct)")
+    // turn perTableTokens into a set for fast "contains" check
+    val perTableTokenSets: IndexedSeq[Set[String]] = perTableTokens.map(tokens => tokens.toSet)
+    // precompute the number of times each word appears in each table
+    val perTableTokenCounts: IndexedSeq[Map[String, Int]] = perTableTokens.map {
+      tokens => tokens.groupBy(identity).mapValues(_.size)
+    }
+
+    val tfMap: Map[(String, Int), Double] = (for {
       tableIdx <- allTables.indices
       word <- allTableTokens
-      tfcount = eachTableTokens(tableIdx).count(_ == word)
+      tfcount = perTableTokenCounts(tableIdx).getOrElse(word, 0)
       score = if (tfcount == 0) 0d else 1d + math.log10(tfcount)
     } yield ((word, tableIdx), score)).toMap
 
-    val idfMap = (for {
+    val idfMap: Map[String, Double] = (for {
       word <- allTableTokens
-      dfcount = eachTableTokens.count { table => table.contains(word) }
+      dfcount = perTableTokenSets.count { table => table.contains(word) }
       score = if (dfcount == 0) 0d else math.log10(numberOfTables / dfcount.toDouble)
     } yield (word, score)).toMap
+
     (tfMap, idfMap)
   }
 
-  private def tfidfTableScore(tokenizer: KeywordTokenizer, tableIdx: Int,
-    questionRaw: String): Double = {
-    val table = allTables(tableIdx).fullContentTokenized
+  /** Compute TF-IDF score for a question with respect to a given table */
+  private def tfidfTableScore(
+    tokenizer: KeywordTokenizer,
+    tableIdx: Int,
+    questionRaw: String
+  ): Double = {
+    val tableTokens = allTables(tableIdx).fullContentTokenized.flatten.flatMap(_.values)
     val qaTokens = tokenizer.stemmedKeywordTokenize(questionRaw.toLowerCase)
-    val currentTableTokens = table.flatten.flatMap(_.values)
-    val commonTokenSet = currentTableTokens.toSet.intersect(qaTokens.toSet).toVector
-    val currentTableScore = commonTokenSet.map(token => tfMap.getOrElse((token, tableIdx), 0.0) *
-      idfMap.getOrElse(token, 0.0)).sum
-    val qaOverlapScore = qaTokens.map(token => if (commonTokenSet.contains(token)) 1 else 0).sum
-      .toDouble / qaTokens.length.toDouble
-    val tableOverlapScore = currentTableTokens.map { token =>
-      if (commonTokenSet.contains(token)) 1 else 0
-    }.sum.toDouble / currentTableTokens.length.toDouble
-    currentTableScore * qaOverlapScore * tableOverlapScore
+    val commonTokenSet = tableTokens.toSet.intersect(qaTokens.toSet)
+
+    val tableScore = (for {
+      token <- commonTokenSet
+      tfScore <- tfMap.get((token, tableIdx))
+      idfScore <- idfMap.get(token)
+    } yield tfScore * idfScore).sum
+
+    val qaOverlapScore = qaTokens.count(commonTokenSet.contains).toDouble / qaTokens.size
+    val tableOverlapScore = tableTokens.count(commonTokenSet.contains).toDouble / tableTokens.size
+
+    tableScore * qaOverlapScore * tableOverlapScore
   }
 
   private def stripComments(inputString: String): String = {
