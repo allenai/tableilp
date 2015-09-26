@@ -165,14 +165,15 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     val tfMap: Map[(String, Int), Double] = (for {
       tableIdx <- allTables.indices
       word <- allTableTokens
-      tfcount = perTableTokenCounts(tableIdx).getOrElse(word, 0)
-      score = if (tfcount == 0) 0d else 1d + math.log10(tfcount)
+      tfcount <- perTableTokenCounts(tableIdx).get(word)
+      score = 1d + math.log10(tfcount)
     } yield ((word, tableIdx), score)).toMap
 
     val idfMap: Map[String, Double] = (for {
       word <- allTableTokens
-      dfcount = perTableTokenSets.count { table => table.contains(word) }
-      score = if (dfcount == 0) 0d else math.log10(numberOfTables / dfcount.toDouble)
+      dfcount = perTableTokenSets.count { tokenSet => tokenSet.contains(word) }
+      if dfcount > 0
+      score = math.log10(numberOfTables / dfcount.toDouble)
     } yield (word, score)).toMap
 
     (tfMap, idfMap)
@@ -189,13 +190,13 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     val commonTokenSet = tableTokens.toSet.intersect(qaTokens.toSet)
 
     val tableScore = (for {
-      token <- commonTokenSet
+      token <- commonTokenSet.toSeq // toSeq ensures yield doesn't create a subset of {0,1}
       tfScore <- tfMap.get((token, tableIdx))
       idfScore <- idfMap.get(token)
     } yield tfScore * idfScore).sum
 
-    val qaOverlapScore = qaTokens.count(commonTokenSet.contains).toDouble / qaTokens.size
-    val tableOverlapScore = tableTokens.count(commonTokenSet.contains).toDouble / tableTokens.size
+    val qaOverlapScore = qaTokens.count(commonTokenSet.contains) / qaTokens.size.toDouble
+    val tableOverlapScore = tableTokens.count(commonTokenSet.contains) / tableTokens.size.toDouble
 
     tableScore * qaOverlapScore * tableOverlapScore
   }
