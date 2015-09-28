@@ -157,22 +157,24 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     logger.debug(s"tables have ${allTokensWithDupes.size} tokens (${allTableTokens.size} distinct)")
     // turn perTableTokens into a set for fast "contains" check
     val perTableTokenSets: IndexedSeq[Set[String]] = perTableTokens.map(tokens => tokens.toSet)
-    // precompute the number of times each word appears in each table
-    val perTableTokenCounts: IndexedSeq[Map[String, Int]] = perTableTokens.map {
-      tokens => tokens.groupBy(identity).mapValues(_.size)
+    // precompute the number of times each word appears in each table;
+    // note: the counts will always be strictly positive (no zero entries)
+    val perTableTokenCounts: IndexedSeq[Map[String, Int]] = perTableTokens.map { tokens =>
+      tokens.groupBy(identity).mapValues(_.size)
     }
 
     val tfMap: Map[(String, Int), Double] = (for {
       tableIdx <- allTables.indices
       word <- allTableTokens
+      // tfcount will always be strictly positive
       tfcount <- perTableTokenCounts(tableIdx).get(word)
       score = 1d + math.log10(tfcount)
     } yield ((word, tableIdx), score)).toMap
 
     val idfMap: Map[String, Double] = (for {
       word <- allTableTokens
+      // dfcount will always be strictly positive
       dfcount = perTableTokenSets.count { tokenSet => tokenSet.contains(word) }
-      if dfcount > 0
       score = math.log10(numberOfTables / dfcount.toDouble)
     } yield (word, score)).toMap
 
