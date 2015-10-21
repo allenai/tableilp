@@ -443,13 +443,21 @@ class IlpModel(
         }
       }
 
-      // a title is active if and only if there is an external alignment to it
+      // a title is active if and only if there is an external alignment to it; model similar to
+      // the case of active cells as above
       table.titleRow.indices.foreach { colIdx =>
         val titleIdx = TitleIdx(tableIdx, colIdx)
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
-        ilpSolver.addConsYImpliesAtLeastK("activeTitleImpliesAlignments", activeTitleVar,
-          extAlignmentVarsForTitle, 1d)
+        if (weights.minActiveTitleAlignment > 0d) {
+          val coeffs = extAlignmentVarsForTitle.map(ilpSolver.getVarObjCoeff)
+          val minCoeffSum = weights.minActiveTitleAlignment
+          ilpSolver.addConsBasicLinear("activeTitleImpliesMinAlignment", extAlignmentVarsForTitle,
+            coeffs, Some(minCoeffSum), None, activeTitleVar)
+        } else {
+          ilpSolver.addConsYImpliesAtLeastK("activeTitleImpliesAlignments", activeTitleVar,
+            extAlignmentVarsForTitle, 1d)
+        }
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
         }
