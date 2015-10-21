@@ -205,9 +205,24 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** If triggered, imposes a basic linear constraint on the solver; trigger is binary variable */
   def addConsBasicLinear(name: String, vars: Seq[Long], coeffs: Seq[Double],
     lhsOpt: Option[Double], rhsOpt: Option[Double], trigger: Long): Unit = {
-    val largeDbl = 1000000d // a very large value, compared to sum_i var[i] * coeffs[i]
-    addReleaseCons(createConsBasicLinear(name, vars :+ trigger, coeffs :+ largeDbl, lhsOpt, None))
-    addReleaseCons(createConsBasicLinear(name, vars :+ trigger, coeffs :+ -largeDbl, None, rhsOpt))
+    // a very large value, compared to sum_i var[i] * coeffs[i]
+    // NOTE: for some reason, 1000000d does NOT work! appears to cause internal overflow in SCIP,
+    // resulting in incorrect answers.
+    val largeDbl = 10000d
+    if (lhsOpt.isDefined) {
+      // model as:  vars * coeffs  -  trigger * largeDbl  >=  lhs - largeDbl
+      val newVars = vars :+ trigger
+      val newCoeffs = coeffs :+ -largeDbl
+      val newLhs = lhsOpt.get - largeDbl
+      addReleaseCons(createConsBasicLinear(name, newVars, newCoeffs, Some(newLhs), None))
+    }
+    if (rhsOpt.isDefined) {
+      // model as:  vars * coeffs  +  trigger * largeDbl  <=  rhs + largeDbl
+      val newVars = vars :+ trigger
+      val newCoeffs = coeffs :+ largeDbl
+      val newRhs = rhsOpt.get + largeDbl
+      addReleaseCons(createConsBasicLinear(name, newVars, newCoeffs, None, Some(newRhs)))
+    }
   }
 
   /** Adds coefficient to a linear constraint (if it is not zero)
