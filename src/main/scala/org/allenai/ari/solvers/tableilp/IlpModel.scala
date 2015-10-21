@@ -517,36 +517,42 @@ class IlpModel(
       ilpSolver.addConsAtMostK("qConsAtMostK", extAlignmentVars, weights.maxAlignmentsPerQCons)
     }
 
-    // Boost cell alignments to consecutive question constituents
+    // Dynamic chunking:
+    //   (a) boost cell alignments to consecutive question constituents
+    //   (b) disallow cell alignments to question constituents that are too far apart
     val cellToQuestionAlignmentVarMap = Utils.toMapUsingGroupByFirst(tmpQuestionTriples)
     // A map from qCons alignment variable to the question constituent index
     val qConsVarToQIdx = tmpQuestionToTableVars.map { case (qIdx, x) => x -> qIdx.qConsIdx }.toMap
 
     for {
+      // Go through all question table variables
       qCons1QuestionTabVar <- questionTableVariables
+      qCons1CellIdx = CellIdx(qCons1QuestionTabVar.tableIdx, qCons1QuestionTabVar.rowIdx,
+        qCons1QuestionTabVar.colIdx)
       // Get another qCons aligned to the same cell
-      qCons2Var <- cellToQuestionAlignmentVarMap.getOrElse(CellIdx(
-        qCons1QuestionTabVar.tableIdx,
-        qCons1QuestionTabVar.rowIdx, qCons1QuestionTabVar.colIdx
-      ), Seq.empty)
+      qCons2Var <- cellToQuestionAlignmentVarMap(qCons1CellIdx)
       qIdx1 = qCons1QuestionTabVar.qConsIdx
       qIdx2 = qConsVarToQIdx(qCons2Var)
-      // Boost score only if the two aligned constituents are within 3 words of each other
-      // TODO(tushar) Make this configurable
-      if (qIdx2 > qIdx1 && qIdx2 - qIdx1 <= 3)
+      if qIdx2 > qIdx1
       qCons1Var = qCons1QuestionTabVar.variable
-      varName = s"T=${qCons1QuestionTabVar.tableIdx}-R=${qCons1QuestionTabVar.rowIdx}-" +
-        s"C=${qCons1QuestionTabVar.colIdx}-Q1=$qIdx1-Q2=$qIdx2"
-      // Boost consecutive alignment with 1/(distance + 1). The +1 is to prevent a high boost for
-      // adjacent words compared to one word apart(1 -> 0.5 vs 0.5 -> 0.33).
-      q1q2CellVar = createPossiblyRelaxedBinaryVar(varName, 1.0 / (qIdx2 - qIdx1 + 1.0))
     } {
-      ilpSolver.addVar(q1q2CellVar)
-      // q1q2 should be true only if both q1 and q2 align with this cell, i.e.
-      // q1q2 = min(q1, q2) encoded as q1q2 <= q1 and q1q2 <= q2. q1q2 >= min(q1,q2) isn't needed
-      // as the coefficient of q1q2 is positive and we are maximizing
-      ilpSolver.addConsXLeqY("consecutiveQConsAlign", q1q2CellVar, qCons1Var)
-      ilpSolver.addConsXLeqY("consecutiveQConsAlign", q1q2CellVar, qCons2Var)
+      if (qIdx2 - qIdx1 >= ilpParams.dynamicQChunkMaxSize) {
+        // Disallow aligning both qCons to the cell since they are too far apart
+        ilpSolver.addConsAtMostOne("onlyNearbyQConsPerCell", Seq(qCons1Var, qCons2Var))
+      } else {
+        // Boost score since the two aligned constituents are within a few words of each other
+        val varName = s"T=${qCons1QuestionTabVar.tableIdx}-R=${qCons1QuestionTabVar.rowIdx}-" +
+          s"C=${qCons1QuestionTabVar.colIdx}-Q1=$qIdx1-Q2=$qIdx2"
+        // Boost consecutive alignment with 1/(distance+1). The +1 is to prevent a high boost for
+        // adjacent words compared to one word apart (1 -> 0.5 vs 0.5 -> 0.33).
+        val q1q2CellVar = createPossiblyRelaxedBinaryVar(varName, 1d / (qIdx2 - qIdx1 + 1d))
+        ilpSolver.addVar(q1q2CellVar)
+        // q1q2 should be true only if both q1 and q2 align with this cell, i.e.
+        // q1q2 = min(q1, q2) encoded as q1q2 <= q1 and q1q2 <= q2. q1q2 >= min(q1,q2) isn't needed
+        // as the coefficient of q1q2 is positive and we are maximizing
+        ilpSolver.addConsXLeqY("consecutiveQConsAlign", q1q2CellVar, qCons1Var)
+        ilpSolver.addConsXLeqY("consecutiveQConsAlign", q1q2CellVar, qCons2Var)
+      }
     }
 
     logger.debug(s"\tTotal ${ilpSolver.getNConss} constraints so far")
