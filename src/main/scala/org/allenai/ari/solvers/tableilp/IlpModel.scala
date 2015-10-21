@@ -410,13 +410,28 @@ class IlpModel(
               extAlignmentVarsForCell.foreach {
                 ilpSolver.addConsXLeqY("activeCell", _, activeCellVar)
               }
-              // if an activeCellVar is 1, at least one external cell alignment variable must be 1;
-              // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
-              // 0 <= sum(extAlignmentVarsForCell) - activeCellVar
-              ilpSolver.addConsYImpliesAtLeastK(
-                "activeCellImpliesAtLeastOneExt",
-                activeCellVar, extAlignmentVarsForCell, 1d
-              )
+              if (weights.minActiveCellExtAlignment > 0d) {
+                // if an activeCellVar is 1, the sum of coefficients of all cells aligned to it must
+                // be at least a minimum specified value; model as a basic linear constraint with
+                // "activeCellVar" as the trigger that activates the constraint:
+                //   if activeCellVar = 1, then sum(weighted extAlignmentVarsForCell) >= minCoeffSum
+                val coeffs = extAlignmentVarsForCell.map(ilpSolver.getVarObjCoeff)
+                val minCoeffSum = weights.minActiveCellExtAlignment
+                ilpSolver.addConsBasicLinear(
+                  "activeCellImpliesMinExtAlignment",
+                  extAlignmentVarsForCell, coeffs, Some(minCoeffSum), None, activeCellVar
+                )
+              } else {
+                // even if there is no requirement on minActiveCellExtAlignment, force at least one
+                // external cell alignment variable to be 1; note that this is redundant if the
+                // above minActiveCellExtAlignment constraint was added;
+                // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
+                //   0 <= sum(extAlignmentVarsForCell) - activeCellVar
+                ilpSolver.addConsYImpliesAtLeastK(
+                  "activeCellImpliesAtLeastOneExt",
+                  activeCellVar, extAlignmentVarsForCell, 1d
+                )
+              }
             }
             case None => {
               // remove this variable from the activeCellVars mutable.Map, as it can never be 1
