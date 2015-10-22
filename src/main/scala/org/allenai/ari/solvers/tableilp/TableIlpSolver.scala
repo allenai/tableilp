@@ -174,7 +174,7 @@ class TableIlpSolver @Inject() (
         logger.debug("Not calling solver on other options.")
         ilpSolutionsSoFar
       } else {
-        logger.debug(s"Found a solution: $choiceIdx")
+        logger.info(s"Selected choice: $choiceIdx")
         val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
           questionIlp, tablesUsed)
         // If the number of disabled choices plus the current choice matches the number of
@@ -185,7 +185,7 @@ class TableIlpSolver @Inject() (
         } else {
           // Reset solution for any future calls to solve
           ilpSolver.resetSolve()
-          logger.debug(s"Disabling choice:  $choiceIdx")
+          logger.debug(s"Disabling choice: $choiceIdx")
           ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
           // Call the method again with the best choice disabled
           solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
