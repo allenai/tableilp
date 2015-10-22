@@ -9,8 +9,8 @@ import com.google.inject.name.Named
   * @param minCellQConsAlignment Minimum threshold for considering cell-to-question alignment
   * @param minTitleQConsAlignment Minimum threshold for considering title-to-question alignment
   * @param minTitleTitleAlignment Minimum threshold for considering title-to-title alignment
-  * @param minActiveCellExtAlignment Minimum total alignment that an active cell must have
-  * @param minActiveTitleAlignment Minimum total alignment that an active title must have
+  * @param minActiveCellAggrAlignment Minimum total alignment that an active cell must have
+  * @param minActiveTitleAggrAlignment Minimum total alignment that an active title must have
   * @param activeCellObjCoeff How much does an active cell contribute to the objective function
   * @param activeColObjCoeff How much does an active column contribute to the objective function
   * @param activeTitleObjCoeff How much does an active title contribute to the objective function
@@ -29,8 +29,8 @@ class IlpWeights @Inject() (
   @Named("weights.minCellQChoiceAlignment") val minCellQChoiceAlignment: Double,
   @Named("weights.minTitleQChoiceAlignment") val minTitleQChoiceAlignment: Double,
   @Named("weights.minTitleTitleAlignment") val minTitleTitleAlignment: Double,
-  @Named("weights.minActiveCellExtAlignment") val minActiveCellExtAlignment: Double,
-  @Named("weights.minActiveTitleAlignment") val minActiveTitleAlignment: Double,
+  @Named("weights.minActiveCellAggrAlignment") val minActiveCellAggrAlignment: Double,
+  @Named("weights.minActiveTitleAggrAlignment") val minActiveTitleAggrAlignment: Double,
   @Named("weights.activeCellObjCoeff") val activeCellObjCoeff: Double,
   @Named("weights.activeColObjCoeff") val activeColObjCoeff: Double,
   @Named("weights.activeTitleObjCoeff") val activeTitleObjCoeff: Double,
@@ -52,8 +52,8 @@ object IlpWeights {
     minCellQChoiceAlignment = 0.2d,
     minTitleQChoiceAlignment = 0.2d,
     minTitleTitleAlignment = 0.2d,
-    minActiveCellExtAlignment = 0.4d,
-    minActiveTitleAlignment = 0.4d,
+    minActiveCellAggrAlignment = 0.1d,
+    minActiveTitleAggrAlignment = 0.1d,
     activeCellObjCoeff = 0d,
     activeColObjCoeff = 0d,
     activeTitleObjCoeff = 0d,

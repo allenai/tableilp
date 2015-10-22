@@ -410,13 +410,13 @@ class IlpModel(
               extAlignmentVarsForCell.foreach {
                 ilpSolver.addConsXLeqY("activeCell", _, activeCellVar)
               }
-              if (weights.minActiveCellExtAlignment > 0d) {
+              if (weights.minActiveCellAggrAlignment > 0d) {
                 // if an activeCellVar is 1, the sum of coefficients of all cells aligned to it must
                 // be at least a minimum specified value; model as a basic linear constraint with
                 // "activeCellVar" as the trigger that activates the constraint:
                 //   if activeCellVar = 1, then sum(weighted extAlignmentVarsForCell) >= minCoeffSum
                 val coeffs = extAlignmentVarsForCell.map(ilpSolver.getVarObjCoeff)
-                val minCoeffSum = weights.minActiveCellExtAlignment
+                val minCoeffSum = weights.minActiveCellAggrAlignment
                 ilpSolver.addConsBasicLinear(
                   "activeCellImpliesMinExtAlignment",
                   extAlignmentVarsForCell, coeffs, Some(minCoeffSum), None, activeCellVar
@@ -449,9 +449,9 @@ class IlpModel(
         val titleIdx = TitleIdx(tableIdx, colIdx)
         val activeTitleVar = activeTitleVars((tableIdx, colIdx))
         val extAlignmentVarsForTitle = titleToExtAlignmentVars.getOrElse(titleIdx, Seq.empty)
-        if (weights.minActiveTitleAlignment > 0d) {
+        if (weights.minActiveTitleAggrAlignment > 0d) {
           val coeffs = extAlignmentVarsForTitle.map(ilpSolver.getVarObjCoeff)
-          val minCoeffSum = weights.minActiveTitleAlignment
+          val minCoeffSum = weights.minActiveTitleAggrAlignment
           ilpSolver.addConsBasicLinear("activeTitleImpliesMinAlignment", extAlignmentVarsForTitle,
             coeffs, Some(minCoeffSum), None, activeTitleVar)
         } else {
