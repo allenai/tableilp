@@ -102,8 +102,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
     logger.debug(s"using ${tableIdsWithScores.size} tables:\n" +
       tableIdsWithScores.map {
-        case (t, s) => s"table $t: " + allTables(t).titleRow.mkString(",") + "\n"
-      })
+        case (t, s) => s"\ttable $t (score $s) : " + allTables(t).titleRow.mkString("|")
+      }.mkString("\n"))
     tableIdsWithScores
   }
 
