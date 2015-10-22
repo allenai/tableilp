@@ -11,7 +11,7 @@ import com.google.inject.name.Named
   * @param maxTablesToChain maximum number of tables that may be chained together in the solution
   * @param maxRowsPerTable how many rows per table may an inference chain use inference
   * @param useRelaxedVars whether to use relaxed (continuous) variables, where possible
-  * @param dynamicQChunkMaxSize maximum size of dynamically created question chunk
+  * @param qConsCoalignMaxDist max distance between question chunks that may align to the same cell
   * @param keyColumnsMustMatch whether at least one KEY column must match when a table is used
   * @param useCachedTitleAlignmentFile whether to use the title alignment using the annotated
   *                                    document containing the valid alignments .
@@ -23,7 +23,7 @@ class IlpParams @Inject() (
   @Named("model.maxTablesToChain") val maxTablesToChain: Int,
   @Named("model.maxRowsPerTable") val maxRowsPerTable: Int,
   @Named("model.useRelaxedVars") val useRelaxedVars: Boolean,
-  @Named("model.dynamicQChunkMaxSize") val dynamicQChunkMaxSize: Int,
+  @Named("model.qConsCoalignMaxDist") val qConsCoalignMaxDist: Int,
   @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean,
   @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean
 ) {}
@@ -37,7 +37,7 @@ object IlpParams {
     maxTablesToChain = 4,
     maxRowsPerTable = 1,
     useRelaxedVars = false,
-    dynamicQChunkMaxSize = 4,
+    qConsCoalignMaxDist = 4,
     keyColumnsMustMatch = true,
     useCachedTitleAlignmentFile = false
   )

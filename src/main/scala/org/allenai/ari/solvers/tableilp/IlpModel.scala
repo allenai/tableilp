@@ -415,6 +415,8 @@ class IlpModel(
                 // be at least a minimum specified value; model as a basic linear constraint with
                 // "activeCellVar" as the trigger that activates the constraint:
                 //   if activeCellVar = 1, then sum(weighted extAlignmentVarsForCell) >= minCoeffSum
+                // Note that this constraint is trivially satisfied when
+                // weights.minActiveCellAggrAlignment == 0, which is why it is inside the 'if' block
                 val coeffs = extAlignmentVarsForCell.map(ilpSolver.getVarObjCoeff)
                 val minCoeffSum = weights.minActiveCellAggrAlignment
                 ilpSolver.addConsBasicLinear(
@@ -540,7 +542,7 @@ class IlpModel(
       ilpSolver.addConsAtMostK("qConsAtMostK", extAlignmentVars, weights.maxAlignmentsPerQCons)
     }
 
-    // Dynamic chunking:
+    // Dynamic "chunking" of the question:
     //   (a) boost cell alignments to consecutive question constituents
     //   (b) disallow cell alignments to question constituents that are too far apart
     val cellToQuestionAlignmentVarMap = Utils.toMapUsingGroupByFirst(tmpQuestionTriples)
@@ -559,7 +561,7 @@ class IlpModel(
       if qIdx2 > qIdx1
       qCons1Var = qCons1QuestionTabVar.variable
     } {
-      if (qIdx2 - qIdx1 >= ilpParams.dynamicQChunkMaxSize) {
+      if (qIdx2 - qIdx1 >= ilpParams.qConsCoalignMaxDist) {
         // Disallow aligning both qCons to the cell since they are too far apart
         ilpSolver.addConsAtMostOne("onlyNearbyQConsPerCell", Seq(qCons1Var, qCons2Var))
       } else {
