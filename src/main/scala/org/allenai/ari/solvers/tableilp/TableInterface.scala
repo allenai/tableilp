@@ -65,8 +65,11 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
       val dataString = Source.fromFile(file).getLines().mkString("\n")
       val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
-      datastoreExport.tables.map(table => new Table(table.name, IndexedSeq(table.header) ++ table
-        .data, tokenizer)).toIndexedSeq
+
+      for {
+        table <- datastoreExport.tables
+        fullContents = IndexedSeq(table.header) ++ table.data
+      } yield new Table(table.name, fullContents, tokenizer)
     } else {
       val folder = if (params.useLocal) {
         // read tables from the specified local folder
