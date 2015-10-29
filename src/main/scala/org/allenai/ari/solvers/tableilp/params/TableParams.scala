@@ -8,14 +8,14 @@ import com.typesafe.config.{ ConfigFactory, Config }
   *
   * @param useLocal whether to read tables from a local folder or from Datastore
   * @param localFolder name of local folder from which to read .csv format tables, if useLocal =
-  *     true and useTablestore = false
+  *     true and useTablestoreFormat = false
   * @param datastoreFolderConfig Datastore folder from which to read .csv format tables, if
-  *     useLocal = false and useTablestore = false
-  * @param useTablestore use Tablestore data in json format instead of csv files
+  *     useLocal = false and useTablestoreFormat = false
+  * @param useTablestoreFormat use Tablestore data in json format instead of csv files
   * @param localTablestoreFile location of .json file from which to read tables, if useLocal = true
-  *     and useTablestore = true
+  *     and useTablestoreFormat = true
   * @param datastoreTablestoreConfig Datastore location of .json file from which to read tables, if
-  *     useLocal = false and useTablestore = true
+  *     useLocal = false and useTablestoreFormat = true
   * @param ignoreListStr a comma-separated list of table IDs to ignore
   * @param maxTablesPerQuestion max number of tables to consider per question
   * @param questionToTablesCache name of a debugging cheat sheet mapping question to relevant tables
@@ -28,7 +28,7 @@ class TableParams @Inject() (
     @Named("tables.useLocal") val useLocal: Boolean,
     @Named("tables.localFolder") val localFolder: String,
     @Named("tables.datastoreFolder") val datastoreFolderConfig: Config,
-    @Named("tables.useTablestore") val useTablestore: Boolean,
+    @Named("tables.useTablestoreFormat") val useTablestoreFormat: Boolean,
     @Named("tables.localTablestoreFile") val localTablestoreFile: String,
     @Named("tables.datastoreTablestoreFile") val datastoreTablestoreConfig: Config,
     @Named("tables.ignoreList") ignoreListStr: String,
@@ -53,7 +53,7 @@ object TableParams {
     useLocal = true,
     localFolder = "data/SampleTables",
     datastoreFolderConfig = ConfigFactory.empty(),
-    useTablestore = false,
+    useTablestoreFormat = false,
     localTablestoreFile = "",
     datastoreTablestoreConfig = ConfigFactory.empty(),
     ignoreListStr = "15",

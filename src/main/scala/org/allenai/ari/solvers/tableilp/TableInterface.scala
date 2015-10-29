@@ -44,13 +44,13 @@ object DatastoreExport {
   */
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
-  def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
+  private def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
     val csvReader = new CSVReader(reader)
     csvReader.readAll.asScala.map(_.toSeq)
   }
 
-  def getAllTables(): IndexedSeq[Table] = {
-    if (params.useTablestore) {
+  private def getAllTables(): IndexedSeq[Table] = {
+    if (params.useTablestoreFormat) {
       val file = if (params.useLocal) {
         logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
         new File(params.localTablestoreFile)
