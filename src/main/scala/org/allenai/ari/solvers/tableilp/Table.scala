@@ -3,15 +3,9 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.common.Logging
 
-import au.com.bytecode.opencsv.CSVReader
-
-import java.io.Reader
-
-import scala.collection.JavaConverters._
-
 case class TokenizedCell(values: Seq[String])
 
-class Table(val fileName: String, fileReader: Reader, tokenizer: KeywordTokenizer) extends Logging {
+class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: KeywordTokenizer) extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
   private val ignoreTableColumnFillers: Boolean = true
   // config: ignore columns whose title starts with the word SKIP
@@ -23,8 +17,6 @@ class Table(val fileName: String, fileReader: Reader, tokenizer: KeywordTokenize
   // cells if tokenizeCells = true; reads the input CSV file with the following convention:
   //   columns with header starting with prefix "KEY" are designated as key columns;
   //   columns with header starting with the prefix "SKIP" are skipped
-  private val csvReader = new CSVReader(fileReader)
-  private val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
 
   private val sep = "\\s+".r
   private val filteredColIndices = (for {

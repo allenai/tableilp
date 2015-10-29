@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import org.allenai.ari.models.tables.{ Table => DatastoreTable }
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
@@ -8,10 +9,12 @@ import org.allenai.datastore.Datastore
 import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
 import com.typesafe.config.Config
+import spray.json._
 
-import java.io.{ File, FileReader }
+import java.io.{ File, FileReader, Reader }
 
 import scala.collection.JavaConverters._
+import scala.io.Source
 
 /** A structure to store which two columns in two tables are allowed to be joined/aligned.
   *
@@ -27,6 +30,13 @@ case class AllowedColumnAlignment(
   col2Idx: Int
 )
 
+// TODO(ericgribkoff) Copied from tables/, refactor out to models/
+case class DatastoreExport(tables: IndexedSeq[DatastoreTable], description: String)
+object DatastoreExport {
+  import spray.json.DefaultJsonProtocol._
+  implicit val datastoreJsonFormat = jsonFormat2(DatastoreExport.apply)
+}
+
 /** A class for storing and processing multiple tables.
   *
   * @param params various knowledge table related parameters
@@ -34,25 +44,52 @@ case class AllowedColumnAlignment(
   */
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
-  /** All tables loaded from CSV files */
-  val allTables: IndexedSeq[Table] = {
-    val folder = if (params.useLocal) {
-      // read tables from the specified local folder
-      logger.info(s"Loading tables from local folder ${params.localFolder}")
-      new File(params.localFolder)
+  def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
+    val csvReader = new CSVReader(reader)
+    csvReader.readAll.asScala.map(_.toSeq)
+  }
+
+  def getAllTables(): IndexedSeq[Table] = {
+    if (params.useTablestore) {
+      val file = if (params.useLocal) {
+        logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
+        new File(params.localTablestoreFile)
+      } else {
+        val config: Config = params.datastoreTablestoreConfig
+        val datastoreName = config.getString("datastore")
+        val group = config.getString("group")
+        val name = config.getString("name")
+        val version = config.getInt("version")
+        logger.info(s"Loading tables from tablestore $datastoreName datastore,$group/$name-v$version")
+        Datastore(datastoreName).filePath(group, name, version).toFile
+      }
+      val dataString = Source.fromFile(file).getLines().mkString("\n")
+      val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
+      datastoreExport.tables.map(table => new Table(table.name, IndexedSeq(table.header) ++ table
+        .data, tokenizer)).toIndexedSeq
     } else {
-      // read tables from the specified Datastore folder
-      val config: Config = params.datastoreFolderConfig
-      val datastoreName = config.getString("datastore")
-      val group = config.getString("group")
-      val name = config.getString("name")
-      val version = config.getInt("version")
-      logger.info(s"Loading from $datastoreName datastore, $group/$name-v$version")
-      Datastore(datastoreName).directoryPath(group, name, version).toFile
+      val folder = if (params.useLocal) {
+        // read tables from the specified local folder
+        logger.info(s"Loading csv tables from local folder ${params.localFolder}")
+        new File(params.localFolder)
+      } else {
+        // read tables from the specified Datastore folder
+        val config: Config = params.datastoreFolderConfig
+        val datastoreName = config.getString("datastore")
+        val group = config.getString("group")
+        val name = config.getString("name")
+        val version = config.getInt("version")
+        logger.info(s"Loading csv from $datastoreName datastore, $group/$name-v$version")
+        Datastore(datastoreName).directoryPath(group, name, version).toFile
+      }
+      val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
+      files.map(file => {
+        new Table(file.getName, getFullContentsFromCsvFile(new FileReader(file)), tokenizer)
+      }).toIndexedSeq
     }
-    val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
-    files.map(file => new Table(file.getName, new FileReader(file), tokenizer))
-  }.toIndexedSeq
+  }
+
+  val allTables = getAllTables()
   logger.debug(s"${allTables.size} tables loaded")
 
   private val allTableNames = allTables.map(_.fileName)
@@ -79,7 +116,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   private lazy val questionToTablesMap: Map[String, Seq[Int]] = {
     val mapData: Seq[Seq[String]] = new Table(
       params.questionToTablesCache,
-      Utils.getResourceAsReader(params.questionToTablesCache),
+      getFullContentsFromCsvFile(Utils.getResourceAsReader(params.questionToTablesCache)),
       tokenizer
     ).contentMatrix
     val hyphenSep = "-".r

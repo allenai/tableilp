@@ -9,6 +9,7 @@ import com.typesafe.config.{ ConfigFactory, Config }
   * @param useLocal whether to read tables from a local folder or from Datastore
   * @param localFolder name of local folder from which to read tables, if useLocal = true
   * @param datastoreFolderConfig Datastore folder from which to read tables, if useLocal = false
+  * @param useTablestore use Tablestore data in json format instead of csv files
   * @param ignoreListStr a comma-separated list of table IDs to ignore
   * @param maxTablesPerQuestion max number of tables to consider per question
   * @param questionToTablesCache name of a debugging cheat sheet mapping question to relevant tables
@@ -21,6 +22,9 @@ class TableParams @Inject() (
     @Named("tables.useLocal") val useLocal: Boolean,
     @Named("tables.localFolder") val localFolder: String,
     @Named("tables.datastoreFolder") val datastoreFolderConfig: Config,
+    @Named("tables.useTablestore") val useTablestore: Boolean,
+    @Named("tables.localTablestoreFile") val localTablestoreFile: String,
+    @Named("tables.datastoreTablestoreFile") val datastoreTablestoreConfig: Config,
     @Named("tables.ignoreList") ignoreListStr: String,
     @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int,
     @Named("tables.questionToTablesCache") val questionToTablesCache: String,
@@ -43,6 +47,9 @@ object TableParams {
     useLocal = true,
     localFolder = "data/SampleTables",
     datastoreFolderConfig = ConfigFactory.empty(),
+    useTablestore = false,
+    localTablestoreFile = "",
+    datastoreTablestoreConfig = ConfigFactory.empty(),
     ignoreListStr = "15",
     maxTablesPerQuestion = 4,
     questionToTablesCache = "",
