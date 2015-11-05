@@ -185,7 +185,7 @@ object IlpSolutionFactory extends Logging {
     * @return an AlignmentSolution object
     */
   def makeIlpSolution(allVariables: AllVariables, ilpSolver: ScipInterface, question: TableQuestion,
-    tables: Seq[Table]): IlpSolution = {
+    tables: Seq[Table], fullTablesInIlpSolution: Boolean): IlpSolution = {
     // populate problem stats
     val problemStats = ProblemStats(
       ilpSolver.getNOrigVars,
@@ -317,8 +317,21 @@ object IlpSolutionFactory extends Logging {
       case ((_, _, score), alignmentId) => alignmentId -> score
     }.toMap
 
+    // if desired, filter tableAlignments to only the rows that have at least one active alignment
+    val activeTableAlignments = if (fullTablesInIlpSolution) {
+      // note: this will likely result in quite large JSON files from IlpSolution
+      tableAlignments
+    } else {
+      tableAlignments.map { tableAlignment =>
+        val activeContentAlignments = tableAlignment.contentAlignments.filter { rowAlignments =>
+          rowAlignments.exists(_.alignmentIds.nonEmpty)
+        }
+        TableAlignment(tableAlignment.titleAlignments, activeContentAlignments)
+      }
+    }
+
     // return the alignment solution
-    IlpSolution(bestChoice, bestChoiceScore, tableAlignments, questionAlignment, solutionQuality,
+    IlpSolution(bestChoice, bestChoiceScore, activeTableAlignments, questionAlignment, solutionQuality,
       problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 

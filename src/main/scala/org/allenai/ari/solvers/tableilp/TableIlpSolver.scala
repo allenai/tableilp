@@ -176,7 +176,7 @@ class TableIlpSolver @Inject() (
       } else {
         logger.info(s"Selected choice: $choiceIdx")
         val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
-          questionIlp, tablesUsed)
+          questionIlp, tablesUsed, solverParams.fullTablesInIlpSolution)
         // If the number of disabled choices plus the current choice matches the number of
         // choices in the question, solver won't be able to find any further solutions.
         if (questionIlp.choices.size == disabledChoices.size + 1) {
