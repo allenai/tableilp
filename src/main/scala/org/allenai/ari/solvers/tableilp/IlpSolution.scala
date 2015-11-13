@@ -83,6 +83,11 @@ case class SearchStats(
   maxDepth: Int
 )
 
+object SearchStats {
+  /* an empty SearchStats object */
+  val Empty = SearchStats(0, 0, 0)
+}
+
 /** Metrics to capture timing stats for the ILP solver run.
   *
   * @param modelCreationTime Time to create the ILP model.
@@ -98,6 +103,11 @@ case class TimingStats(
 ) {
   /* If model creation time isn't specified, use totalTime minus solveTime */
   def this(p: Double, s: Double, t: Double) = this(t - s, p, s, t)
+}
+
+object TimingStats {
+  /* an empty TimingStats object */
+  val Empty = TimingStats(0d, 0d, 0d, 0d)
 }
 
 /** The output of the ILP model; includes best answer choice, its score, the corresponding
@@ -182,10 +192,18 @@ object IlpSolutionFactory extends Logging {
     * @param ilpSolver a reference to the SCIP solver object
     * @param question the question
     * @param tables the tables used
+    * @param fullTablesInIlpSolution include entire tables, not just active rows
+    * @param reportVariableStats include timing and search stats which change from run to run
     * @return an AlignmentSolution object
     */
-  def makeIlpSolution(allVariables: AllVariables, ilpSolver: ScipInterface, question: TableQuestion,
-    tables: Seq[Table], fullTablesInIlpSolution: Boolean): IlpSolution = {
+  def makeIlpSolution(
+    allVariables: AllVariables,
+    ilpSolver: ScipInterface,
+    question: TableQuestion,
+    tables: Seq[Table],
+    fullTablesInIlpSolution: Boolean,
+    reportVariableStats: Boolean = true
+  ): IlpSolution = {
     // populate problem stats
     val problemStats = ProblemStats(
       ilpSolver.getNOrigVars,
@@ -201,12 +219,18 @@ object IlpSolutionFactory extends Logging {
     )
 
     // populate search stats
-    val searchStats = SearchStats(ilpSolver.getNNodes, ilpSolver.getNLPIterations,
-      ilpSolver.getMaxDepth)
+    val searchStats = if (reportVariableStats) {
+      SearchStats(ilpSolver.getNNodes, ilpSolver.getNLPIterations, ilpSolver.getMaxDepth)
+    } else {
+      SearchStats.Empty
+    }
 
     // populate timing stats
-    val timingStats = new TimingStats(ilpSolver.getPresolvingTime, ilpSolver.getSolvingTime,
-      ilpSolver.getTotalTime)
+    val timingStats = if (reportVariableStats) {
+      new TimingStats(ilpSolver.getPresolvingTime, ilpSolver.getSolvingTime, ilpSolver.getTotalTime)
+    } else {
+      TimingStats.Empty
+    }
 
     // If no solution is found, return an empty IlpSolution
     if (!ilpSolver.hasSolution) {
@@ -223,75 +247,81 @@ object IlpSolutionFactory extends Logging {
       TableAlignment(titleAlignments, contentAlignments)
     }
 
+    // a triple for internal use, associating pairs of terms with a score
+    case class AlignmentTriple(term1: TermAlignment, term2: TermAlignment, score: Double)
+
     // inter-table alignments
-    val interTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val interTableAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.interTableVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell1 = tableAlignments(entry.tableIdx1).contentAlignments(entry.rowIdx1)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx2).contentAlignments(entry.rowIdx2)(entry.colIdx2)
-      (cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // intra-table alignments
-    val intraTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val intraTableAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.intraTableVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
       weight = ilpSolver
     } yield {
       val cell1 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx1)
       val cell2 = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx2)
-      (cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell1, cell2, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // question table alignments
-    val questionTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val questionTableAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.questionTableVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // question title alignments
-    val questionTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val questionTitleAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.questionTitleVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qCons = qConsAlignments(entry.qConsIdx)
-      (cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell, qCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // choice title alignments
-    val choiceTitleAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val choiceTitleAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.qChoiceTitleVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
       val qChoiceCons = choiceAlignments(entry.qChoiceIdx)
-      (cell, qChoiceCons, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell, qChoiceCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // choice table alignments
-    val choiceTableAlignmentTriples: IndexedSeq[(TermAlignment, TermAlignment, Double)] = for {
+    val choiceTableAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
       entry <- allVariables.qChoiceTableVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)
       val qOptCons = choiceAlignments(entry.qChoiceIdx)
-      (cell, qOptCons, ilpSolver.getVarObjCoeff(entry.variable))
+      AlignmentTriple(cell, qOptCons, ilpSolver.getVarObjCoeff(entry.variable))
     }
 
     // populate `alignment' fields of alignment pairs with a unique alignmentId
     val allAlignmentTriples = interTableAlignmentTriples ++ intraTableAlignmentTriples ++
       questionTableAlignmentTriples ++ questionTitleAlignmentTriples ++
       choiceTitleAlignmentTriples ++ choiceTableAlignmentTriples
-    val allAlignmentTriplesWithIndex = allAlignmentTriples.zipWithIndex
+    // combine and sort (for repeatability) before zipping with index
+    val allAlignmentTriplesWithIndex = allAlignmentTriples
+      .sortBy(triple => (triple.term1.term, triple.term2.term))
+      .zipWithIndex
     val termToAlignmentId = allAlignmentTriplesWithIndex.flatMap {
-      case ((strAlign1, strAlign2, _), alignmentId) =>
-        Seq((strAlign1, alignmentId), (strAlign2, alignmentId))
+      case (alignmentTriple, alignmentId) =>
+        Seq((alignmentTriple.term1, alignmentId), (alignmentTriple.term2, alignmentId))
     }
     // TODO: is it possible to do with without cell.alignment being an ArrayBuffer?
     // Note that it is assigned a value exactly once, with the "++=" below.
@@ -314,7 +344,7 @@ object IlpSolutionFactory extends Logging {
 
     // populate all the valid alignment scores
     val alignmentIdToScore = allAlignmentTriplesWithIndex.map {
-      case ((_, _, score), alignmentId) => alignmentId -> score
+      case (alignmentTriple, alignmentId) => alignmentId -> alignmentTriple.score
     }.toMap
 
     // if desired, filter tableAlignments to only the rows that have at least one active alignment
