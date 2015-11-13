@@ -51,9 +51,13 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   private def getAllTables(): IndexedSeq[Table] = {
     if (params.useTablestoreFormat) {
-      val file = if (params.useLocal) {
+      val datastoreTables = if (params.useLocal) {
         logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
-        new File(params.localTablestoreFile)
+        val file = new File(params.localTablestoreFile)
+        val dataString = Source.fromFile(file).getLines().mkString("\n")
+        import DefaultJsonProtocol._
+        val t = dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
+        t
       } else {
         val config: Config = params.datastoreTablestoreConfig
         val datastoreName = config.getString("datastore")
@@ -61,15 +65,16 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val name = config.getString("name")
         val version = config.getInt("version")
         logger.info(s"Loading tables from tablestore $datastoreName datastore,$group/$name-v$version")
-        Datastore(datastoreName).filePath(group, name, version).toFile
+        val file = Datastore(datastoreName).filePath(group, name, version).toFile
+        val dataString = Source.fromFile(file).getLines().mkString("\n")
+        val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
+        datastoreExport.tables
       }
-      val dataString = Source.fromFile(file).getLines().mkString("\n")
-      val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
 
       for {
-        table <- datastoreExport.tables
-        fullContents = IndexedSeq(table.header) ++ table.data
-      } yield new Table(table.name, fullContents, tokenizer)
+        table <- datastoreTables
+        if !params.ignoreListTablestore.contains(table.metadata.id.get)
+      } yield new TableWithMetadata(table, tokenizer)
     } else {
       val folder = if (params.useLocal) {
         // read tables from the specified local folder
@@ -90,6 +95,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         new Table(file.getName, getFullContentsFromCsvFile(new FileReader(file)), tokenizer)
       }).toIndexedSeq
     }
+
   }
 
   val allTables = getAllTables()
@@ -109,9 +115,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   }
 
   /** pairs of columns (in two tables) that are allowed to be aligned */
-  val allowedColumnAlignments: Seq[AllowedColumnAlignment] = {
-    if (params.allowedColumnAlignmentsFile.isEmpty) Seq.empty else readAllowedColumnAlignments()
-  }
+  val allowedColumnAlignments: Seq[AllowedColumnAlignment] = readAllowedColumnAlignments()
 
   /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
     * format: question number (ignore), question text, hyphen-separated table IDs, other info
@@ -250,29 +254,41 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   }
 
   private def readAllowedColumnAlignments(): Seq[AllowedColumnAlignment] = {
-    logger.info("Reading list of titles that are allowed to be aligned")
-    val csvReader = new CSVReader(Utils.getResourceAsReader(params.allowedColumnAlignmentsFile))
-    val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
-    val fullContentsWithoutCommentsAndEmptyLines = for {
-      row <- fullContents
-      // TODO(tushar) figure out why row.nonEmpty doesn't work below
-      if row.size > 1
-      if !row.head.startsWith("//")
-    } yield row.map(stripComments(_).trim)
-    val allowedAlignments = fullContentsWithoutCommentsAndEmptyLines map {
-      case Seq(table1Name, col1IdxStr, table2Name, col2IdxStr) => {
-        Seq(table1Name, table2Name).foreach { name =>
-          if (!allTableNames.contains(name)) {
-            throw new IllegalArgumentException(s"table $name does not exist")
-          }
-        }
-        AllowedColumnAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
-      }
-      case _ => {
-        throw new IllegalStateException(s"Error processing ${params.allowedColumnAlignmentsFile}")
+    val alignmentsFile = {
+      if (params.useTablestoreFormat) {
+        params.allowedTablestoreColumnAlignmentsFile
+      } else {
+        params.allowedColumnAlignmentsFile
       }
     }
-    logger.debug(allowedAlignments.toString())
-    allowedAlignments
+
+    if (alignmentsFile.isEmpty) {
+      return Seq.empty
+    } else {
+      logger.info("Reading list of titles that are allowed to be aligned")
+      val csvReader = new CSVReader(Utils.getResourceAsReader(alignmentsFile))
+      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      val fullContentsWithoutCommentsAndEmptyLines = for {
+        row <- fullContents
+        // TODO(tushar) figure out why row.nonEmpty doesn't work below
+        if row.size > 1
+        if !row.head.startsWith("//")
+      } yield row.map(stripComments(_).trim)
+      val allowedAlignments = fullContentsWithoutCommentsAndEmptyLines map {
+        case Seq(table1Name, col1IdxStr, table2Name, col2IdxStr) => {
+          Seq(table1Name, table2Name).foreach { name =>
+            if (!allTableNames.contains(name)) {
+              throw new IllegalArgumentException(s"table $name does not exist")
+            }
+          }
+          AllowedColumnAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
+        }
+        case _ => {
+          throw new IllegalStateException(s"Error processing ${params.allowedColumnAlignmentsFile}")
+        }
+      }
+      logger.debug(allowedAlignments.toString())
+      allowedAlignments
+    }
   }
 }

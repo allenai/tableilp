@@ -16,13 +16,15 @@ import com.typesafe.config.{ ConfigFactory, Config }
   *     and useTablestoreFormat = true
   * @param datastoreTablestoreConfig Datastore location of .json file from which to read tables, if
   *     useLocal = false and useTablestoreFormat = true
-  * @param ignoreListStr a comma-separated list of table IDs to ignore
+  * @param ignoreListStr a comma-separated list of table IDs (based on csv file position) to ignore
+  * @param ignoreListTablestoreStr a comma-separated list of table IDs (from Tablestore)to ignore
   * @param maxTablesPerQuestion max number of tables to consider per question
   * @param questionToTablesCache name of a debugging cheat sheet mapping question to relevant tables
   * @param useCachedTablesForQuestion whether to use the above cheat sheet
   * @param rankThreshold table rank must be at most this much for selection, if useThreshold = true
   * @param useRankThreshold whether to use the above threshold on rank
   * @param allowedColumnAlignmentsFile a CSV file specifying which columns in two tables may align
+  * @param allowedTablestoreColumnAlignmentsFile as above but using Tablestore IDs
   */
 class TableParams @Inject() (
     @Named("tables.useLocal") val useLocal: Boolean,
@@ -32,18 +34,25 @@ class TableParams @Inject() (
     @Named("tables.localTablestoreFile") val localTablestoreFile: String,
     @Named("tables.datastoreTablestoreFile") val datastoreTablestoreConfig: Config,
     @Named("tables.ignoreList") ignoreListStr: String,
+    @Named("tables.ignoreListTablestore") ignoreListTablestoreStr: String,
     @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int,
     @Named("tables.questionToTablesCache") val questionToTablesCache: String,
     @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean,
     @Named("tables.rankThreshold") val rankThreshold: Double,
     @Named("tables.useRankThreshold") val useRankThreshold: Boolean,
-    @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String
+    @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String,
+    @Named("tables.allowedTablestoreColumnAlignmentsFile") val allowedTablestoreColumnAlignmentsFile: String
 ) {
   val commaSep = ",".r
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
     Seq.empty
   } else {
     commaSep.split(ignoreListStr).map(_.toInt)
+  }
+  val ignoreListTablestore: Seq[Int] = if (ignoreListTablestoreStr == "") {
+    Seq.empty
+  } else {
+    commaSep.split(ignoreListTablestoreStr).map(_.toInt)
   }
 }
 
@@ -57,11 +66,13 @@ object TableParams {
     localTablestoreFile = "",
     datastoreTablestoreConfig = ConfigFactory.empty(),
     ignoreListStr = "15",
+    ignoreListTablestoreStr = "",
     maxTablesPerQuestion = 4,
     questionToTablesCache = "",
     useCachedTablesForQuestion = false,
     rankThreshold = 0.25d,
     useRankThreshold = false,
-    allowedColumnAlignmentsFile = ""
+    allowedColumnAlignmentsFile = "",
+    allowedTablestoreColumnAlignmentsFile = ""
   )
 }

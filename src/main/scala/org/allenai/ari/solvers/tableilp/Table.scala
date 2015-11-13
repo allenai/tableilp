@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import org.allenai.ari.models.tables.{ Metadata, ColumnMetadata, Table => DatastoreTable }
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.common.Logging
 
@@ -45,4 +46,38 @@ class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: Key
 
   val titleRow: IndexedSeq[String] = titleRowOrig.map(_.stripPrefix("KEY "))
   val contentMatrix: IndexedSeq[IndexedSeq[String]] = fullContentsFiltered.tail
+}
+
+class TableWithMetadata(table: DatastoreTable, tokenizer: KeywordTokenizer) extends Table(table
+  .metadata.id.get.toString, IndexedSeq(table.header) ++ table.data, tokenizer) {
+  private val shouldIgnoreColumns = table.columnMetadata.filter(_.shouldIgnore).map(_.columnNumber)
+  private val fillerColumns = table.columnMetadata.filter(_.isFiller).map(_.columnNumber)
+  private val columnsToKeep = table.header.indices.diff(shouldIgnoreColumns ++ fillerColumns)
+
+  private val columnsToKeepToFinalIndexMap = columnsToKeep.zipWithIndex.map {
+    case (col, i) => col -> i
+  }.toMap
+  override val keyColumns = table.columnMetadata.filter(_.isImportant).map {
+    cm => columnsToKeepToFinalIndexMap.get(cm.columnNumber).get
+  }
+
+  private val alternateHeaderMap = table.columnMetadata.map(cm => cm.columnNumber -> cm
+    .alternateHeader).toMap
+  override val titleRow = columnsToKeep.map(i => {
+    alternateHeaderMap.get(i) match {
+      case Some(Some(s)) => if (s == "") table.header(i) else s
+      case _ => table.header(i)
+    }
+  })
+
+  private val filteredData = table.data.map(columnsToKeep collect _).toIndexedSeq
+  private val filteredFullContents = IndexedSeq(titleRow) ++ filteredData
+
+  override val contentMatrix = filteredData
+
+  override val fullContentTokenized: IndexedSeq[IndexedSeq[TokenizedCell]] =
+    filteredFullContents.map { row =>
+      row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
+    }
+
 }
