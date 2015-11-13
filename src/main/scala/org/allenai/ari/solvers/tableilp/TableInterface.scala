@@ -44,6 +44,14 @@ object DatastoreExport {
   */
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
+  private val ignoreList = {
+    if (params.useTablestoreFormat) {
+      params.ignoreListTablestore
+    } else {
+      params.ignoreList
+    }
+  }
+
   private def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
     val csvReader = new CSVReader(reader)
     csvReader.readAll.asScala.map(_.toSeq)
@@ -73,7 +81,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
       for {
         table <- datastoreTables
-        if !params.ignoreListTablestore.contains(table.metadata.id.get)
+        if !ignoreList.contains(table.metadata.id.get)
       } yield new TableWithMetadata(table, tokenizer)
     } else {
       val folder = if (params.useLocal) {
@@ -106,7 +114,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
 
   /** a sequence of table indices to ignore */
-  logger.info("Ignoring table IDs " + params.ignoreList.toString())
+  logger.info("Ignoring table IDs " + ignoreList.toString())
 
   if (params.useCachedTablesForQuestion) {
     logger.info(s"Using CACHED tables for questions from ${params.questionToTablesCache}")
@@ -130,7 +138,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     mapData.map { row =>
       val trimmedQuestion = row(1).trim
       val tableIds = hyphenSep.split(row(2)).map(_.toInt).toSeq
-      trimmedQuestion -> tableIds.diff(params.ignoreList)
+      trimmedQuestion -> tableIds.diff(ignoreList)
     }.toMap
   }
 
@@ -161,7 +169,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** Get a subset of tables relevant for a given question, by using salience, etc. */
   private def getRankedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
-    val scoreIndexPairs = allTables.indices.diff(params.ignoreList).map { tableIdx =>
+    val scoreIndexPairs = allTables.indices.diff(ignoreList).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
     if (!params.useRankThreshold) {
