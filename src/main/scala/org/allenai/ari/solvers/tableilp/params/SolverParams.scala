@@ -21,9 +21,9 @@ class SolverParams @Inject() (
 /** An object to capture the default ILP model parameters */
 object SolverParams {
   val Default = new SolverParams(
-    useFallbackSolver = true,
+    useFallbackSolver = false,
     useFallbackSolverCompId = true,
-    useRedisCache = true,
+    useRedisCache = false,
     fullTablesInIlpSolution = false
   )
 }
