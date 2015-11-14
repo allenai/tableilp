@@ -54,18 +54,16 @@ class TableWithMetadata(table: DatastoreTable, tokenizer: KeywordTokenizer) exte
   private val fillerColumns = table.columnMetadata.filter(_.isFiller).map(_.columnNumber)
   private val columnsToKeep = table.header.indices.diff(shouldIgnoreColumns ++ fillerColumns)
 
-  private val columnsToKeepToFinalIndexMap = columnsToKeep.zipWithIndex.map {
-    case (col, i) => col -> i
-  }.toMap
+  private val columnsToKeepToFinalIndexMap = columnsToKeep.zipWithIndex.toMap
   override val keyColumns = table.columnMetadata.filter(_.isImportant).map {
-    cm => columnsToKeepToFinalIndexMap.get(cm.columnNumber).get
+    cm => columnsToKeepToFinalIndexMap(cm.columnNumber)
   }
 
   private val alternateHeaderMap = table.columnMetadata.map(cm => cm.columnNumber -> cm
     .alternateHeader).toMap
   override val titleRow = columnsToKeep.map(i => {
     alternateHeaderMap.get(i) match {
-      case Some(Some(s)) => if (s == "") table.header(i) else s
+      case Some(Some(s)) if (s != "") => s
       case _ => table.header(i)
     }
   })
