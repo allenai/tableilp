@@ -439,10 +439,8 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     }
   }
 
-  /** Free up SCIP data structures */
-  def free(): Unit = {
-    env.free(scip)
-  }
+  /** Explicitly free up SCIP data structures */
+  def free(): Unit = env.free(scip)
 
   /** Creates and captures a linear constraint in its most basic version; all constraint flags are
     * set to their basic value as explained for the method SCIPcreateConsLinear(); all flags can
