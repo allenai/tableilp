@@ -108,8 +108,12 @@ class TableIlpSolver @Inject() (
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize")
           val allVariables = ilpModel.buildModel(questionIlp)
           val tablesUsed = tableIdsWithScores.map { case (t, _) => tableInterface.allTables(t) }
-          solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp, tablesUsed,
-            Seq.empty, Set.empty)
+          // solve for all answer choices, obtaining a sequence of solutions
+          val solutions = solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
+            tablesUsed, Seq.empty, Set.empty)
+          // free up SCIP data structures
+          ilpSolver.free()
+          solutions
         } else {
           Seq(IlpSolutionFactory.makeRandomIlpSolution)
         }
