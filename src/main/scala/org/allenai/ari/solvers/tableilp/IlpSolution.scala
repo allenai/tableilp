@@ -172,11 +172,13 @@ object IlpSolutionFactory extends Logging {
   private val alignmentThreshold = 1d - Utils.eps
 
   /** Convert ILP objective value into a solver score. The result will be a double that is no
-    * smaller than 1 (to differentiate from the default score when so ILP solution is found) and
+    * smaller than 1 (to differentiate from the default score when no ILP solution is found) and
     * typically between 5 and 30. The higher the better. Note that the raw ILP objective value can
     * be negative. A shift by 10 helps alleviate this.
     */
-  private def ilpObjectiveToScore(objValue: Double) = Math.max(1d, objValue + 10d)
+  private val minScore = 1d
+  private val scoreShift = 10d
+  private def ilpObjectiveToScore(objValue: Double) = Math.max(minScore, objValue + scoreShift)
 
   /** Process the solution found by SCIP to deduce the selected answer and its score.
     *
