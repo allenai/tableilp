@@ -1,0 +1,38 @@
+// Eric updated to use Tablestore IDs instead of csv file names
+// updated column indices to include filler rows
+
+// REGENTS TABLES
+
+// geography
+2,0,3,1      // hemisphere in tables 02 and 03
+3,0,4,2      // name of country in tables 03 and 04
+
+// astronomy
+1,0,2,1      // orbital event names in tables 01 and 02
+20,2,21,0      // orbital time period in tables 22 and 23
+
+// TODO(ericgribkoff) verify IDs once added to real tablestore
+// adaptation, characteristics
+41,1,42,0    // adaptation in tables z11 and z12
+
+// devices, tools
+13,0,17,0      // device/tool in tables 15 and 19
+
+// TODO(ericgribkoff) verify IDs once added to real tablestore
+// forces, energies, resources
+43,0,44,1    // resource in tables z25 and z26
+43,0,40,1     // resource in table z25 and energy source in table 43
+18,0,40,1      // energy/force in table 20 and energy source in table 43
+7,1,18,0      // input energy in table 07 and energy/force in table 20
+//TODO(ericgribkoff) 07.csv or 08.csv??
+7,1,18,0      // output energy in table 07 and energy/force in table 20
+
+// MONARCH TABLES
+
+// biology
+45,0,56,1      // organ in tables 1 and 14
+60,0,63,0     // organism in tables 18 and 23
+
+// physics
+54,0,57,0     // material in tables 11 and 15
+50,0,58,0      // force in tables 6 and 16
