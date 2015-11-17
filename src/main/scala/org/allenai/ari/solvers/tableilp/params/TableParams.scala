@@ -4,6 +4,8 @@ import com.google.inject.Inject
 import com.google.inject.name.Named
 import com.typesafe.config.{ ConfigFactory, Config }
 
+import scala.collection.JavaConverters._
+
 /** Various parameters related to knowledge tables.
   *
   * @param useLocal whether to read tables from a local folder or from Datastore
@@ -58,16 +60,18 @@ class TableParams @Inject() (
 
 /** An object to capture the default knowledge table parameters */
 object TableParams {
+  val tablestoreConfigMap = Map("datastore" -> "private", "group" -> "tablestore-dev",
+    "name" -> "metadataILP.json", "version" -> "3")
   val Default = new TableParams(
-    useLocal = true,
-    localFolder = "data/SampleTables",
+    useLocal = false,
+    localFolder = "",
     datastoreFolderConfig = ConfigFactory.empty(),
-    useTablestoreFormat = false,
+    useTablestoreFormat = true,
     localTablestoreFile = "",
-    datastoreTablestoreConfig = ConfigFactory.empty(),
-    ignoreListStr = "15",
-    ignoreListTablestoreStr = "",
-    maxTablesPerQuestion = 4,
+    datastoreTablestoreConfig = ConfigFactory.parseMap(tablestoreConfigMap.asJava),
+    ignoreListStr = "",
+    ignoreListTablestoreStr = "16,70,71,72,73",
+    maxTablesPerQuestion = 1,
     questionToTablesCache = "",
     useCachedTablesForQuestion = false,
     rankThreshold = 0.25d,
