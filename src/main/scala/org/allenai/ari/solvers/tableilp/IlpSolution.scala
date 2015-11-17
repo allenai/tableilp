@@ -114,7 +114,8 @@ object TimingStats {
   * alignments, solution quality stats, and timing stats.
   *
   * @param bestChoice The best choice determined by the ILP model
-  * @param bestChoiceScore The score for the best choice (the ILP objective value)
+  * @param bestChoiceScore The score for the best choice, derived from the ILP objective value
+  *   using method IlpSolutionFactory.ilpObjectiveToScore()
   * @param tableAlignments A sequence of alignment information, one per table
   * @param questionAlignment Alignments for the question (including constituents and choices)
   */
@@ -170,6 +171,13 @@ object IlpSolutionFactory extends Logging {
   /** config: a threshold above which alignment is considered active */
   private val alignmentThreshold = 1d - Utils.eps
 
+  /** Convert ILP objective value into a solver score. The result will be a double that is no
+    * smaller than 1 (to differentiate from the default score when so ILP solution is found) and
+    * typically between 5 and 30. The higher the better. Note that the raw ILP objective value can
+    * be negative. A shift by 10 helps alleviate this.
+    */
+  private def ilpObjectiveToScore(objValue: Double) = Math.max(1d, objValue + 10d)
+
   /** Process the solution found by SCIP to deduce the selected answer and its score.
     *
     * @param allVariables all core decision variables in the ILP model
@@ -180,7 +188,7 @@ object IlpSolutionFactory extends Logging {
     val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
     // adjust for floating point differences
     val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 >= 1d - Utils.eps) match {
-      case Some((choiceIdx, _)) => (choiceIdx, ilpSolver.getPrimalbound)
+      case Some((choiceIdx, _)) => (choiceIdx, ilpObjectiveToScore(ilpSolver.getPrimalbound))
       case None => (0, 0d) // the default, helpful for debugging
     }
     (bestChoice, bestChoiceScore)
@@ -361,8 +369,8 @@ object IlpSolutionFactory extends Logging {
     }
 
     // return the alignment solution
-    IlpSolution(bestChoice, bestChoiceScore, activeTableAlignments, questionAlignment, solutionQuality,
-      problemStats, searchStats, timingStats, alignmentIdToScore)
+    IlpSolution(bestChoice, bestChoiceScore, activeTableAlignments, questionAlignment,
+      solutionQuality, problemStats, searchStats, timingStats, alignmentIdToScore)
   }
 
   /** Object to generate random values */
