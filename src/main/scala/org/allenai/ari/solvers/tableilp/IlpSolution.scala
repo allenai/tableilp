@@ -158,12 +158,6 @@ object IlpSolution extends DefaultJsonProtocol with Logging {
   implicit val searchStatsJsonFormat = jsonFormat3(SearchStats.apply)
   implicit val timingStatsJsonFormat = jsonFormat4(TimingStats.apply)
   implicit val ilpSolutionJsonFormat = jsonFormat9(IlpSolution.apply)
-
-  /** Main method to test a sample alignment solution */
-  def main(args: Array[String]) {
-    val ilpSolution = IlpSolutionFactory.makeRandomIlpSolution
-    logger.debug(ilpSolution.toJson.toString())
-  }
 }
 
 /** A container object to generate IlpSolution object based on the ILP model output */

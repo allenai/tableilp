@@ -25,12 +25,8 @@ object TableQuestionFactory extends Logging {
   private val spaceSep = " ".r
   private val defaultSplittingType = "SpaceSplit"
 
-  def makeQuestion(questionRaw: String): TableQuestion = {
-    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty)
-  }
-
-  def makeQuestion(questionCons: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty)
+  def makeQuestion(questionCons: Seq[String], choices: Seq[String]): TableQuestion = {
+    TableQuestion("", questionCons.toIndexedSeq, choices.toIndexedSeq)
   }
 
   def makeQuestion(aristoQuestion: Question): TableQuestion = {

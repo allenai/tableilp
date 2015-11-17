@@ -1,36 +1,23 @@
 package org.allenai.ari.solvers.tableilp.ilpsolver
 
-import org.allenai.common.Logging
+import org.allenai.common.testkit.UnitSpec
 
-/** An example of invoking the SCIP ILP solver from the Scala project.
-  */
-object ScipExample extends Logging {
-
-  /** Main method to run an ILP model from the command line. */
-  def main(args: Array[String]): Unit = {
-    val scipSolver = new ScipInterface("example", ScipParams.Default)
-    val varsOfInterest = buildModel(scipSolver)
-    scipSolver.solve()
-    scipSolver.printResult(varsOfInterest)
-  }
+class ScipInterfaceSpec extends UnitSpec {
 
   /** Build a simple ILP model: x0 + 2*x1 <= 2, objective function: - x0 - x1.
     *
     * @param scipSolver a ScipInterface object
     * @return a seq of (a subset of) variables of interest whose values may be queried later
     */
-  private def buildModel(scipSolver: ScipInterface): Seq[Long] = {
-    // create a seq of variables
-    val nvars = 2
-
+  private def buildSimpleModel(scipSolver: ScipInterface): Seq[Long] = {
     // create binary variables
+    val nvars = 2
     val vars = for {
       i <- 0 until nvars
       name = s"x$i"
       objCoeff = -1d
       x = scipSolver.createBinaryVar(name, objCoeff)
     } yield {
-      logger.debug(s"created variable $name with pointer $x")
       scipSolver.addVar(x)
       x
     }
@@ -46,4 +33,22 @@ object ScipExample extends Logging {
     // return vars of interest
     varsOfInterest
   }
+
+  "scipSolver" should "solve a simple ILP program correctly" in {
+    val scipParams = new ScipParams(10d, "scip.log", messagehdlrQuiet = true, 0)
+    val scipSolver = new ScipInterface("example", scipParams)
+    val varsOfInterest = buildSimpleModel(scipSolver)
+    scipSolver.solve()
+
+    // retrieve solution
+    val primalBound = scipSolver.getPrimalbound
+    val dualBound = scipSolver.getDualbound
+    val solutionVals = scipSolver.getSolVals(varsOfInterest)
+
+    // check solution
+    primalBound should equal(dualBound)
+    assert(primalBound === -1d +- 1e-4)
+    assert(solutionVals === Seq(0d))
+  }
+
 }
