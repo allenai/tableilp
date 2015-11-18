@@ -35,13 +35,17 @@ class IlpSolverSpec extends UnitSpec {
     (choice, score)
   }
 
-  "ILP solver" should "solve the question correctly in" in {
+  "ILP solver" should "solve a sample question correctly in" in {
     // "Which characteristic can a human offspring inherit? (A) borken leg  (B) blue eyes"
     val questionText = "Which characteristic can a human offspring inherit?"
     val questionChunks = tokenizer.keywordTokenize(questionText)
     val choices = Seq("broken leg", "blue eyes")
+
+    // select matching tables and try to answer the question
     val tableIds = tableInterface.getTableIdsForQuestion(questionText).take(1)
     val (choice, score) = solve(questionChunks, choices, tableIds)
+
+    // check that the correct answer was obtained
     choice should be(1)
     assert(score === 11.6945 +- 1e-4)
   }
