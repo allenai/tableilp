@@ -64,8 +64,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val file = new File(params.localTablestoreFile)
         val dataString = Source.fromFile(file).getLines().mkString("\n")
         import DefaultJsonProtocol._
-        val t = dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
-        t
+        dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
       } else {
         val config: Config = params.datastoreTablestoreConfig
         val datastoreName = config.getString("datastore")
@@ -78,7 +77,6 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
         datastoreExport.tables
       }
-
       for {
         table <- datastoreTables
         if !ignoreList.contains(table.metadata.id.get)
@@ -103,7 +101,6 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         new Table(file.getName, getFullContentsFromCsvFile(new FileReader(file)), tokenizer)
       }).toIndexedSeq
     }
-
   }
 
   val allTables = getAllTables()

@@ -12,11 +12,15 @@ class IlpSolverSpec extends UnitSpec {
   private val scipParams = new ScipParams(10d, "scip.log", messagehdlrQuiet = true, 0)
   private val ilpParams = IlpParams.Default
   private val weights = IlpWeights.Default
-  private val tableParams = TableParams.Default
-  private val tableInterface = new TableInterface(tableParams, tokenizer)
+
+  // create simple word overlap based aligner
   private val alignmentType = "WordOverlap"
   private val aligner = new AlignmentFunction(alignmentType, None, ilpParams.entailmentScoreOffset,
     tokenizer, useRedisCache = false)
+
+  // create sample tables from local CSV files
+  private val tableParams = TableParams.Default
+  private val tableInterface = new TableInterface(tableParams, tokenizer)
 
   /** solve a question and return selected answer choice with score */
   private def solve(questionChunks: Seq[String], choices: Seq[String],
@@ -47,6 +51,6 @@ class IlpSolverSpec extends UnitSpec {
 
     // check that the correct answer was obtained
     choice should be(1)
-    assert(score === 11.6945 +- 1e-4)
+    assert(score === 10.6494 +- 1e-4)
   }
 }
