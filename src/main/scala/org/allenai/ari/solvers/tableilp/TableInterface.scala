@@ -71,7 +71,9 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val group = config.getString("group")
         val name = config.getString("name")
         val version = config.getInt("version")
-        logger.info(s"Loading tables from tablestore $datastoreName datastore,$group/$name-v$version")
+        logger.info(
+          s"Loading tables from tablestore $datastoreName datastore,$group/$name-v$version"
+        )
         val file = Datastore(datastoreName).filePath(group, name, version).toFile
         val dataString = Source.fromFile(file).getLines().mkString("\n")
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]

@@ -6,7 +6,8 @@ import org.allenai.common.Logging
 
 case class TokenizedCell(values: Seq[String])
 
-class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: KeywordTokenizer) extends Logging {
+class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: KeywordTokenizer)
+    extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
   private val ignoreTableColumnFillers: Boolean = true
   // config: ignore columns whose title starts with the word SKIP
