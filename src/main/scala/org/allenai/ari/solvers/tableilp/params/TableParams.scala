@@ -41,7 +41,9 @@ class TableParams @Inject() (
     @Named("tables.rankThreshold") val rankThreshold: Double,
     @Named("tables.useRankThreshold") val useRankThreshold: Boolean,
     @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String,
-    @Named("tables.allowedTablestoreColumnAlignmentsFile") val allowedTablestoreColumnAlignmentsFile: String
+    @Named(
+      "tables.allowedTablestoreColumnAlignmentsFile"
+    ) val allowedTablestoreColumnAlignmentsFile: String
 ) {
   val commaSep = ",".r
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
