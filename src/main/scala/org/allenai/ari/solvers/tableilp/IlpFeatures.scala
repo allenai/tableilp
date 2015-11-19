@@ -93,7 +93,8 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
       0d
     }
 
-    // collect all computed features into a map
+    // collect all computed features into a map; for number of variables, LP iterations, etc., use
+    // log of the value shifted by 1 (to account for value = 0); for search nodes, use log base 2.
     val localMap: Map[String, Double] = Map(
       "numTablesUsed" -> numTablesUsed,
       "numActiveCells" -> numActiveCells,
@@ -109,11 +110,11 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
       "avgQConsAlignmentScore" -> avgQConsAlignmentScore,
       "netQChoiceAlignmentScore" -> allQChoiceAlignmentScores.sum,
       "avgQChoiceAlignmentScore" -> avgQChoiceAlignmentScore,
-      "numVariables" -> ilpSolution.problemStats.nVars,
-      "numConstraints" -> ilpSolution.problemStats.nCons,
-      "numSearchNodes" -> ilpSolution.searchStats.nNodes,
-      "numLPIterations" -> ilpSolution.searchStats.nLPIterations,
-      "maxSearchDepth" -> ilpSolution.searchStats.maxDepth
+      "logVariables" -> math.log1p(ilpSolution.problemStats.nVars),
+      "logConstraints" -> math.log1p(ilpSolution.problemStats.nCons),
+      "log2SearchNodes" -> math.log1p(ilpSolution.searchStats.nNodes) / math.log(2),
+      "logLPIterations" -> math.log1p(ilpSolution.searchStats.nLPIterations),
+      "logMaxSearchDepth" -> math.log1p(ilpSolution.searchStats.maxDepth)
     )
     logger.debug("features: " + localMap.toString)
 
