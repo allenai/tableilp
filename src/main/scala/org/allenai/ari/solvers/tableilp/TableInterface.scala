@@ -30,6 +30,20 @@ case class AllowedColumnAlignment(
   col2Idx: Int
 )
 
+/** A structure to store the relation schema of a table as binary relations between the columns in
+  * the table.
+  * @param tableName Name of the table
+  * @param col1Idx Column index of argument 1 of the relation
+  * @param col2Idx Column index of argument 2 of the relation
+  * @param relation Name of the relation
+  */
+case class RelationMatch(
+  tableName: String,
+  col1Idx: Int,
+  col2Idx: Int,
+  relation: String
+)
+
 // TODO(ericgribkoff) Copied from tables/, refactor out to models/
 case class DatastoreExport(tables: IndexedSeq[DatastoreTable], description: String)
 object DatastoreExport {
@@ -123,6 +137,13 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** pairs of columns (in two tables) that are allowed to be aligned */
   val allowedColumnAlignments: Seq[AllowedColumnAlignment] = readAllowedColumnAlignments()
+
+  /** Read the relations between the columns in a table. **/
+  val allowedRelations: Seq[RelationMatch] = readAllowedRelations()
+
+  /** Read the regex patterns for the relations described in allowedRelations **/
+  val relationToRepresentation: Map[String, Seq[String]] =
+    readRelationRepresentations(params.relationRepresentationFile)
 
   /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
     * format: question number (ignore), question text, hyphen-separated table IDs, other info
@@ -296,6 +317,51 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
       logger.debug(allowedAlignments.toString())
       allowedAlignments
+    }
+  }
+
+  private def readAllowedRelations(): Seq[RelationMatch] = {
+    val file = if (params.useTablestoreFormat) {
+      params.columnRelationsTablestoreFile
+    } else {
+      params.columnRelationsFile
+    }
+    if (file.isEmpty) {
+      Seq.empty
+    } else {
+      val csvReader = new CSVReader(Utils.getResourceAsReader(file))
+      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      fullContents.flatMap {
+        line =>
+          if (line.size > 1 && !line.head.startsWith("//")) {
+            assert(line.size == 4, s"Expected four columns in ${line.mkString(",")}")
+            if (allTableNames.contains(line(0))) {
+              Some(RelationMatch(line(0), line(1).toInt, line(2).toInt, line(3)))
+            } else {
+              None
+            }
+          } else {
+            None
+          }
+      }
+    }
+  }
+
+  private def readRelationRepresentations(file: String): Map[String, Seq[String]] = {
+    if (file.isEmpty) {
+      Map.empty
+    } else {
+      val csvReader = new CSVReader(Utils.getResourceAsReader(file))
+      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      val predicateRepresentations = fullContents.flatMap { line =>
+        if (line.size > 1 && !line.head.startsWith("//")) {
+          assert(line.size == 2, s"Expected two columns in ${line.mkString(",")}")
+          Some((line(0), line(1)))
+        } else {
+          None
+        }
+      }
+      Utils.toMapUsingGroupByFirst(predicateRepresentations)
     }
   }
 }

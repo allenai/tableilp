@@ -1,5 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
+import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.ilpsolver.ScipInterface
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights }
 import org.allenai.common.Logging
@@ -222,7 +223,8 @@ class IlpModel(
 
     // return all variables
     AllVariables(intraTableVariables, interTableVariables,
-      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, Map.empty)
+      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty,
+      Map.empty)
   }
 
   /** Create question dependent variables.
@@ -240,6 +242,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
+      if KeywordTokenizer.Default.isKeyword(qCons)
       table = tables(tableIdx)
       rowIdx <- table.contentMatrix.indices
       row = tables(tableIdx).contentMatrix(rowIdx)
@@ -251,6 +254,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
+      if KeywordTokenizer.Default.isKeyword(qCons)
       table = tables(tableIdx)
       colIdx <- table.titleRow.indices
       x <- addQuestionTitleVariable(qCons, qConsIdx, tableIdx, colIdx)
@@ -273,6 +277,72 @@ class IlpModel(
       colIdx <- table.titleRow.indices
       x <- addQChoiceTitleVariable(qChoiceCons, qChoiceIdx, tableIdx, colIdx)
     } yield x
+
+    // If relation matching enabled, create the relation match variables
+    val relationMatchVariables: Seq[RelationMatchVariable] = if (ilpParams.requireRelationMatch) {
+      val relationPatternMatches = for {
+        // Iterate through all the allowed table relations
+        matchRelation <- tableInterface.allowedRelations
+        // If this table has been selected
+        if (tableNameToIdx.contains(matchRelation.tableName))
+        tableIdx = tableNameToIdx(matchRelation.tableName)
+        patterns = tableInterface.relationToRepresentation(matchRelation.relation)
+        // For all the patterns for this relation
+        pattern <- patterns
+        if pattern.nonEmpty
+        // Argument order is flipped, if it ends with -1
+        flipped = pattern.endsWith("-1")
+        // TODO(tushar) Optimize this code to prevent duplicate regex creation and matching for
+        // shared relations across tables
+        patReg = pattern.stripSuffix("-1").r
+        // For all the matches to this pattern
+        matchStr <- patReg.findAllMatchIn(question.questionRaw)
+      } yield {
+        logger.debug("Found a match for " + matchRelation.relation + " at " + matchStr)
+        // TODO(tushar): Make the coefficient configurable
+        addRelationVariable(tableIdx, matchRelation.col1Idx,
+          matchRelation.col2Idx, matchStr.start, matchStr.end, 0.2, flipped)
+      }
+      // If a relation has an empty pattern,it may not have a clear expression in text,
+      // e.g., performs("fox", "hunts food") would appear as "... fox hunts food ... " in the
+      // question. Create a variable with (-1, -1) offsets to indicate any match with the
+      // question is allowed but no change in the ILP objective (0.0 coeff). If there is no empty
+      // pattern associated with a relation, penalize arbitrary matches to the quesion with a
+      // coefficient of -5.
+      val relationEmptyPatterns = for {
+        // Iterate through all the patterns
+        matchRelation <- tableInterface.allowedRelations
+        // If this table has been selected
+        if (tableNameToIdx.contains(matchRelation.tableName))
+        tableIdx = tableNameToIdx(matchRelation.tableName)
+        patterns = tableInterface.relationToRepresentation(matchRelation.relation)
+        // TODO(tushar): Make the coefficients configurable
+        weight = if (patterns.contains("")) {
+          0.0
+        } else {
+          -5.0
+        }
+      } yield {
+        logger.debug("Used the empty pattern for " + matchRelation.relation)
+        addRelationVariable(tableIdx, matchRelation.col1Idx,
+          matchRelation.col2Idx, -1, -1, weight, false)
+      }
+      // If the table has no defined relations, all alignments are acceptable for this table.
+      val tablesWithoutDefinedRelations = tableNameToIdx.keySet.diff(
+        tableInterface.allowedRelations.map(_.tableName).toSet
+      )
+      val noRelationDefined = for {
+        tableName <- tablesWithoutDefinedRelations
+        tableIdx = tableNameToIdx(tableName)
+        col1 <- tables(tableIdx).titleRow.indices
+        col2 <- tables(tableIdx).titleRow.indices
+        if (col1 != col2)
+      } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, false)
+
+      relationPatternMatches ++ relationEmptyPatterns ++ noRelationDefined
+    } else {
+      Seq.empty
+    }
 
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
@@ -297,7 +367,7 @@ class IlpModel(
     // return all variables
     AllVariables(existingAllVars.intraTableVariables, existingAllVars.interTableVariables,
       questionTableVariables, questionTitleVariables, qChoiceTableVariables, qChoiceTitleVariables,
-      activeChoiceVars)
+      relationMatchVariables.toIndexedSeq, activeChoiceVars)
   }
 
   /** The main method to build the question dependent aspects of the ILP model.
@@ -388,6 +458,22 @@ class IlpModel(
     val questionToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpQuestionToTableVars ++
       tmpQuestionToTitleVars)
 
+    val tmpColToRelationVar = Utils.toMapUsingGroupByFirst(
+      // Add col1 -> relVar and col2 -> relVar to the map
+      allVars.relationVariables.flatMap(relVar =>
+        Seq(
+          ((relVar.tableIdx, relVar.col1Idx), relVar),
+          ((relVar.tableIdx, relVar.col2Idx), relVar)
+        ))
+    )
+
+    // A map from a cell to questionTable variables associated with it
+    val cellToQuestionTableVar = allVars.questionTableVariables.map {
+      case y @ QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
+        CellIdx(tableIdx, rowIdx, colIdx) -> y
+    }
+    val cellToQuestionTableVarMap = Utils.toMapUsingGroupByFirst(cellToQuestionTableVar)
+
     // add question dependent activity constraints
     // NOTE: this MUST be the very first use of activeCellVars, as it alters this mutable.Map
     tables.indices.foreach { tableIdx =>
@@ -434,6 +520,9 @@ class IlpModel(
                   activeCellVar, extAlignmentVarsForCell, 1d
                 )
               }
+              // a cell may not align to more than K cells
+              ilpSolver.addConsAtMostK("cellAtMostK", extAlignmentVarsForCell,
+                weights.maxAlignmentsPerCell)
             }
             case None => {
               // remove this variable from the activeCellVars mutable.Map, as it can never be 1
@@ -462,6 +551,104 @@ class IlpModel(
         }
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
+        }
+      }
+      // NOTE: this MUST be the very first use of activeColVars, as it alters this mutable.Map
+      // non-redundant use of tables: if a col is active, at least ONE of its cells must be
+      // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
+      // 0 <= sum(activeCellVarsInCol) - 1*activeColVar
+      table.titleRow.indices.foreach { colIdx =>
+        val activeColVar = activeColVars((tableIdx, colIdx))
+        val activeCellVarsInCol = for {
+          rowIdx <- table.contentMatrix.indices
+          cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+          activeCellVar <- activeCellVars.get(cellIdx)
+        } yield activeCellVar
+        val minActiveCellsPerCol = 1
+        if (activeCellVarsInCol.size >= minActiveCellsPerCol) {
+          // add activeColVar to IlpSolver; while the variable was created much earlier, its
+          // addition to the solver had been delayed as it is contingent upon potential enough cells
+          // in the column being active; without such potential activity, this variable has no use
+          ilpSolver.addVar(activeColVar)
+          activeCellVarsInCol.foreach { activeCellVar =>
+            // if any activeCellVar for a column is 1, make the corresponding activeColVar be 1
+            val activeColVar = activeColVars((tableIdx, colIdx))
+            ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
+          }
+          ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
+            activeCellVarsInCol, 1d)
+        } else {
+          // remove this variable from the activeColVars mutable.Map, as it can never be 1
+          activeColVars.remove((tableIdx, colIdx))
+          // make the cells in this column inactive
+          activeCellVarsInCol.foreach(ilpSolver.chgVarUb(_, 0d))
+        }
+      }
+
+      // If relation matching is required
+      if (ilpParams.requireRelationMatch) {
+        table.titleRow.indices.foreach { colIdx =>
+          // If column is active, there must exist a relation that is active
+          if (activeColVars.contains((tableIdx, colIdx))) {
+            val activeColVar = activeColVars((tableIdx, colIdx))
+            // If there is a relation variable associated with this column
+            if (tmpColToRelationVar.contains((tableIdx, colIdx))) {
+              val relationVarsForCol = tmpColToRelationVar((tableIdx, colIdx)).map(_.variable)
+              relationVarsForCol.foreach { relVar =>
+                // if any relationVar is 1, make the corresponding activeColVar be 1
+                ilpSolver.addConsXLeqY("activeCol", relVar, activeColVar)
+              }
+              // If a column is active, at least one of the relation variables must be active
+              ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneRelation", activeColVar,
+                relationVarsForCol, 1d)
+              // Use the position of the matched pattern to disable alignments of the cells in
+              // this column with question constituents inconsistent with the pattern. Only
+              // possible to do if we have offsets for the question constituents
+              if (question.questionConsOffsets.isEmpty) {
+                logger.error("Offsets for question constituents needed for relation matching!")
+              } else {
+                for {
+                  rowIdx <- table.contentMatrix.indices
+                  cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+                  relVar <- tmpColToRelationVar((tableIdx, colIdx))
+                  // If the start and end indices are set to -1, all alignments of the cell are
+                  // allowed. This is used to handle relations whose expression in the question is
+                  // difficult to determine, e.g. X performs Y
+                  if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
+                  // Should the entries in the columns appear before the pattern, e.g., partOf(X, Y)
+                  // should match X with a question constituent before the "is part of" pattern
+                  // Using XOR to easily check for this
+                  isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
+                  qTableVars <- cellToQuestionTableVarMap.get(cellIdx)
+                  (_, invalidAlign) = qTableVars.partition(qVar => if (isPrefix) {
+                    question.questionConsOffsets(qVar.qConsIdx) < relVar.qMatchStart
+                  } else {
+                    question.questionConsOffsets(qVar.qConsIdx) > relVar.qMatchEnd
+                  })
+                } yield {
+                  logger.trace("Disallowed alignments for " +
+                    s"${invalidAlign.map(_.qConsIdx).mkString(",")} with " +
+                    s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
+                    s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
+                  // The cell-qcons alignment and relation pattern match both can not be true.
+                  invalidAlign.map(inv => ilpSolver.addConsAtMostK(
+                    "disableQAlign",
+                    Seq(inv.variable, relVar.variable), 1
+                  ))
+                }
+              }
+            } else {
+              // No relation variable associated with this column => column can not be active
+              logger.debug("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
+              ilpSolver.addConsAtMostK("disableColVar", Seq(activeColVar), 0)
+            }
+          } else {
+            // If column is inactive, relations associated with column can't be active
+            tmpColToRelationVar.get((tableIdx, colIdx)).map { relationVars =>
+              logger.debug("Disabling relation vars: " + relationVars.mkString(","))
+              ilpSolver.addConsAtMostK("disableRelVar", relationVars.map(_.variable), 0)
+            }
+          }
         }
       }
     }
@@ -549,6 +736,12 @@ class IlpModel(
     // A map from qCons alignment variable to the question constituent index
     val qConsVarToQIdx = tmpQuestionToTableVars.map { case (qIdx, x) => x -> qIdx.qConsIdx }.toMap
 
+    // To calculate the distances ignoring the stop words, create a map from
+    // question constituent index to position in sentence ignoring the stop words
+    val qIdxToPos = question.questionCons.zipWithIndex.filter {
+      case (cons, idx) => KeywordTokenizer
+        .Default.isKeyword(cons)
+    }.map(_._2).zipWithIndex.toMap
     for {
       // Go through all question table variables
       qCons1QuestionTabVar <- questionTableVariables
@@ -558,10 +751,13 @@ class IlpModel(
       qCons2Var <- cellToQuestionAlignmentVarMap(qCons1CellIdx)
       qIdx1 = qCons1QuestionTabVar.qConsIdx
       qIdx2 = qConsVarToQIdx(qCons2Var)
-      if qIdx2 > qIdx1
+      // Get the position ignoring the stop words
+      qPos1 = qIdxToPos(qIdx1)
+      qPos2 = qIdxToPos(qIdx2)
+      if qPos2 > qPos1
       qCons1Var = qCons1QuestionTabVar.variable
     } {
-      if (qIdx2 - qIdx1 >= ilpParams.qConsCoalignMaxDist) {
+      if (qPos2 - qPos1 >= ilpParams.qConsCoalignMaxDist) {
         // Disallow aligning both qCons to the cell since they are too far apart
         ilpSolver.addConsAtMostOne("onlyNearbyQConsPerCell", Seq(qCons1Var, qCons2Var))
       } else {
@@ -570,7 +766,7 @@ class IlpModel(
           s"C=${qCons1QuestionTabVar.colIdx}-Q1=$qIdx1-Q2=$qIdx2"
         // Boost consecutive alignment with 1/(distance+1). The +1 is to prevent a high boost for
         // adjacent words compared to one word apart (1 -> 0.5 vs 0.5 -> 0.33).
-        val q1q2CellVar = createPossiblyRelaxedBinaryVar(varName, 1d / (qIdx2 - qIdx1 + 1d))
+        val q1q2CellVar = createPossiblyRelaxedBinaryVar(varName, 1d / (qPos2 - qPos1 + 1d))
         ilpSolver.addVar(q1q2CellVar)
         // q1q2 should be true only if both q1 and q2 align with this cell, i.e.
         // q1q2 = min(q1, q2) encoded as q1q2 <= q1 and q1q2 <= q2. q1q2 >= min(q1,q2) isn't needed
@@ -620,38 +816,6 @@ class IlpModel(
           activeRowVars.remove((tableIdx, rowIdx))
           // make the cells in this row inactive
           activeCellVarsInRow.foreach(ilpSolver.chgVarUb(_, 0d))
-        }
-      }
-
-      // NOTE: this MUST be the very first use of activeColVars, as it alters this mutable.Map
-      // non-redundant use of tables: if a col is active, at least ONE of its cells must be
-      // active; model as sum(activeCellVarsInCol) >= 1*activeColVar, i.e.,
-      // 0 <= sum(activeCellVarsInCol) - 1*activeColVar
-      table.titleRow.indices.foreach { colIdx =>
-        val activeColVar = activeColVars((tableIdx, colIdx))
-        val activeCellVarsInCol = for {
-          rowIdx <- table.contentMatrix.indices
-          cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
-          activeCellVar <- activeCellVars.get(cellIdx)
-        } yield activeCellVar
-        val minActiveCellsPerCol = 1
-        if (activeCellVarsInCol.size >= minActiveCellsPerCol) {
-          // add activeColVar to IlpSolver; while the variable was created much earlier, its
-          // addition to the solver had been delayed as it is contingent upon potential enough cells
-          // in the column being active; without such potential activity, this variable has no use
-          ilpSolver.addVar(activeColVar)
-          activeCellVarsInCol.foreach { activeCellVar =>
-            // if any activeCellVar for a column is 1, make the corresponding activeColVar be 1
-            val activeColVar = activeColVars((tableIdx, colIdx))
-            ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
-          }
-          ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
-            activeCellVarsInCol, 1d)
-        } else {
-          // remove this variable from the activeColVars mutable.Map, as it can never be 1
-          activeColVars.remove((tableIdx, colIdx))
-          // make the cells in this column inactive
-          activeCellVarsInCol.foreach(ilpSolver.chgVarUb(_, 0d))
         }
       }
 
@@ -837,6 +1001,15 @@ class IlpModel(
       ilpSolver.addVar(variable)
       Some(ChoiceTableVariable(qChoiceIdx, tableIdx, rowIdx, colIdx, variable))
     }
+  }
+
+  /** An internal method to add relation match in the question variable */
+  private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
+    matchStart: Int, matchEnd: Int, coeff: Double, flipped: Boolean): RelationMatchVariable = {
+    val name = s"T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd"
+    val variable = ilpSolver.createBinaryVar(name, coeff)
+    ilpSolver.addVar(variable)
+    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, flipped, variable)
   }
 
   private def createPossiblyRelaxedBinaryVar(name: String, objCoeff: Double): Long = {

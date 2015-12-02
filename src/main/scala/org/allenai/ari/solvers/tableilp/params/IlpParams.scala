@@ -14,7 +14,8 @@ import com.google.inject.name.Named
   * @param qConsCoalignMaxDist max distance between question chunks that may align to the same cell
   * @param keyColumnsMustMatch whether at least one KEY column must match when a table is used
   * @param useCachedTitleAlignmentFile whether to use the title alignment using the annotated
-  *                                    document containing the valid alignments .
+  * document containing the valid alignments
+  * @param requireRelationMatch require relations defined over tables to match the question
   */
 class IlpParams @Inject() (
   @Named("model.alignmentType") val alignmentType: String,
@@ -25,7 +26,8 @@ class IlpParams @Inject() (
   @Named("model.useRelaxedVars") val useRelaxedVars: Boolean,
   @Named("model.qConsCoalignMaxDist") val qConsCoalignMaxDist: Int,
   @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean,
-  @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean
+  @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean,
+  @Named("model.requireRelationMatch") val requireRelationMatch: Boolean
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -39,6 +41,7 @@ object IlpParams {
     useRelaxedVars = false,
     qConsCoalignMaxDist = 4,
     keyColumnsMustMatch = true,
-    useCachedTitleAlignmentFile = false
+    useCachedTitleAlignmentFile = false,
+    requireRelationMatch = false
   )
 }

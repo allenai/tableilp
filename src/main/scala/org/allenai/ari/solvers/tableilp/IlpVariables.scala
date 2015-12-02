@@ -17,6 +17,7 @@ case class AllVariables(
     questionTitleVariables: IndexedSeq[QuestionTitleVariable],
     qChoiceTableVariables: IndexedSeq[ChoiceTableVariable],
     qChoiceTitleVariables: IndexedSeq[ChoiceTitleVariable],
+    relationVariables: IndexedSeq[RelationMatchVariable],
     activeChoiceVars: Map[Int, Long]
 ) {
   def ++(that: AllVariables): AllVariables = {
@@ -27,6 +28,7 @@ case class AllVariables(
       questionTitleVariables ++ that.questionTitleVariables,
       qChoiceTableVariables ++ that.qChoiceTableVariables,
       qChoiceTitleVariables ++ that.qChoiceTitleVariables,
+      relationVariables ++ that.relationVariables,
       activeChoiceVars ++ that.activeChoiceVars
     )
   }
@@ -35,7 +37,7 @@ case class AllVariables(
     intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
       questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
       qChoiceTitleVariables.map(_.variable) ++ qChoiceTableVariables.map(_.variable) ++
-      activeChoiceVars.values
+      relationVariables.map(_.variable) ++ activeChoiceVars.values
   }
 }
 
@@ -132,5 +134,27 @@ case class ChoiceTitleVariable(
   qChoiceIdx: Int,
   tableIdx: Int,
   colIdx: Int,
+  variable: Long
+)
+
+/** Variables indicating potential representation of the relationship between two columns in a table
+  * found in the question
+  * @param tableIdx table index
+  * @param col1Idx column index of arg1 of the relation
+  * @param col2Idx column index of arg2 of the relation
+  * @param qMatchStart starting character offset of the pattern in the question. Set to -1, if
+  * no representation of relation in the question text.
+  * @param qMatchEnd ending character offset of the pattern in the question. Set to -1, if
+  * no representation of relation in the question text.
+  * @param flipped set to true if arg1(arg2) is expected to appear after(before) the pattern
+  * @param variable ILP variable
+  */
+case class RelationMatchVariable(
+  tableIdx: Int,
+  col1Idx: Int,
+  col2Idx: Int,
+  qMatchStart: Int,
+  qMatchEnd: Int,
+  flipped: Boolean,
   variable: Long
 )

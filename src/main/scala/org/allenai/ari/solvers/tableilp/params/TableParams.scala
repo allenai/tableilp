@@ -43,7 +43,10 @@ class TableParams @Inject() (
     @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String,
     @Named(
       "tables.allowedTablestoreColumnAlignmentsFile"
-    ) val allowedTablestoreColumnAlignmentsFile: String
+    ) val allowedTablestoreColumnAlignmentsFile: String,
+    @Named("tables.matchColumnRelationsFile") val columnRelationsFile: String,
+    @Named("tables.matchColumnRelationsTablestoreFile") val columnRelationsTablestoreFile: String,
+    @Named("tables.relationRepresentationFile") val relationRepresentationFile: String
 ) {
   val commaSep = ",".r
   val ignoreList: Seq[Int] = if (ignoreListStr == "") {
@@ -75,6 +78,9 @@ object TableParams {
     rankThreshold = 0.25d,
     useRankThreshold = false,
     allowedColumnAlignmentsFile = "",
-    allowedTablestoreColumnAlignmentsFile = ""
+    allowedTablestoreColumnAlignmentsFile = "",
+    columnRelationsFile = "",
+    columnRelationsTablestoreFile = "",
+    relationRepresentationFile = ""
   )
 }

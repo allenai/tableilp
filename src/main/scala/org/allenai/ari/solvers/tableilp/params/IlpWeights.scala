@@ -40,7 +40,9 @@ class IlpWeights @Inject() (
   @Named("weights.tableUsagePenalty") val tableUsagePenalty: Double,
   @Named("weights.rowUsagePenalty") val rowUsagePenalty: Double,
   @Named("weights.interTableAlignmentPenalty") val interTableAlignmentPenalty: Double,
-  @Named("weights.maxAlignmentsPerQCons") val maxAlignmentsPerQCons: Int
+  @Named("weights.maxAlignmentsPerQCons") val maxAlignmentsPerQCons: Int,
+  @Named("weights.maxAlignmentsPerCell") val maxAlignmentsPerCell: Int
+
 ) {}
 
 /** An object to capture the default weight settings */
@@ -63,6 +65,7 @@ object IlpWeights {
     tableUsagePenalty = 4d,
     rowUsagePenalty = 1d,
     interTableAlignmentPenalty = 1d,
-    maxAlignmentsPerQCons = 2
+    maxAlignmentsPerQCons = 2,
+    maxAlignmentsPerCell = 2
   )
 }

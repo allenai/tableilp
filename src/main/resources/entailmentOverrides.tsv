@@ -107,3 +107,7 @@ ground	EVENT	0.0
 look	viewing	0.75	// original score = 0.0
 form	person	0.0	// original score = 0.81 (Otter)
 ball	move	0.0	// original score = 0.5 (ball -> wind -> move)
+noise	duck	0.0
+sunlight	sun	0.5
+bird	make noise	0.0
+found	EVENT	0.0
