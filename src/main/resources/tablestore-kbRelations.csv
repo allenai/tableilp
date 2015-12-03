@@ -1,4 +1,4 @@
-// Relations between columns in the KB
+// Relations between columns in the KB,,,
 // Format: table id,column1,column2,relation name
 1,0,1,hasProperty
 23,0,1,typeOf
