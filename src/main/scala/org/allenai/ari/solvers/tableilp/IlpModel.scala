@@ -289,7 +289,7 @@ class IlpModel(
         relPatterns = tableInterface.relationToRepresentation(matchRelation.relation)
         // For all the patterns for this relation
         relPattern <- relPatterns
-        if relPattern != RelationPattern.Empty
+        if relPattern.pattern.regex.nonEmpty
         isFlipped = relPattern.isFlipped
         // TODO(tushar) Optimize this code to prevent duplicate regex matching for
         // shared relations across tables
@@ -314,15 +314,16 @@ class IlpModel(
         // If this table has been selected
         if (tableNameToIdx.contains(matchRelation.tableName))
         tableIdx = tableNameToIdx(matchRelation.tableName)
-        patterns = tableInterface.relationToRepresentation(matchRelation.relation)
+        patterns = tableInterface.relationToRepresentation(matchRelation.relation).map(_.pattern
+          .regex)
         // TODO(tushar): Make the coefficients configurable
-        weight = if (patterns.contains(RelationPattern.Empty)) {
+        weight = if (patterns.contains("")) {
+          logger.debug("Used the empty pattern for " + matchRelation.relation)
           weights.emptyRelationMatchCoeff
         } else {
           weights.noRelationMatchCoeff
         }
       } yield {
-        logger.debug("Used the empty pattern for " + matchRelation.relation)
         addRelationVariable(tableIdx, matchRelation.col1Idx,
           matchRelation.col2Idx, -1, -1, weight, false)
       }

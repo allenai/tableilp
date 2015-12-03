@@ -57,8 +57,6 @@ object RelationPattern {
     val pattern = string.stripSuffix("-1").r
     RelationPattern(pattern, isFlipped)
   }
-
-  val Empty: RelationPattern = RelationPattern("")
 }
 
 // TODO(ericgribkoff) Copied from tables/, refactor out to models/
