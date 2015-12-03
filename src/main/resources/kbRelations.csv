@@ -1,4 +1,4 @@
-// Relations between columns in the KB
+// Relations between columns in the KB,,,
 // Format: filename,column1,column2,relation name
 01.csv,0,1,hasProperty
 25&26.csv,0,1,typeOf

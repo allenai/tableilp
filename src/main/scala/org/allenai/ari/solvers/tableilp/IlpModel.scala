@@ -286,24 +286,23 @@ class IlpModel(
         // If this table has been selected
         if (tableNameToIdx.contains(matchRelation.tableName))
         tableIdx = tableNameToIdx(matchRelation.tableName)
-        patterns = tableInterface.relationToRepresentation(matchRelation.relation)
+        relPatterns = tableInterface.relationToRepresentation(matchRelation.relation)
         // For all the patterns for this relation
-        pattern <- patterns
-        if pattern.nonEmpty
-        // Argument order is flipped, if it ends with -1
-        flipped = pattern.endsWith("-1")
-        // TODO(tushar) Optimize this code to prevent duplicate regex creation and matching for
+        relPattern <- relPatterns
+        if relPattern != RelationPattern.Empty
+        isFlipped = relPattern.isFlipped
+        // TODO(tushar) Optimize this code to prevent duplicate regex matching for
         // shared relations across tables
-        patReg = pattern.stripSuffix("-1").r
+        patReg = relPattern.pattern
         // For all the matches to this pattern
         matchStr <- patReg.findAllMatchIn(question.questionRaw)
       } yield {
         logger.debug("Found a match for " + matchRelation.relation + " at " + matchStr)
         // TODO(tushar): Make the coefficient configurable
-        addRelationVariable(tableIdx, matchRelation.col1Idx,
-          matchRelation.col2Idx, matchStr.start, matchStr.end, 0.2, flipped)
+        addRelationVariable(tableIdx, matchRelation.col1Idx, matchRelation.col2Idx,
+          matchStr.start, matchStr.end, weights.relationMatchCoeff, isFlipped)
       }
-      // If a relation has an empty pattern,it may not have a clear expression in text,
+      // If a relation has an empty pattern, it may not have a clear expression in text,
       // e.g., performs("fox", "hunts food") would appear as "... fox hunts food ... " in the
       // question. Create a variable with (-1, -1) offsets to indicate any match with the
       // question is allowed but no change in the ILP objective (0.0 coeff). If there is no empty
@@ -317,10 +316,10 @@ class IlpModel(
         tableIdx = tableNameToIdx(matchRelation.tableName)
         patterns = tableInterface.relationToRepresentation(matchRelation.relation)
         // TODO(tushar): Make the coefficients configurable
-        weight = if (patterns.contains("")) {
-          0.0
+        weight = if (patterns.contains(RelationPattern.Empty)) {
+          weights.emptyRelationMatchCoeff
         } else {
-          -5.0
+          weights.noRelationMatchCoeff
         }
       } yield {
         logger.debug("Used the empty pattern for " + matchRelation.relation)
@@ -331,6 +330,8 @@ class IlpModel(
       val tablesWithoutDefinedRelations = tableNameToIdx.keySet.diff(
         tableInterface.allowedRelations.map(_.tableName).toSet
       )
+      // TODO(tushar) Create only one variable to indicate no relation matching required for
+      // these tables
       val noRelationDefined = for {
         tableName <- tablesWithoutDefinedRelations
         tableIdx = tableNameToIdx(tableName)
@@ -589,65 +590,66 @@ class IlpModel(
       if (ilpParams.requireRelationMatch) {
         table.titleRow.indices.foreach { colIdx =>
           // If column is active, there must exist a relation that is active
-          if (activeColVars.contains((tableIdx, colIdx))) {
-            val activeColVar = activeColVars((tableIdx, colIdx))
-            // If there is a relation variable associated with this column
-            if (tmpColToRelationVar.contains((tableIdx, colIdx))) {
-              val relationVarsForCol = tmpColToRelationVar((tableIdx, colIdx)).map(_.variable)
-              relationVarsForCol.foreach { relVar =>
-                // if any relationVar is 1, make the corresponding activeColVar be 1
-                ilpSolver.addConsXLeqY("activeCol", relVar, activeColVar)
-              }
-              // If a column is active, at least one of the relation variables must be active
-              ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneRelation", activeColVar,
-                relationVarsForCol, 1d)
-              // Use the position of the matched pattern to disable alignments of the cells in
-              // this column with question constituents inconsistent with the pattern. Only
-              // possible to do if we have offsets for the question constituents
-              if (question.questionConsOffsets.isEmpty) {
-                logger.error("Offsets for question constituents needed for relation matching!")
-              } else {
-                for {
-                  rowIdx <- table.contentMatrix.indices
-                  cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
-                  relVar <- tmpColToRelationVar((tableIdx, colIdx))
-                  // If the start and end indices are set to -1, all alignments of the cell are
-                  // allowed. This is used to handle relations whose expression in the question is
-                  // difficult to determine, e.g. X performs Y
-                  if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
-                  // Should the entries in the columns appear before the pattern, e.g., partOf(X, Y)
-                  // should match X with a question constituent before the "is part of" pattern
-                  // Using XOR to easily check for this
-                  isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
-                  qTableVars <- cellToQuestionTableVarMap.get(cellIdx)
-                  (_, invalidAlign) = qTableVars.partition(qVar => if (isPrefix) {
-                    question.questionConsOffsets(qVar.qConsIdx) < relVar.qMatchStart
+          activeColVars.get((tableIdx, colIdx)) match {
+            case Some(activeColVar) =>
+              // If there is a relation variable associated with this column
+              tmpColToRelationVar.get((tableIdx, colIdx)) match {
+                case Some(relationVarsForCol) =>
+                  val relationIlpVars = relationVarsForCol.map(_.variable)
+                  relationIlpVars.foreach { relVar =>
+                    // if any relationVar is 1, make the corresponding activeColVar be 1
+                    ilpSolver.addConsXLeqY("activeCol", relVar, activeColVar)
+                  }
+                  // If a column is active, at least one of the relation variables must be active
+                  ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneRelation", activeColVar,
+                    relationIlpVars, 1d)
+                  // Use the position of the matched pattern to disable alignments of the cells in
+                  // this column with question constituents inconsistent with the pattern. Only
+                  // possible to do if we have offsets for the question constituents
+                  if (question.questionConsOffsets.isEmpty) {
+                    logger.error("Offsets for question constituents needed for relation matching!")
                   } else {
-                    question.questionConsOffsets(qVar.qConsIdx) > relVar.qMatchEnd
-                  })
-                } yield {
-                  logger.trace("Disallowed alignments for " +
-                    s"${invalidAlign.map(_.qConsIdx).mkString(",")} with " +
-                    s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
-                    s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
-                  // The cell-qcons alignment and relation pattern match both can not be true.
-                  invalidAlign.map(inv => ilpSolver.addConsAtMostK(
-                    "disableQAlign",
-                    Seq(inv.variable, relVar.variable), 1
-                  ))
-                }
+                    for {
+                      rowIdx <- table.contentMatrix.indices
+                      cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+                      relVar <- tmpColToRelationVar((tableIdx, colIdx))
+                      // If the start and end indices are set to -1, all alignments of the cell are
+                      // allowed. This is used to handle relations whose expression in the question is
+                      // difficult to determine, e.g. X performs Y
+                      if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
+                      // Should the entries in the columns appear before the pattern, e.g., partOf(X, Y)
+                      // should match X with a question constituent before the "is part of" pattern
+                      // Using XOR to easily check for this
+                      isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
+                      qTableVars <- cellToQuestionTableVarMap.get(cellIdx)
+                      (_, invalidAlignments) = qTableVars.partition(qVar => if (isPrefix) {
+                        question.questionConsOffsets(qVar.qConsIdx) < relVar.qMatchStart
+                      } else {
+                        question.questionConsOffsets(qVar.qConsIdx) > relVar.qMatchEnd
+                      })
+                    } yield {
+                      logger.trace("Disallowed alignments for " +
+                        s"${invalidAlignments.map(_.qConsIdx).mkString(",")} with " +
+                        s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
+                        s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
+                      // The cell-qcons alignment and relation pattern match both can not be true.
+                      invalidAlignments.map(inv => ilpSolver.addConsAtMostK(
+                        "disableQAlign",
+                        Seq(inv.variable, relVar.variable), 1
+                      ))
+                    }
+                  }
+                case _ =>
+                  // No relation variable associated with this column => column can not be active
+                  logger.debug("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
+                  ilpSolver.addConsAtMostK("disableColVar", Seq(activeColVar), 0)
               }
-            } else {
-              // No relation variable associated with this column => column can not be active
-              logger.debug("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
-              ilpSolver.addConsAtMostK("disableColVar", Seq(activeColVar), 0)
-            }
-          } else {
-            // If column is inactive, relations associated with column can't be active
-            tmpColToRelationVar.get((tableIdx, colIdx)).map { relationVars =>
-              logger.debug("Disabling relation vars: " + relationVars.mkString(","))
-              ilpSolver.addConsAtMostK("disableRelVar", relationVars.map(_.variable), 0)
-            }
+            case _ =>
+              // If column is inactive, relations associated with column can't be active
+              tmpColToRelationVar.get((tableIdx, colIdx)).map { relationVars =>
+                logger.debug("Disabling relation vars: " + relationVars.mkString(","))
+                ilpSolver.addConsAtMostK("disableRelVar", relationVars.map(_.variable), 0)
+              }
           }
         }
       }

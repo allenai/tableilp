@@ -1,48 +1,48 @@
-// Regex patterns describing the ways in which a relation can be expressed in a question
-// Relation name used here must match the relations described over the tables.
-// Use empty pattern to indicate any match with the question constituents is valid.
-// Add -1 at the end of the pattern to indicate arg2 of the relation will precede arg1 when
-// this pattern is observed in the question.
-// Format: relation name,pattern
-requires,needs?
-requires,get.*from
-requires,depends? on
-hasProperty,has
-typeOf,examples? of
-typeOf,is
-provides,from-1
-provides,found in-1
-provides,has
-in,in
-in,inside
-in,within
-partOf,has-1
-partOf,have-1
-partOf,'s-1
-partOf,’s-1
-partOf,of
-partOf,part of
-sameAs,is same as
-sameAs,is equivalent to
-cause,causes
-cause,results in
-cause,effect of
-cause,way to
-fromTo,to
-helpsWith,help
-helpsWith,way.*adjust to
-purpose,function is
-purpose,purpose is
-purpose,
-performs,
-object,
-object,of
-changeFrom,chang.* from
-changeFrom,conver.* from
-changeFrom,take.* from
-propertyOf,of
-measures,can be used to measure
-measures,measur
-unitOf,unit of
-unitOf,describe
-unitOf,measured-1
+// Regex patterns describing the ways in which a relation can be expressed in a question,,
+// Relation name used here must match the relations described over the tables.,,
+// Use empty pattern to indicate any match with the question constituents is valid.,,
+// Add -1 at the end of the pattern to indicate arg2 of the relation will precede arg1 when,,
+// this pattern is observed in the question.,,
+// Format: relation name,pattern,example[optional]
+requires,needs?,humans need sun
+requires,get.*from,humans get energy for ... from sun
+requires,depends? on,humans depend on the sun
+hasProperty,has,summer has long days
+typeOf,examples? of,rain is example of precipitation
+typeOf,is,food is matter
+provides,from-1,...energy from sun...
+provides,found in-1,...energy found in food..
+provides,has,food has energy
+in,in,
+in,inside,
+in,within,
+partOf,has-1,bear has claws
+partOf,have-1,bears have claws
+partOf,'s-1,bear's claws
+partOf,’s-1,bear’s claws
+partOf,of,claws of bears
+partOf,part of,claws are a part of bears
+sameAs,is same as,
+sameAs,is equivalent to,
+cause,causes,
+cause,results in,cold results in shivering
+cause,effect of,shivering is effect of cold
+cause,way to,shivering is a way to handle cold
+fromTo,to,liquid to solid
+helpsWith,help,fur helps against cold
+helpsWith,way.*adjust to,growing furs is a way to adjust to cold
+purpose,function is,nose's function is to smell prey
+purpose,purpose is,
+purpose,,roots take in water
+performs,,roots take in water
+propertyOf,of,volume of solids
+object,,cylinder size
+object,of,size of cylinder
+changeFrom,chang.* from,melting is changing from solid
+changeFrom,conver.* from,heat converts ice from solid
+changeFrom,take.* from,plants take energy from sunlight
+measures,can be used to measure,clock can me used to measure time
+measures,measur,balance measures weight
+unitOf,unit of,ml unit of volume
+unitOf,describe,ml describes volume
+unitOf,measured-1,volume is measured in ml

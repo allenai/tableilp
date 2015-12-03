@@ -41,7 +41,10 @@ class IlpWeights @Inject() (
   @Named("weights.rowUsagePenalty") val rowUsagePenalty: Double,
   @Named("weights.interTableAlignmentPenalty") val interTableAlignmentPenalty: Double,
   @Named("weights.maxAlignmentsPerQCons") val maxAlignmentsPerQCons: Int,
-  @Named("weights.maxAlignmentsPerCell") val maxAlignmentsPerCell: Int
+  @Named("weights.maxAlignmentsPerCell") val maxAlignmentsPerCell: Int,
+  @Named("weights.relationMatchCoeff") val relationMatchCoeff: Double,
+  @Named("weights.emptyRelationMatchCoeff") val emptyRelationMatchCoeff: Double,
+  @Named("weights.noRelationMatchCoeff") val noRelationMatchCoeff: Double
 
 ) {}
 
@@ -66,6 +69,9 @@ object IlpWeights {
     rowUsagePenalty = 1d,
     interTableAlignmentPenalty = 1d,
     maxAlignmentsPerQCons = 2,
-    maxAlignmentsPerCell = 2
+    maxAlignmentsPerCell = 2,
+    relationMatchCoeff = 0.2,
+    emptyRelationMatchCoeff = 0.0,
+    noRelationMatchCoeff = -5.0
   )
 }

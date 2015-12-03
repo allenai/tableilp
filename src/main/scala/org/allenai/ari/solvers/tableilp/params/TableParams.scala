@@ -44,8 +44,8 @@ class TableParams @Inject() (
     @Named(
       "tables.allowedTablestoreColumnAlignmentsFile"
     ) val allowedTablestoreColumnAlignmentsFile: String,
-    @Named("tables.matchColumnRelationsFile") val columnRelationsFile: String,
-    @Named("tables.matchColumnRelationsTablestoreFile") val columnRelationsTablestoreFile: String,
+    @Named("tables.columnRelationsFile") val columnRelationsFile: String,
+    @Named("tables.columnRelationsTablestoreFile") val columnRelationsTablestoreFile: String,
     @Named("tables.relationRepresentationFile") val relationRepresentationFile: String
 ) {
   val commaSep = ",".r

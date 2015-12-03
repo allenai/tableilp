@@ -11,10 +11,11 @@ import com.google.inject.Inject
 import com.typesafe.config.Config
 import spray.json._
 
-import java.io.{ File, FileReader, Reader }
-
 import scala.collection.JavaConverters._
 import scala.io.Source
+import scala.util.matching.Regex
+
+import java.io.{ File, FileReader, Reader }
 
 /** A structure to store which two columns in two tables are allowed to be joined/aligned.
   *
@@ -37,17 +38,36 @@ case class AllowedColumnAlignment(
   * @param col2Idx Column index of argument 2 of the relation
   * @param relation Name of the relation
   */
-case class RelationMatch(
+case class InterColumnRelation(
   tableName: String,
   col1Idx: Int,
   col2Idx: Int,
   relation: String
 )
 
+case class RelationPattern(
+  pattern: Regex,
+  isFlipped: Boolean
+)
+
+object RelationPattern {
+  def apply(string: String): RelationPattern = {
+    // Argument order is flipped, if pattern ends with -1
+    val isFlipped = string.endsWith("-1")
+    val pattern = string.stripSuffix("-1").r
+    RelationPattern(pattern, isFlipped)
+  }
+
+  val Empty: RelationPattern = RelationPattern("")
+}
+
 // TODO(ericgribkoff) Copied from tables/, refactor out to models/
 case class DatastoreExport(tables: IndexedSeq[DatastoreTable], description: String)
+
 object DatastoreExport {
+
   import spray.json.DefaultJsonProtocol._
+
   implicit val datastoreJsonFormat = jsonFormat2(DatastoreExport.apply)
 }
 
@@ -77,7 +97,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
         val file = new File(params.localTablestoreFile)
         val dataString = Source.fromFile(file).getLines().mkString("\n")
-        import DefaultJsonProtocol._
+        import spray.json.DefaultJsonProtocol._
         dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
       } else {
         val config: Config = params.datastoreTablestoreConfig
@@ -139,10 +159,10 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   val allowedColumnAlignments: Seq[AllowedColumnAlignment] = readAllowedColumnAlignments()
 
   /** Read the relations between the columns in a table. **/
-  val allowedRelations: Seq[RelationMatch] = readAllowedRelations()
+  val allowedRelations: Seq[InterColumnRelation] = readAllowedRelations()
 
   /** Read the regex patterns for the relations described in allowedRelations **/
-  val relationToRepresentation: Map[String, Seq[String]] =
+  val relationToRepresentation: Map[String, Seq[RelationPattern]] =
     readRelationRepresentations(params.relationRepresentationFile)
 
   /** a cheat sheet mapping training questions from question to tables; build only if/when needed;
@@ -320,7 +340,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
-  private def readAllowedRelations(): Seq[RelationMatch] = {
+  private def readAllowedRelations(): Seq[InterColumnRelation] = {
     val file = if (params.useTablestoreFormat) {
       params.columnRelationsTablestoreFile
     } else {
@@ -336,7 +356,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
           if (line.size > 1 && !line.head.startsWith("//")) {
             assert(line.size == 4, s"Expected four columns in ${line.mkString(",")}")
             if (allTableNames.contains(line(0))) {
-              Some(RelationMatch(line(0), line(1).toInt, line(2).toInt, line(3)))
+              Some(InterColumnRelation(line(0), line(1).toInt, line(2).toInt, line(3)))
             } else {
               None
             }
@@ -347,7 +367,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
-  private def readRelationRepresentations(file: String): Map[String, Seq[String]] = {
+  private def readRelationRepresentations(file: String): Map[String, Seq[RelationPattern]] = {
     if (file.isEmpty) {
       Map.empty
     } else {
@@ -355,8 +375,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
       val predicateRepresentations = fullContents.flatMap { line =>
         if (line.size > 1 && !line.head.startsWith("//")) {
-          assert(line.size == 2, s"Expected two columns in ${line.mkString(",")}")
-          Some((line(0), line(1)))
+          assert(line.size >= 2, s"Expected at least two columns in ${line.mkString(",")}")
+          Some((line(0), RelationPattern(line(1))))
         } else {
           None
         }
