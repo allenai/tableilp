@@ -182,7 +182,6 @@ class IlpModel(
           allowedColumnAlignment <- tableInterface.allowedColumnAlignments
           tableIdx1 <- tableNameToIdx.get(allowedColumnAlignment.table1Name)
           tableIdx2 <- tableNameToIdx.get(allowedColumnAlignment.table2Name)
-          _ = require(tableIdx1 != tableIdx2, "Table indices must be different")
           // switch, if needed, so that the table with a lower index appears first;
           // this ensures that the tuples generated here form a subset of the
           // all-undirectional-pairs case in the else { ... } block below

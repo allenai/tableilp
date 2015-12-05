@@ -89,11 +89,7 @@ object DatastoreExport {
 class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer) extends Logging {
 
   private val ignoreList = {
-    if (params.useTablestoreFormat) {
-      params.ignoreListTablestore
-    } else {
-      params.ignoreList
-    }
+    if (params.useTablestoreFormat) params.ignoreListTablestore else params.ignoreList
   }
 
   private def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
@@ -151,7 +147,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   logger.debug(s"${allTables.size} tables loaded")
 
   private val allTableNames = allTables.map(_.fileName)
-  logger.debug("tables with internal IDs:\n\t" + allTableNames.zipWithIndex.toString())
+  private val tableNamesToIdx = allTableNames.zipWithIndex.toMap
+  logger.debug("tables with internal IDs:\n\t" + tableNamesToIdx.toString())
   if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
 
   /** a sequence of table indices to ignore */
@@ -165,6 +162,18 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   /** pairs of columns (in two tables) that are allowed to be aligned */
   val allowedColumnAlignments: Seq[AllowedColumnAlignment] = readAllowedColumnAlignments()
+
+  /** a map from a table to all other tables that it is allowed to align with */
+  private val allowedTableAlignments: Map[Int, Seq[Int]] = {
+    val allowedTablePairs = allowedColumnAlignments.flatMap { ca =>
+      Seq((ca.table1Name, ca.table2Name), (ca.table2Name, ca.table1Name))
+    }
+    Utils.toMapUsingGroupByFirst(allowedTablePairs).map {
+      case (tableName, otherTableNames) => {
+        tableNamesToIdx(tableName) -> otherTableNames.map(tableNamesToIdx)
+      }
+    }
+  }
 
   /** Read the relations between the columns in a table. **/
   val allowedRelations: Seq[InterColumnRelation] = readAllowedRelations()
@@ -237,9 +246,27 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     } else {
       scoreTables.filter(_._2 > params.rankThreshold)
     }
+    // if desired, add "intermediate" tables that can link two selected tables
+    val selectedTables = if (params.includeConnectingTables) {
+      // first get all linked tables
+      val linkedTables: IndexedSeq[Int] = topScoredTables.flatMap {
+        case (t, _) => allowedTableAlignments.getOrElse(t, Seq.empty)
+      }
+      // now find those that are linked to at least two topScoredTables
+      val connectingTables: Iterable[Int] = linkedTables.groupBy(identity).collect {
+        case (t, occurrences) if occurrences.size > 1 => t
+      }
+      // attach scores to these tables
+      val tableToScore: Map[Int, Double] = scoreTables.toMap
+      val scoredConnectingTables = connectingTables.map(t => (t, tableToScore(t)))
+      // include with original top scoring tables
+      topScoredTables ++ scoredConnectingTables
+    } else {
+      topScoredTables
+    }
     // identify most promising rows within each table, turn into a TableSelection
     val questionTokens = tokenizer.stemmedKeywordTokenize(question.toLowerCase)
-    topScoredTables.map {
+    selectedTables.map {
       case (tableIdx, score) => {
         val table = allTables(tableIdx)
         val tokenizedTableRows = table.fullContentTokenized.tail
@@ -373,6 +400,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
               throw new IllegalArgumentException(s"table $name does not exist")
             }
           }
+          require(table1Name != table2Name, "Table indices must be different")
           AllowedColumnAlignment(table1Name, col1IdxStr.toInt, table2Name, col2IdxStr.toInt)
         }
         case _ => {

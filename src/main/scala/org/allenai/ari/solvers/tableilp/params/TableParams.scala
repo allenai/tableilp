@@ -24,6 +24,7 @@ import com.typesafe.config.{ ConfigFactory, Config }
   * @param useCachedTablesForQuestion whether to use the above cheat sheet
   * @param rankThreshold table rank must be at most this much for selection, if useThreshold = true
   * @param useRankThreshold whether to use the above threshold on rank
+  * @param includeConnectingTables include "intermediate" tables that can connect selected tables
   * @param allowedColumnAlignmentsFile a CSV file specifying which columns in two tables may align
   * @param allowedTablestoreColumnAlignmentsFile as above but using Tablestore IDs
   */
@@ -42,6 +43,7 @@ class TableParams @Inject() (
     @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean,
     @Named("tables.rankThreshold") val rankThreshold: Double,
     @Named("tables.useRankThreshold") val useRankThreshold: Boolean,
+    @Named("tables.includeConnectingTables") val includeConnectingTables: Boolean,
     @Named("tables.allowedColumnAlignmentsFile") val allowedColumnAlignmentsFile: String,
     @Named(
       "tables.allowedTablestoreColumnAlignmentsFile"
@@ -80,6 +82,7 @@ object TableParams {
     useCachedTablesForQuestion = false,
     rankThreshold = 0.25d,
     useRankThreshold = false,
+    includeConnectingTables = false,
     allowedColumnAlignmentsFile = "",
     allowedTablestoreColumnAlignmentsFile = "",
     columnRelationsFile = "",
