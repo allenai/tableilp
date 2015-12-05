@@ -19,6 +19,7 @@ import com.typesafe.config.{ ConfigFactory, Config }
   * @param ignoreListStr a comma-separated list of table IDs (based on csv file position) to ignore
   * @param ignoreListTablestoreStr a comma-separated list of table IDs (from Tablestore)to ignore
   * @param maxTablesPerQuestion max number of tables to consider per question
+  * @param maxRowsPerTable max number of rows (per table) to consider per question
   * @param questionToTablesCache name of a debugging cheat sheet mapping question to relevant tables
   * @param useCachedTablesForQuestion whether to use the above cheat sheet
   * @param rankThreshold table rank must be at most this much for selection, if useThreshold = true
@@ -36,6 +37,7 @@ class TableParams @Inject() (
     @Named("tables.ignoreList") ignoreListStr: String,
     @Named("tables.ignoreListTablestore") ignoreListTablestoreStr: String,
     @Named("tables.maxTablesPerQuestion") val maxTablesPerQuestion: Int,
+    @Named("tables.maxRowsPerTable") val maxRowsPerTable: Int,
     @Named("tables.questionToTablesCache") val questionToTablesCache: String,
     @Named("tables.useCachedTablesForQuestion") val useCachedTablesForQuestion: Boolean,
     @Named("tables.rankThreshold") val rankThreshold: Double,
@@ -73,6 +75,7 @@ object TableParams {
     ignoreListStr = "",
     ignoreListTablestoreStr = "",
     maxTablesPerQuestion = 1,
+    maxRowsPerTable = 10000,
     questionToTablesCache = "",
     useCachedTablesForQuestion = false,
     rankThreshold = 0.25d,

@@ -24,14 +24,15 @@ class IlpSolverSpec extends UnitSpec {
 
   /** solve a question and return selected answer choice with score */
   private def solve(questionChunks: Seq[String], choices: Seq[String],
-    tableIds: Seq[(Int, Double)]): (Int, Double) = {
+    tableSelections: IndexedSeq[TableSelection]): (Int, Double) = {
     val questionIlp = TableQuestionFactory.makeQuestion(questionChunks, choices)
     val ilpSolver = new ScipInterface("sampleExample", scipParams)
-    val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface, tableIds)
+    val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
+      tableSelections)
     val allVariables = ilpModel.buildModel(questionIlp)
     val vars = allVariables.ilpVars
     ilpSolver.solve()
-    val tablesUsed = tableIds.map { case (t, _) => tableInterface.allTables(t) }
+    val tablesUsed = tableSelections.map(ts => tableInterface.allTables(ts.id))
     val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
       questionIlp, tablesUsed, fullTablesInIlpSolution = false)
     val (choice, score) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
@@ -46,8 +47,8 @@ class IlpSolverSpec extends UnitSpec {
     val choices = Seq("broken leg", "blue eyes")
 
     // select matching tables and try to answer the question
-    val tableIds = tableInterface.getTableIdsForQuestion(questionText).take(1)
-    val (choice, score) = solve(questionChunks, choices, tableIds)
+    val tableSelections = tableInterface.getTablesForQuestion(questionText).take(1)
+    val (choice, score) = solve(questionChunks, choices, tableSelections)
 
     // check that the correct answer was obtained
     choice should be(1)

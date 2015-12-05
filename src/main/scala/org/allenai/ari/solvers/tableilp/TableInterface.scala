@@ -33,10 +33,10 @@ case class AllowedColumnAlignment(
 
 /** A structure to store the relation schema of a table as binary relations between the columns in
   * the table.
-  * @param tableName Name of the table
-  * @param col1Idx Column index of argument 1 of the relation
-  * @param col2Idx Column index of argument 2 of the relation
-  * @param relation Name of the relation
+  * @param tableName name of the table
+  * @param col1Idx column index of argument 1 of the relation
+  * @param col2Idx column index of argument 2 of the relation
+  * @param relation name of the relation
   */
 case class InterColumnRelation(
   tableName: String,
@@ -45,6 +45,7 @@ case class InterColumnRelation(
   relation: String
 )
 
+/** A structure to store lexical patterns for relations */
 case class RelationPattern(
   pattern: Regex,
   isFlipped: Boolean
@@ -58,6 +59,17 @@ object RelationPattern {
     RelationPattern(pattern, isFlipped)
   }
 }
+
+/** A simple structure to capture a table ID along with a score and a subset of rows.
+  * @param id table ID
+  * @param score a double, typically capturing its relevance for a question
+  * @param rowIds a subset of rows
+  */
+case class TableSelection(
+  id: Int,
+  score: Double,
+  rowIds: Seq[Int]
+)
 
 // TODO(ericgribkoff) Copied from tables/, refactor out to models/
 case class DatastoreExport(tables: IndexedSeq[DatastoreTable], description: String)
@@ -89,7 +101,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     csvReader.readAll.asScala.map(_.toSeq)
   }
 
-  private def getAllTables(): IndexedSeq[Table] = {
+  val allTables: IndexedSeq[Table] = {
     if (params.useTablestoreFormat) {
       val datastoreTables = if (params.useLocal) {
         logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
@@ -136,8 +148,6 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }).toIndexedSeq
     }
   }
-
-  val allTables = getAllTables()
   logger.debug(s"${allTables.size} tables loaded")
 
   private val allTableNames = allTables.map(_.fileName)
@@ -181,39 +191,74 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   }
 
   /** td idf maps */
-  val (tfMap, idfMap) = calculateAllTFIDFScores()
+  private val (tfMap, idfMap) = calculateAllTFIDFScores()
 
-  /** Get a subset of tables (with scores) relevant for a given question */
-  def getTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
-    val tableIdsWithScores = if (params.useCachedTablesForQuestion) {
-      getCachedTableIdsForQuestion(question)
+  /** Given a question, compute a sequence of tables, each with a score and a subset of rows that
+    * are most relevant to the question.
+    */
+  def getTablesForQuestion(question: String): IndexedSeq[TableSelection] = {
+    val tableSelections = if (params.useCachedTablesForQuestion) {
+      getCachedTablesForQuestion(question)
     } else {
-      getRankedTableIdsForQuestion(question)
+      getRankedTablesForQuestion(question)
     }
-    logger.debug(s"using ${tableIdsWithScores.size} tables:\n" +
-      tableIdsWithScores.map {
-        case (t, s) => s"\ttable $t (score $s) : " + allTables(t).titleRow.mkString("|")
+    logger.debug(s"using ${tableSelections.size} tables:\n" +
+      tableSelections.map {
+        case TableSelection(id, score, rowIds) => {
+          s"\ttable $id (score $score, selected ${rowIds.size} rows}) : " +
+            allTables(id).titleRow.mkString("|")
+        }
       }.mkString("\n"))
-    tableIdsWithScores
+    tableSelections
   }
 
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
-  private def getCachedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
+  private def getCachedTablesForQuestion(question: String): IndexedSeq[TableSelection] = {
     val tableIds: Seq[Int] = questionToTablesMap.getOrElse(question.trim, Seq.empty)
-    // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic
-    val defaultScores = Seq.fill(tableIds.size)(1d)
-    tableIds.zip(defaultScores)
+    // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic.
+    // Currently using a default score of 1 and the first K rows.
+    val tableSelections = tableIds.map { id =>
+      val score = 1d
+      val rowIds = allTables(id).contentMatrix.indices.take(params.maxRowsPerTable)
+      TableSelection(id, score, rowIds)
+    }
+    tableSelections.toIndexedSeq
   }
 
-  /** Get a subset of tables relevant for a given question, by using salience, etc. */
-  private def getRankedTableIdsForQuestion(question: String): Seq[(Int, Double)] = {
-    val scoreIndexPairs = allTables.indices.diff(ignoreList).map { tableIdx =>
+  /** Get a selection of tables relevant for a given question, using quick TF-IDF computation. */
+  private def getRankedTablesForQuestion(question: String): IndexedSeq[TableSelection] = {
+    // score all tables using tf-idf
+    val scoreTables = allTables.indices.diff(ignoreList).map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
-    if (!params.useRankThreshold) {
-      scoreIndexPairs.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
+    // identify a few top scoring tables
+    val topScoredTables = if (!params.useRankThreshold) {
+      scoreTables.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
     } else {
-      scoreIndexPairs.filter(_._2 > params.rankThreshold)
+      scoreTables.filter(_._2 > params.rankThreshold)
+    }
+    // identify most promising rows within each table, turn into a TableSelection
+    val questionTokens = tokenizer.stemmedKeywordTokenize(question.toLowerCase)
+    topScoredTables.map {
+      case (tableIdx, score) => {
+        val table = allTables(tableIdx)
+        val tokenizedTableRows = table.fullContentTokenized.tail
+        val rowIdsWithScores = tokenizedTableRows.zipWithIndex.map {
+          case (tokenizedRow, rowIdx) => {
+            // score for a row = fraction of row tokens that overlap with question tokens
+            val rowTokens = tokenizedRow.flatMap(_.values)
+            val rowScore = if (rowTokens.isEmpty) {
+              0d
+            } else {
+              questionTokens.intersect(rowTokens).size.toDouble / rowTokens.size
+            }
+            (rowIdx, rowScore)
+          }
+        }
+        // sort (row,score) pairs by score, take the top K, project down to row IDs
+        val topRowIds = rowIdsWithScores.sortBy(-_._2).take(params.maxRowsPerTable).map(_._1)
+        TableSelection(tableIdx, score, topRowIds)
+      }
     }
   }
 
@@ -293,12 +338,13 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     tableScore * qaOverlapScore * tableOverlapScore
   }
 
+  /** remove all comments of the form "// blah blah" */
   private def stripComments(inputString: String): String = {
-    // remove all comments of the form "// blah blah"
     val commentRegex = "//[\\S\\s]+?.*".r
     commentRegex.replaceAllIn(inputString, "")
   }
 
+  /* read allowed column alignments (across pairs of tables) from a file */
   private def readAllowedColumnAlignments(): Seq[AllowedColumnAlignment] = {
     val alignmentsFile = {
       if (params.useTablestoreFormat) {
@@ -309,7 +355,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
 
     if (alignmentsFile.isEmpty) {
-      return Seq.empty
+      Seq.empty
     } else {
       logger.info("Reading list of titles that are allowed to be aligned")
       val csvReader = new CSVReader(Utils.getResourceAsReader(alignmentsFile))
@@ -338,6 +384,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
+  /* read relations between pairs of columns in a table */
   private def readAllowedRelations(): Seq[InterColumnRelation] = {
     val file = if (params.useTablestoreFormat) {
       params.columnRelationsTablestoreFile
@@ -365,6 +412,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
+  /* read how various relations may be represented lexically */
   private def readRelationRepresentations(file: String): Map[String, Seq[RelationPattern]] = {
     if (file.isEmpty) {
       Map.empty

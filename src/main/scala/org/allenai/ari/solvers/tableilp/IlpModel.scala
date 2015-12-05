@@ -14,8 +14,8 @@ import scala.collection.mutable
   * @param ilpParams various parameters for the ILP model
   * @param weights various weights for the ILP model
   * @param tableInterface a TableInterface object with information about all tables
-  * @param tableIdsWithScores a seq of table IDs ((indices to tableInterface.allTables) as the
-  *   knowledge, with a question dependent score
+  * @param tableSelections relevant subsets of tables in the form of a seq of TableSelection, each
+  *   of which has an index into tableInterface.allTables and question dependent score and row IDs
   */
 class IlpModel(
     ilpSolver: ScipInterface,
@@ -23,7 +23,7 @@ class IlpModel(
     ilpParams: IlpParams,
     weights: IlpWeights,
     tableInterface: TableInterface,
-    tableIdsWithScores: Seq[(Int, Double)]
+    tableSelections: IndexedSeq[TableSelection]
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -39,10 +39,8 @@ class IlpModel(
   private val ignoredWords: Set[String] = Set("?", ":", ",")
 
   // gather info about the few tables relevant to this ILP model
-  private val (tableIds: IndexedSeq[Int], tableScores: IndexedSeq[Double]) = {
-    tableIdsWithScores.toIndexedSeq.unzip
-  }
-  private val tables: IndexedSeq[Table] = tableIds.map(tableInterface.allTables)
+  private val tables: IndexedSeq[Table] = tableSelections.map(ts => tableInterface.allTables(ts.id))
+  private val tableRowIds: IndexedSeq[Seq[Int]] = tableSelections.map(_.rowIds)
   private val tableNameToIdx: Map[String, Int] = tables.map(_.fileName).zipWithIndex.toMap
 
   /** The main method to build an ILP model for a question.
@@ -89,7 +87,7 @@ class IlpModel(
   private val activeCellVars: mutable.Map[CellIdx, Long] = mutable.Map() ++ (for {
     tableIdx <- tables.indices
     table = tables(tableIdx)
-    rowIdx <- table.contentMatrix.indices
+    rowIdx <- tableRowIds(tableIdx)
     row = table.contentMatrix(rowIdx)
     colIdx <- row.indices
     name = s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx"
@@ -105,7 +103,7 @@ class IlpModel(
   private val activeRowVars: mutable.Map[(Int, Int), Long] = mutable.Map() ++ (for {
     tableIdx <- tables.indices
     table = tables(tableIdx)
-    rowIdx <- table.contentMatrix.indices
+    rowIdx <- tableRowIds(tableIdx)
     name = s"activeRow_t=${tableIdx}_r=$rowIdx"
     // penalize row usage to discourage too many rows from being aligned unnecessarily
     objCoeff = -weights.rowUsagePenalty
@@ -120,7 +118,7 @@ class IlpModel(
   private val activeColVars: mutable.Map[(Int, Int), Long] = mutable.Map() ++ (for {
     tableIdx <- tables.indices
     table = tables(tableIdx)
-    if table.contentMatrix.indices.nonEmpty
+    if tableRowIds(tableIdx).nonEmpty
     colIdx <- table.contentMatrix.head.indices
     name = s"activeCol_t=${tableIdx}_r=$colIdx"
     // prefer larger fraction of columns matching
@@ -147,8 +145,8 @@ class IlpModel(
 
   /** Auxiliary variables: whether a table is "active" */
   private val activeTableVars: Map[Int, Long] = (for {
-    tableIdx <- tableIds.indices
-    tableScore = tableScores(tableIdx)
+    tableIdx <- tableSelections.indices
+    tableScore = tableSelections(tableIdx).score
     name = s"activeTable_t=$tableIdx"
     objCoeff = (weights.tableScoreObjCoeff * tableScore) - weights.tableUsagePenalty
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
@@ -167,7 +165,7 @@ class IlpModel(
     val intraTableVariables = for {
       tableIdx <- tables.indices
       table = tables(tableIdx)
-      rowIdx <- table.contentMatrix.indices
+      rowIdx <- tableRowIds(tableIdx)
       row = table.contentMatrix(rowIdx)
       colIdx1 <- row.indices
       colIdx2 <- colIdx1 + 1 until row.length
@@ -210,8 +208,8 @@ class IlpModel(
       }
       for {
         (tableIdx1, colIdx1, tableIdx2, colIdx2) <- tableColumnPairs.toIndexedSeq
-        rowIdx1 <- tables(tableIdx1).contentMatrix.indices
-        rowIdx2 <- tables(tableIdx2).contentMatrix.indices
+        rowIdx1 <- tableRowIds(tableIdx1)
+        rowIdx2 <- tableRowIds(tableIdx2)
         x <- addInterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2)
       } yield x
     }
@@ -244,7 +242,7 @@ class IlpModel(
       if !ignoredWords.contains(qCons)
       if KeywordTokenizer.Default.isKeyword(qCons)
       table = tables(tableIdx)
-      rowIdx <- table.contentMatrix.indices
+      rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
       colIdx <- row.indices
       x <- addQuestionTableVariable(qCons, qConsIdx, tableIdx, rowIdx, colIdx)
@@ -264,7 +262,7 @@ class IlpModel(
       qChoiceIdx <- question.choices.indices
       qChoice = question.choices(qChoiceIdx)
       table = tables(tableIdx)
-      rowIdx <- table.contentMatrix.indices
+      rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
       colIdx <- row.indices
       x <- addQChoiceTableVariable(qChoice, qChoiceIdx, tableIdx, rowIdx, colIdx)
@@ -297,7 +295,7 @@ class IlpModel(
         // For all the matches to this pattern
         matchStr <- patReg.findAllMatchIn(question.questionRaw)
       } yield {
-        logger.debug("Found a match for " + matchRelation.relation + " at " + matchStr)
+        logger.trace("Found a match for " + matchRelation.relation + " at " + matchStr)
         // TODO(tushar): Make the coefficient configurable
         addRelationVariable(tableIdx, matchRelation.col1Idx, matchRelation.col2Idx,
           matchStr.start, matchStr.end, weights.relationMatchCoeff, isFlipped)
@@ -318,14 +316,14 @@ class IlpModel(
           .regex)
         // TODO(tushar): Make the coefficients configurable
         weight = if (patterns.contains("")) {
-          logger.debug("Used the empty pattern for " + matchRelation.relation)
+          logger.trace("Used the empty pattern for " + matchRelation.relation)
           weights.emptyRelationMatchCoeff
         } else {
           weights.noRelationMatchCoeff
         }
       } yield {
         addRelationVariable(tableIdx, matchRelation.col1Idx,
-          matchRelation.col2Idx, -1, -1, weight, false)
+          matchRelation.col2Idx, -1, -1, weight, flipped = false)
       }
       // If the table has no defined relations, all alignments are acceptable for this table.
       val tablesWithoutDefinedRelations = tableNameToIdx.keySet.diff(
@@ -339,7 +337,7 @@ class IlpModel(
         col1 <- tables(tableIdx).titleRow.indices
         col2 <- tables(tableIdx).titleRow.indices
         if (col1 != col2)
-      } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, false)
+      } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, flipped = false)
 
       relationPatternMatches ++ relationEmptyPatterns ++ noRelationDefined
     } else {
@@ -480,7 +478,7 @@ class IlpModel(
     // NOTE: this MUST be the very first use of activeCellVars, as it alters this mutable.Map
     tables.indices.foreach { tableIdx =>
       val table = tables(tableIdx)
-      table.contentMatrix.indices.foreach { rowIdx =>
+      tableRowIds(tableIdx).foreach { rowIdx =>
         val row = table.contentMatrix(rowIdx)
         row.indices.map { colIdx =>
           val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
@@ -562,7 +560,7 @@ class IlpModel(
       table.titleRow.indices.foreach { colIdx =>
         val activeColVar = activeColVars((tableIdx, colIdx))
         val activeCellVarsInCol = for {
-          rowIdx <- table.contentMatrix.indices
+          rowIdx <- tableRowIds(tableIdx)
           cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
           activeCellVar <- activeCellVars.get(cellIdx)
         } yield activeCellVar
@@ -611,7 +609,7 @@ class IlpModel(
                     logger.error("Offsets for question constituents needed for relation matching!")
                   } else {
                     for {
-                      rowIdx <- table.contentMatrix.indices
+                      rowIdx <- tableRowIds(tableIdx)
                       cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
                       relVar <- tmpColToRelationVar((tableIdx, colIdx))
                       // If the start and end indices are set to -1, all alignments of the cell are
@@ -634,7 +632,7 @@ class IlpModel(
                         s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
                         s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
                       // The cell-qcons alignment and relation pattern match both can not be true.
-                      invalidAlignments.map(inv => ilpSolver.addConsAtMostK(
+                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostK(
                         "disableQAlign",
                         Seq(inv.variable, relVar.variable), 1
                       ))
@@ -642,13 +640,13 @@ class IlpModel(
                   }
                 case _ =>
                   // No relation variable associated with this column => column can not be active
-                  logger.debug("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
+                  logger.trace("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
                   ilpSolver.addConsAtMostK("disableColVar", Seq(activeColVar), 0)
               }
             case _ =>
               // If column is inactive, relations associated with column can't be active
-              tmpColToRelationVar.get((tableIdx, colIdx)).map { relationVars =>
-                logger.debug("Disabling relation vars: " + relationVars.mkString(","))
+              tmpColToRelationVar.get((tableIdx, colIdx)).foreach { relationVars =>
+                logger.trace("Disabling relation vars: " + relationVars.mkString(","))
                 ilpSolver.addConsAtMostK("disableRelVar", relationVars.map(_.variable), 0)
               }
           }
@@ -792,7 +790,7 @@ class IlpModel(
 
       // cell, row, and column activity constraints
       // NOTE: this MUST be the very first use of activeRowVars, as it alters this mutable.Map
-      table.contentMatrix.indices.foreach { rowIdx =>
+      tableRowIds(tableIdx).foreach { rowIdx =>
         val activeRowVar = activeRowVars((tableIdx, rowIdx))
         val row = table.contentMatrix(rowIdx)
         val activeCellVarsInRow = for {
@@ -825,7 +823,7 @@ class IlpModel(
       // row activity constraint: allow at most K rows per table to be active
       // Note: question dependent variables may also make the row active; this constraint will
       // take that into account as well
-      val tableRowVars = table.contentMatrix.indices.flatMap(r => activeRowVars.get((tableIdx, r)))
+      val tableRowVars = tableRowIds(tableIdx).flatMap(r => activeRowVars.get((tableIdx, r)))
       val ub = ilpParams.maxRowsPerTable
       ilpSolver.addConsAtMostK(s"atMost${ub}Rows_T=$tableIdx", tableRowVars, ub)
 
@@ -833,9 +831,9 @@ class IlpModel(
       // rows must match; in other words, the two rows must have identical activity signature;
       //   Horn constraint: activeRow_i AND activeRow_j AND activeCell_ik => activeCell_jk
       for {
-        rowIdx1 <- table.contentMatrix.indices
+        rowIdx1 <- tableRowIds(tableIdx)
         activeRowVar1 <- activeRowVars.get((tableIdx, rowIdx1))
-        rowIdx2 <- table.contentMatrix.indices
+        rowIdx2 <- tableRowIds(tableIdx)
         if rowIdx2 != rowIdx1
         activeRowVar2 <- activeRowVars.get((tableIdx, rowIdx2))
         colIdx <- table.contentMatrix.head.indices

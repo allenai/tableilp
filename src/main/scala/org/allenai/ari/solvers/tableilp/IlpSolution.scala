@@ -172,7 +172,7 @@ object IlpSolutionFactory extends Logging {
     */
   private val minScore = 1d
   private val scoreShift = 10d
-  private def ilpObjectiveToScore(objValue: Double) = Math.max(minScore, objValue + scoreShift)
+  private def ilpObjectiveToScore(objValue: Double) = math.max(minScore, objValue + scoreShift)
 
   /** Process the solution found by SCIP to deduce the selected answer and its score.
     *
