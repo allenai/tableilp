@@ -224,12 +224,13 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   /** Get a subset of tables relevant for a given question, by looking up a cheat sheet. */
   private def getCachedTablesForQuestion(question: String): IndexedSeq[TableSelection] = {
     val tableIds: Seq[Int] = questionToTablesMap.getOrElse(question.trim, Seq.empty)
+    val questionTokens = tokenizer.stemmedKeywordTokenize(question.toLowerCase)
     // TODO: consider having cached table matching scores or using the tfidfTableScore() heuristic.
-    // Currently using a default score of 1 and the first K rows.
-    val tableSelections = tableIds.map { id =>
+    // Currently using a default score of 1.
+    val tableSelections = tableIds.map { tableIdx =>
       val score = 1d
-      val rowIds = allTables(id).contentMatrix.indices.take(params.maxRowsPerTable)
-      TableSelection(id, score, rowIds)
+      val rowIds = getRankedRowsForQuestion(questionTokens, tableIdx)
+      TableSelection(tableIdx, score, rowIds)
     }
     tableSelections.toIndexedSeq
   }
@@ -249,8 +250,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     // if desired, add "intermediate" tables that can link two selected tables
     val selectedTables = if (params.includeConnectingTables) {
       // first get all linked tables
-      val linkedTables: IndexedSeq[Int] = topScoredTables.flatMap {
-        case (t, _) => allowedTableAlignments.getOrElse(t, Seq.empty)
+      val linkedTables: IndexedSeq[Int] = topScoredTables.flatMap { ts =>
+        allowedTableAlignments.getOrElse(ts._1, Seq.empty)
       }
       // now find those that are linked to at least two topScoredTables
       val connectingTables: Iterable[Int] = linkedTables.groupBy(identity).collect {
@@ -268,25 +269,30 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     val questionTokens = tokenizer.stemmedKeywordTokenize(question.toLowerCase)
     selectedTables.map {
       case (tableIdx, score) => {
-        val table = allTables(tableIdx)
-        val tokenizedTableRows = table.fullContentTokenized.tail
-        val rowIdsWithScores = tokenizedTableRows.zipWithIndex.map {
-          case (tokenizedRow, rowIdx) => {
-            // score for a row = fraction of row tokens that overlap with question tokens
-            val rowTokens = tokenizedRow.flatMap(_.values)
-            val rowScore = if (rowTokens.isEmpty) {
-              0d
-            } else {
-              questionTokens.intersect(rowTokens).size.toDouble / rowTokens.size
-            }
-            (rowIdx, rowScore)
-          }
-        }
-        // sort (row,score) pairs by score, take the top K, project down to row IDs
-        val topRowIds = rowIdsWithScores.sortBy(-_._2).take(params.maxRowsPerTable).map(_._1)
+        val topRowIds = getRankedRowsForQuestion(questionTokens, tableIdx)
         TableSelection(tableIdx, score, topRowIds)
       }
     }
+  }
+
+  /** Get top scoring rows from a given table for a given tokenized question */
+  private def getRankedRowsForQuestion(questionTokens: Seq[String], tableIdx: Int): Seq[Int] = {
+    val table = allTables(tableIdx)
+    val tokenizedTableRows = table.fullContentTokenized.tail
+    val rowIdsWithScores = tokenizedTableRows.zipWithIndex.map {
+      case (tokenizedRow, rowIdx) => {
+        // score for a row = fraction of row tokens that overlap with question tokens
+        val rowTokens = tokenizedRow.flatMap(_.values)
+        val rowScore = if (rowTokens.isEmpty) {
+          0d
+        } else {
+          questionTokens.intersect(rowTokens).size.toDouble / rowTokens.size
+        }
+        (rowIdx, rowScore)
+      }
+    }
+    // sort (row,score) pairs by score, take the top K, project down to row IDs
+    rowIdsWithScores.sortBy(-_._2).take(params.maxRowsPerTable).map(_._1)
   }
 
   /** Print all variables relevant to tables */
@@ -371,7 +377,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     commentRegex.replaceAllIn(inputString, "")
   }
 
-  /* read allowed column alignments (across pairs of tables) from a file */
+  /** read allowed column alignments (across pairs of tables) from a file */
   private def readAllowedColumnAlignments(): Seq[AllowedColumnAlignment] = {
     val alignmentsFile = {
       if (params.useTablestoreFormat) {
@@ -412,7 +418,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
-  /* read relations between pairs of columns in a table */
+  /** read relations between pairs of columns in a table */
   private def readAllowedRelations(): Seq[InterColumnRelation] = {
     val file = if (params.useTablestoreFormat) {
       params.columnRelationsTablestoreFile
@@ -440,7 +446,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
-  /* read how various relations may be represented lexically */
+  /** read how various relations may be represented lexically */
   private def readRelationRepresentations(file: String): Map[String, Seq[RelationPattern]] = {
     if (file.isEmpty) {
       Map.empty
