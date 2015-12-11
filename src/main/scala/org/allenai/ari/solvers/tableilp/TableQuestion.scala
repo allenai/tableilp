@@ -15,6 +15,11 @@ import org.allenai.nlpstack.tokenize.defaultTokenizer
   * @param questionConsOffsets the offsets for the question constituents in questionCons, empty
   * if not available
   * @param choices answer choices
+  * @param choicesCons constituents for each choice. If choices are not split, every choice has a
+  * sequence with one element - entire choice string
+  * @param choicesConsOffsets offsets of the constituents in the choicesCons. Set to empty
+  * sequence if offsets are not available or no splitting on choices
+  * @param areChoicesSplit set to true if splitting was performed on the choices
   */
 case class TableQuestion(
   questionRaw: String,
@@ -85,6 +90,9 @@ object TableQuestionFactory extends Logging {
     question
   }
 
+  /** Returns true, if we should split a given choice string (choice containing conjunction,
+    * phase change, purpose relations).
+    */
   def doSplitOnChoice(choice: String): Boolean = {
     choice.contains(" to ") ||
       choice.contains(" and ") ||
