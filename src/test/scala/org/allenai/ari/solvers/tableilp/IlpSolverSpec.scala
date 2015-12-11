@@ -52,6 +52,6 @@ class IlpSolverSpec extends UnitSpec {
 
     // check that the correct answer was obtained
     choice should be(1)
-    assert(score === 10.6494 +- 1e-4)
+    assert(score === 11.6494 +- 1e-4)
   }
 }
