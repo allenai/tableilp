@@ -20,7 +20,10 @@ case class TableQuestion(
   questionRaw: String,
   questionCons: IndexedSeq[String],
   questionConsOffsets: IndexedSeq[Int],
-  choices: IndexedSeq[String]
+  choices: IndexedSeq[String],
+  choicesCons: IndexedSeq[IndexedSeq[String]],
+  choicesConsOffsets: IndexedSeq[IndexedSeq[Int]],
+  areChoicesSplit: Boolean = false
 )
 
 /** Various ways to build a TableQuestion instance */
@@ -29,20 +32,24 @@ object TableQuestionFactory extends Logging {
   private val defaultSplittingType = "Tokenize"
 
   def makeQuestion(questionCons: Seq[String], choices: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, choices.toIndexedSeq)
+    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, choices.toIndexedSeq,
+      choices.toIndexedSeq.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
   }
 
   def makeQuestion(questionRaw: String): TableQuestion = {
-    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty, IndexedSeq.empty)
+    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty, IndexedSeq.empty,
+      IndexedSeq.empty, IndexedSeq.empty)
   }
 
   def makeQuestion(questionCons: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, IndexedSeq.empty)
+    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, IndexedSeq.empty,
+      IndexedSeq.empty, IndexedSeq.empty)
   }
 
   def makeQuestion(aristoQuestion: Question): TableQuestion = {
+    val choices = aristoQuestion.selections.map(_.focus).toIndexedSeq
     TableQuestion(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
-      IndexedSeq.empty, aristoQuestion.selections.map(_.focus).toIndexedSeq)
+      IndexedSeq.empty, choices, choices.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
   }
 
   def makeQuestion(aristoQuestion: Question, splittingType: String): TableQuestion = {
@@ -55,15 +62,34 @@ object TableQuestionFactory extends Logging {
     }
 
     val (tokens, offsets) = splitter.split(aristoQuestion.text.get)
+    val choices = aristoQuestion.selections.map(_.focus).toIndexedSeq
+    val ((choiceTokens, choiceOffsetsOptions), areSplit) =
+      // Only split if all choices should be split on
+      if (choices.forall(doSplitOnChoice)) {
+        (choices.map(splitter.split).unzip, true)
+      } else {
+        ((choices.map(Seq(_)), IndexedSeq.fill(choices.size)(None)), false)
+      }
+
     val question = TableQuestion(
       aristoQuestion.rawQuestion,
       tokens.toIndexedSeq,
       offsets.getOrElse(Seq.empty).toIndexedSeq,
-      aristoQuestion.selections.map(_.focus).toIndexedSeq
+      choices,
+      choiceTokens.map(_.toIndexedSeq),
+      choiceOffsetsOptions.map(_.getOrElse(Seq.empty).toIndexedSeq),
+      areChoicesSplit = areSplit
     )
     logger.debug("Question constituents: " + question.questionCons.mkString(",") +
       question.questionConsOffsets.mkString(","))
     question
+  }
+
+  def doSplitOnChoice(choice: String): Boolean = {
+    choice.contains(" to ") ||
+      choice.contains(" and ") ||
+      choice.contains(" & ") ||
+      choice.contains(" for ")
   }
 }
 
@@ -77,8 +103,9 @@ sealed trait Splitter {
 }
 
 /** Split text based on tokenization */
-private class TokenSplitter extends Splitter {
-  private val useStemmedKeywordTokenizer = false
+private class TokenSplitter(
+    val useStemmedKeywordTokenizer: Boolean = false
+) extends Splitter {
   def split(str: String): (Seq[String], Option[Seq[Int]]) = {
     if (useStemmedKeywordTokenizer) {
       // TODO(tushar): Return offsets for keyword tokenizer and make the offsets non-optional

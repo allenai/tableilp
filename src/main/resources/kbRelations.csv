@@ -45,4 +45,9 @@ zzexample.csv,0,2,typeOf
 zzhyponym.csv,0,2,typeOf
 zzpart.csv,0,2,partOf
 zzpurpose.csv,0,2,purpose
-zzrequirement.csv,0,1,requires
+zzrequirement.csv,0,2,requires
+05&09.csv,1,0,typeOf
+05&09.csv,2,3,cause
+05&09.csv,3,1,typeOf
+05&09.csv,3,0,typeOf
+05&09.csv,2,1,cause
