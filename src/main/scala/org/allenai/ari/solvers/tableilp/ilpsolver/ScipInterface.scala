@@ -46,6 +46,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   env.setMessagehdlrLogfile(scip, scipParams.logFile)
   env.includeDefaultPlugins(scip) // include default plugins of SCIP
   env.setRealParam(scip, "limits/time", scipParams.timeLimit) // set SCIP's overall time limit
+  env.setIntParam(scip, "lp/threads", scipParams.threads) // number of threads used for LP
 
   // initialization: create empty problem tied to the given problem name
   env.createProbBasic(scip, probName)
@@ -412,6 +413,15 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
     addConsBasicLinear(name, vars, coeffs, None, Some(0d), trigger)
+  }
+
+  /** Export the generated ILP model to a file, either original or reduced/transformed */
+  def exportModel(useOriginal: Boolean): Unit = {
+    if (useOriginal) {
+      env.writeOrigProblem(scip, scipParams.ilpExportFile, null, false)
+    } else {
+      env.writeTransProblem(scip, scipParams.ilpExportFile, null, false)
+    }
   }
 
   /** Solve the ILP model and report the result */
