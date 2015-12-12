@@ -35,7 +35,7 @@ class ScipInterfaceSpec extends UnitSpec {
   }
 
   "scipSolver" should "solve a simple ILP program correctly" in {
-    val scipParams = new ScipParams(10d, "scip.log", messagehdlrQuiet = true, 0)
+    val scipParams = new ScipParams(10d, 1, "scip.log", "", messagehdlrQuiet = true, 0)
     val scipSolver = new ScipInterface("example", scipParams)
     val varsOfInterest = buildSimpleModel(scipSolver)
     scipSolver.solve()

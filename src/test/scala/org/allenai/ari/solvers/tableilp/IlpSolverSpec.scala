@@ -9,7 +9,7 @@ import org.allenai.common.testkit.UnitSpec
 class IlpSolverSpec extends UnitSpec {
 
   private val tokenizer = KeywordTokenizer.Default
-  private val scipParams = new ScipParams(10d, "scip.log", messagehdlrQuiet = true, 0)
+  private val scipParams = new ScipParams(10d, 1, "scip.log", "", messagehdlrQuiet = true, 0)
   private val ilpParams = IlpParams.Default
   private val weights = IlpWeights.Default
 
