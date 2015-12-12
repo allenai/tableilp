@@ -114,7 +114,8 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
       "logConstraints" -> math.log1p(ilpSolution.problemStats.nCons),
       "log2SearchNodes" -> math.log1p(ilpSolution.searchStats.nNodes) / math.log(2),
       "logLPIterations" -> math.log1p(ilpSolution.searchStats.nLPIterations),
-      "logMaxSearchDepth" -> math.log1p(ilpSolution.searchStats.maxDepth)
+      // maxDepth is 0 if the ILP is solved at the root note, and is -1 if solved during presolve()
+      "logMaxSearchDepth" -> math.log(ilpSolution.searchStats.maxDepth + 2)
     )
     logger.debug("features: " + localMap.toString)
 

@@ -347,7 +347,8 @@ class IlpModel(
       // TODO(tushar) Create only one variable to indicate no relation matching required for
       // these tables
       val noRelationDefined = for {
-        tableName <- tablesWithoutDefinedRelations
+        // Note: to ensure deterministic constraint ordering, first sort the set
+        tableName <- tablesWithoutDefinedRelations.toSeq.sorted
         tableIdx = tableNameToIdx(tableName)
         col1 <- tables(tableIdx).titleRow.indices
         col2 <- tables(tableIdx).titleRow.indices
@@ -640,7 +641,7 @@ class IlpModel(
                   val relationIlpVars = relationVarsForCol.map(_.variable)
                   relationIlpVars.foreach { relVar =>
                     // if any relationVar is 1, make the corresponding activeColVar be 1
-                    ilpSolver.addConsXLeqY("activeCol", relVar, activeColVar)
+                    ilpSolver.addConsXLeqY("activeColDueToRel", relVar, activeColVar)
                   }
                   // If a column is active, at least one of the relation variables must be active
                   ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneRelation", activeColVar,
@@ -733,7 +734,10 @@ class IlpModel(
       // at most one 1 row: simply enforce that a choice should align to at most one cell;
       // note that the "else" block below would achieve the same thing when maxRowsPerTable == 1,
       // albeit with unnecessary additional variables and multiple constraints.
-      choiceToExtAlignmentVars.values.foreach { extAlignmentVarsForChoice =>
+      // Note: to ensure deterministic constraint ordering, do NOT use
+      // choiceToExtAlignmentVars.values.foreach
+      question.choices.indices.foreach { choiceIdx =>
+        val extAlignmentVarsForChoice = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
         ilpSolver.addConsAtMostOne("choiceAlignsToAtMostOneCell", extAlignmentVarsForChoice)
       }
     } else {
@@ -1056,7 +1060,8 @@ class IlpModel(
       //   - if there exists a T1-T2 inter-table edge, then at least one such edge must be used;
       // first create a map from tables to inter-table variables connecting this table to that table
       val interTableMap = interTableVariables.filter(_.tableIdx1 == tableIdx).groupBy(_.tableIdx2)
-      interTableMap.foreach {
+      // Note: to ensure deterministic constraint ordering, sort groupBy result by first element
+      interTableMap.toSeq.sortBy(_._1).foreach {
         case (tableIdx2, interTableVars) =>
           val activeTableVar2 = activeTableVars(tableIdx2)
           val name = s"tablesMustConnect-$tableIdx-$tableIdx2"
@@ -1234,7 +1239,7 @@ class IlpModel(
   /** An internal method to add relation match in the question variable */
   private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
     matchStart: Int, matchEnd: Int, coeff: Double, flipped: Boolean): RelationMatchVariable = {
-    val name = s"T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd"
+    val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd"
     val variable = ilpSolver.createBinaryVar(name, coeff)
     ilpSolver.addVar(variable)
     RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, flipped, variable)

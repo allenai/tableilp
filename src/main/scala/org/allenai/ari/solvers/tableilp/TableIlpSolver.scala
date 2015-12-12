@@ -106,6 +106,7 @@ class TableIlpSolver @Inject() (
             tableSelections)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize")
           val allVariables = ilpModel.buildModel(questionIlp)
+          if (scipParams.ilpExportFile != "") ilpSolver.exportModel(useOriginal = true)
           val tablesUsed = tableSelections.map(ts => tableInterface.allTables(ts.id))
           // solve for all answer choices, obtaining a sequence of solutions
           val solutions = solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
