@@ -57,7 +57,11 @@ object TableQuestionFactory extends Logging {
       IndexedSeq.empty, choices, choices.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
   }
 
-  def makeQuestion(aristoQuestion: Question, splittingType: String): TableQuestion = {
+  def makeQuestion(
+    aristoQuestion: Question,
+    splittingType: String,
+    splitAnswerChoices: Boolean
+  ): TableQuestion = {
     val splitter = splittingType match {
       case "Tokenize" => new TokenSplitter
       case "Chunk" => new ChunkSplitter
@@ -70,7 +74,7 @@ object TableQuestionFactory extends Logging {
     val choices = aristoQuestion.selections.map(_.focus).toIndexedSeq
     val ((choiceTokens, choiceOffsetsOptions), areSplit) =
       // Only split if all choices should be split on
-      if (choices.forall(doSplitOnChoice)) {
+      if (splitAnswerChoices && choices.forall(doSplitOnChoice)) {
         (choices.map(splitter.split).unzip, true)
       } else {
         ((choices.map(Seq(_)), IndexedSeq.fill(choices.size)(None)), false)

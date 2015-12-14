@@ -27,7 +27,8 @@ class IlpParams @Inject() (
   @Named("model.qConsCoalignMaxDist") val qConsCoalignMaxDist: Int,
   @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean,
   @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean,
-  @Named("model.requireRelationMatch") val requireRelationMatch: Boolean
+  @Named("model.requireRelationMatch") val requireRelationMatch: Boolean,
+  @Named("model.splitAnswerChoices") val splitAnswerChoices: Boolean
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -42,6 +43,7 @@ object IlpParams {
     qConsCoalignMaxDist = 4,
     keyColumnsMustMatch = true,
     useCachedTitleAlignmentFile = false,
-    requireRelationMatch = false
+    requireRelationMatch = false,
+    splitAnswerChoices = false
   )
 }

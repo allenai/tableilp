@@ -464,10 +464,10 @@ class IlpModel(
 
     // Collect all external alignments per answer choice
     val tmpChoiceToTableVars = qChoiceConsTableVariables.map {
-      case ChoiceConsTableVariable(qChoiceCons, _, _, _, _, x) => qChoiceCons -> x
+      case ChoiceConsTableVariable(qChoice, _, _, _, _, x) => qChoice -> x
     }
     val tmpChoiceToTitleVars = qChoiceConsTitleVariables.map {
-      case ChoiceConsTitleVariable(qChoiceCons, _, _, _, x) => qChoiceCons -> x
+      case ChoiceConsTitleVariable(qChoice, _, _, _, x) => qChoice -> x
     }
     val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceToTableVars ++
       tmpChoiceToTitleVars)
@@ -721,8 +721,8 @@ class IlpModel(
         )
         ilpSolver.addConsYImpliesAtLeastK("activeChoiceConsImpliesAlignments", choiceConsVar,
           extAlignmentVarsForChoiceCons, 1d)
-        // activate the choice cons variables if there is anything aligned to it: alignedCell =>
-        // Choice Cons
+        // activate the choice constituent variables if there is anything aligned to it:
+        // alignedCell => active choice constituent
         extAlignmentVarsForChoiceCons.foreach {
           ilpSolver.addConsXLeqY("choiceConsActivation", _, choiceConsVar)
         }
@@ -841,9 +841,9 @@ class IlpModel(
               )
               activeChoiceConsColumnVar
             }
-            // at most 1 columns may be active for qChoice cons in a table. If there is only
-            // constituent for a choice (no splitting), this constraint may be stricter than the
-            // constraint on the choice above.
+            // At most 1 columns may be active for qChoice constituent in a table. If there is only
+            // one constituent for a choice (no splitting), this constraint may be stricter than the
+            // constraint on the choice above
             ilpSolver.addConsAtMostOne(
               s"atMostOneColumn-$qChoiceIdx-$qChoiceConsIdx",
               activeChoiceConsColumnVars
