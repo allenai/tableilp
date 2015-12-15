@@ -103,7 +103,7 @@ class TableIlpSolver @Inject() (
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer, solverParams.useRedisCache)
           val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
-            tableSelections)
+            tableSelections, tokenizer)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize",
             splitAnswerChoices = ilpParams.splitAnswerChoices)
           val allVariables = ilpModel.buildModel(questionIlp)

@@ -23,7 +23,8 @@ class IlpModel(
     ilpParams: IlpParams,
     weights: IlpWeights,
     tableInterface: TableInterface,
-    tableSelections: IndexedSeq[TableSelection]
+    tableSelections: IndexedSeq[TableSelection],
+    tokenizer: KeywordTokenizer
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -239,7 +240,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
-      if KeywordTokenizer.Default.isKeyword(qCons)
+      if tokenizer.isKeyword(qCons)
       table = tables(tableIdx)
       rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
@@ -251,7 +252,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
-      if KeywordTokenizer.Default.isKeyword(qCons)
+      if tokenizer.isKeyword(qCons)
       table = tables(tableIdx)
       colIdx <- table.titleRow.indices
       x <- addQuestionTitleVariable(qCons, qConsIdx, tableIdx, colIdx)
@@ -259,10 +260,11 @@ class IlpModel(
     val qChoiceTableVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoiceConsIdx <- question.choicesCons(qChoiceIdx).indices
-      qChoiceCons = question.choicesCons(qChoiceIdx)(qChoiceConsIdx)
+      qChoiceConses = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConses.indices
+      qChoiceCons = qChoiceConses(qChoiceConsIdx)
       // Ignore stopwords if choices are split
-      if KeywordTokenizer.Default.isKeyword(qChoiceCons) || !question.areChoicesSplit
+      if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
       rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
@@ -278,10 +280,11 @@ class IlpModel(
     val qChoiceTitleVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoiceConsIdx <- question.choicesCons(qChoiceIdx).indices
-      qChoiceCons = question.choicesCons(qChoiceIdx)(qChoiceConsIdx)
+      qChoiceConses = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConses.indices
+      qChoiceCons = qChoiceConses(qChoiceConsIdx)
       // Ignore stopwords if choices are split
-      if KeywordTokenizer.Default.isKeyword(qChoiceCons) || !question.areChoicesSplit
+      if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
       colIdx <- table.titleRow.indices
       minWt = if (question.areChoicesSplit) {
@@ -914,8 +917,7 @@ class IlpModel(
     // To calculate the distances ignoring the stop words, create a map from
     // question constituent index to position in sentence ignoring the stop words
     val qIdxToPos = question.questionCons.zipWithIndex.filter {
-      case (cons, idx) => KeywordTokenizer
-        .Default.isKeyword(cons)
+      case (cons, idx) => tokenizer.isKeyword(cons)
     }.map(_._2).zipWithIndex.toMap
     for {
       // Go through all question table variables
