@@ -309,15 +309,17 @@ class IlpModel(
         relPattern <- relPatterns
         if relPattern.pattern.regex.nonEmpty
         isFlipped = relPattern.isFlipped
+        // Iterate over the question choices and the question
+        (str, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
         // TODO(tushar) Optimize this code to prevent duplicate regex matching for
         // shared relations across tables
         patReg = relPattern.pattern
         // For all the matches to this pattern
-        matchStr <- patReg.findAllMatchIn(question.questionRaw)
+        matchStr <- patReg.findAllMatchIn(str)
       } yield {
         logger.trace("Found a match for " + matchRelation.relation + " at " + matchStr)
         addRelationVariable(tableIdx, matchRelation.col1Idx, matchRelation.col2Idx,
-          matchStr.start, matchStr.end, weights.relationMatchCoeff, isFlipped)
+          matchStr.start, matchStr.end, weights.relationMatchCoeff, index, isFlipped)
       }
       // If a relation has an empty pattern, it may not have a clear expression in text,
       // e.g., performs("fox", "hunts food") would appear as "... fox hunts food ... " in the
@@ -333,6 +335,8 @@ class IlpModel(
         tableIdx = tableNameToIdx(matchRelation.tableName)
         patterns = tableInterface.relationToRepresentation(matchRelation.relation).map(_.pattern
           .regex)
+        // Iterate over the question choices and the question
+        (_, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
         weight = if (patterns.contains("")) {
           logger.trace("Used the empty pattern for " + matchRelation.relation)
           weights.emptyRelationMatchCoeff
@@ -341,7 +345,7 @@ class IlpModel(
         }
       } yield {
         addRelationVariable(tableIdx, matchRelation.col1Idx,
-          matchRelation.col2Idx, -1, -1, weight, flipped = false)
+          matchRelation.col2Idx, -1, -1, weight, index, flipped = false)
       }
       // If the table has no defined relations, all alignments are acceptable for this table.
       val tablesWithoutDefinedRelations = tableNameToIdx.keySet.diff(
@@ -356,7 +360,9 @@ class IlpModel(
         col1 <- tables(tableIdx).titleRow.indices
         col2 <- tables(tableIdx).titleRow.indices
         if (col1 != col2)
-      } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, flipped = false)
+        // Iterate over the question choices and the question
+        (_, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
+      } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, index, flipped = false)
 
       relationPatternMatches ++ relationEmptyPatterns ++ noRelationDefined
     } else {
@@ -521,6 +527,13 @@ class IlpModel(
     }
     val cellToQuestionTableVarMap = Utils.toMapUsingGroupByFirst(cellToQuestionTableVar)
 
+    // A map from a cell to question choice constituent variables associated with it
+    val cellToQuestionChoiceVar = allVars.qChoiceConsTableVariables.map {
+      case y @ ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, x) =>
+        CellIdx(tableIdx, rowIdx, colIdx) -> y
+    }
+    val cellToQuestionChoiceVarMap = Utils.toMapUsingGroupByFirst(cellToQuestionChoiceVar)
+
     // add question dependent activity constraints
     // NOTE: this MUST be the very first use of activeCellVars, as it alters this mutable.Map
     tables.indices.foreach { tableIdx =>
@@ -659,12 +672,15 @@ class IlpModel(
                       rowIdx <- tableRowIds(tableIdx)
                       cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
                       relVar <- tmpColToRelationVar((tableIdx, colIdx))
+                      // Check for question relation match variables
+                      if relVar.choiceIndex.isEmpty
                       // If the start and end indices are set to -1, all alignments of the cell are
                       // allowed. This is used to handle relations whose expression in the question is
                       // difficult to determine, e.g. X performs Y
                       if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
-                      // Should the entries in the columns appear before the pattern, e.g., partOf(X, Y)
-                      // should match X with a question constituent before the "is part of" pattern
+                      // Should the entries in the columns appear before the pattern, e.g.,
+                      // partOf(X, Y) should match X with a question constituent before the "is
+                      // part of" pattern
                       // Using XOR to easily check for this
                       isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
                       qTableVars <- cellToQuestionTableVarMap.get(cellIdx)
@@ -679,9 +695,46 @@ class IlpModel(
                         s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
                         s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
                       // The cell-qcons alignment and relation pattern match both can not be true.
-                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostK(
+                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostOne(
                         "disableQAlign",
-                        Seq(inv.variable, relVar.variable), 1
+                        Seq(inv.variable, relVar.variable)
+                      ))
+                    }
+                    // Do the same for choices
+                    for {
+                      rowIdx <- tableRowIds(tableIdx)
+                      cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+                      relVar <- tmpColToRelationVar((tableIdx, colIdx))
+                      // Check for question relation match variables
+                      if relVar.choiceIndex.nonEmpty
+                      qChoiceIdx = relVar.choiceIndex.get
+                      qChoiceOffsets = question.choicesConsOffsets(qChoiceIdx)
+                      if qChoiceOffsets.nonEmpty
+                      // If the start and end indices are set to -1, all alignments of the cell are
+                      // allowed. This is used to handle relations whose expression in the question is
+                      // difficult to determine, e.g. X performs Y
+                      if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
+                      // Should the entries in the columns appear before the pattern, e.g.,
+                      // partOf(X, Y) should match X with a question constituent before the "is
+                      // part of" pattern
+                      // Using XOR to easily check for this
+                      isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
+                      choiceTableVars <- cellToQuestionChoiceVarMap.get(cellIdx)
+                      choiceIdxTableVars = choiceTableVars.filter(_.qChoiceIdx == qChoiceIdx)
+                      (_, invalidAlignments) = choiceIdxTableVars.partition(cVar => if (isPrefix) {
+                        qChoiceOffsets(cVar.qChoiceConsIdx) < relVar.qMatchStart
+                      } else {
+                        qChoiceOffsets(cVar.qChoiceConsIdx) > relVar.qMatchEnd
+                      })
+                    } yield {
+                      logger.trace("Disallowed alignments for " +
+                        s"${invalidAlignments.map(_.qChoiceConsIdx).mkString(",")} with " +
+                        s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
+                        s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
+                      // The cell-qcons alignment and relation pattern match both can not be true.
+                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostOne(
+                        "disableQChoiceConsAlign",
+                        Seq(inv.variable, relVar.variable)
                       ))
                     }
                   }
@@ -1237,12 +1290,25 @@ class IlpModel(
   }
 
   /** An internal method to add relation match in the question variable */
-  private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
+  /*private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
     matchStart: Int, matchEnd: Int, coeff: Double, flipped: Boolean): RelationMatchVariable = {
     val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd"
     val variable = ilpSolver.createBinaryVar(name, coeff)
     ilpSolver.addVar(variable)
-    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, flipped, variable)
+    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, None, flipped,
+      variable)
+  }*/
+
+  /** An internal method to add relation match in the question/choice variable */
+  private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
+    matchStart: Int, matchEnd: Int, coeff: Double, choiceIdx: Int,
+    flipped: Boolean): RelationMatchVariable = {
+    val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd-Ch=$choiceIdx"
+    val variable = ilpSolver.createBinaryVar(name, coeff)
+    val qChoiceIndex = if (choiceIdx > 0) Some(choiceIdx) else None
+    ilpSolver.addVar(variable)
+    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, qChoiceIndex,
+      flipped, variable)
   }
 
   private def createPossiblyRelaxedBinaryVar(name: String, objCoeff: Double): Long = {

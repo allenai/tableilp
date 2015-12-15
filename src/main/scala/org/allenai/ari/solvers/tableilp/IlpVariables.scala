@@ -179,9 +179,11 @@ case class ChoiceConsTitleVariable(
   * @param col1Idx column index of arg1 of the relation
   * @param col2Idx column index of arg2 of the relation
   * @param qMatchStart starting character offset of the pattern in the question. Set to -1, if
-  * no representation of relation in the question text.
+  * no representation of relation in the question text
   * @param qMatchEnd ending character offset of the pattern in the question. Set to -1, if
-  * no representation of relation in the question text.
+  * no representation of relation in the question text
+  * @param choiceIndex index of the question choice with the relation match. Set to none, if the
+  * match is on the question
   * @param flipped set to true if arg1(arg2) is expected to appear after(before) the pattern
   * @param variable ILP variable
   */
@@ -191,6 +193,7 @@ case class RelationMatchVariable(
   col2Idx: Int,
   qMatchStart: Int,
   qMatchEnd: Int,
+  choiceIndex: Option[Int],
   flipped: Boolean,
   variable: Long
 )
