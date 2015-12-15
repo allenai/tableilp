@@ -972,12 +972,10 @@ class IlpModel(
       case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
-    val cellToNonChoiceVars = Utils.toMapUsingGroupByFirst(
-      tmpInterTriples ++ tmpQuestionTriples
-    )
-    val rowToNonChoiceVars = Utils.toMapUsingGroupByFirst(cellToNonChoiceVars.toSeq.map {
+    val rowToNonChoiceVars = (tmpInterTriples ++ tmpQuestionTriples).map {
       case (CellIdx(tableIdx, rowIdx, _), x) => (tableIdx, rowIdx) -> x
-    }).mapValues(_.flatten)
+    }
+    val rowToNonChoiceVarsMap = Utils.toMapUsingGroupByFirst(rowToNonChoiceVars)
 
     // add question independent activity constraints
     tables.indices.foreach { tableIdx =>
@@ -1009,7 +1007,7 @@ class IlpModel(
             activeCellVarsInRow, minActiveCellsPerRow)
           // If row is active, it must have non-choice alignments
           ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastOneNonChoice", activeRowVar,
-            rowToNonChoiceVars.getOrElse((tableIdx, rowIdx), Seq.empty), 1)
+            rowToNonChoiceVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty), 1)
         } else {
           // remove this variable from the activeRowVars mutable.Map, as it can never be 1
           activeRowVars.remove((tableIdx, rowIdx))
