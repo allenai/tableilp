@@ -111,3 +111,10 @@ noise	duck	0.0
 sunlight	sun	0.5
 bird	make noise	0.0
 found	EVENT	0.0
+student	cause heat	0.0
+student	cause	0.0
+scales	Relation	0.0
+function	Relation	0.0
+water	Relation	0.0
+used	EVENT	0.0
+show	EVENT	0.0

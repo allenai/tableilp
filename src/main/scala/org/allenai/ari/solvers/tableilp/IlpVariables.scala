@@ -6,8 +6,8 @@ package org.allenai.ari.solvers.tableilp
   * @param interTableVariables variables involving two cells in different tables
   * @param questionTableVariables variables involving a question constituent and a table cell
   * @param questionTitleVariables variables involving a question constituent and a table title
-  * @param qChoiceTableVariables variables involving an answer choice and a table cell
-  * @param qChoiceTitleVariables variables involving an answer choice and a table title
+  * @param qChoiceConsTableVariables variables involving an answer choice and a table cell
+  * @param qChoiceConsTitleVariables variables involving an answer choice and a table title
   * @param activeChoiceVars variables indicating whether a choice was active, i.e., selected
   */
 case class AllVariables(
@@ -15,10 +15,11 @@ case class AllVariables(
     interTableVariables: IndexedSeq[InterTableVariable],
     questionTableVariables: IndexedSeq[QuestionTableVariable],
     questionTitleVariables: IndexedSeq[QuestionTitleVariable],
-    qChoiceTableVariables: IndexedSeq[ChoiceTableVariable],
-    qChoiceTitleVariables: IndexedSeq[ChoiceTitleVariable],
+    qChoiceConsTableVariables: IndexedSeq[ChoiceConsTableVariable],
+    qChoiceConsTitleVariables: IndexedSeq[ChoiceConsTitleVariable],
     relationVariables: IndexedSeq[RelationMatchVariable],
-    activeChoiceVars: Map[Int, Long]
+    activeChoiceVars: Map[Int, Long],
+    activeChoiceConsVars: Map[(Int, Int), Long]
 ) {
   def ++(that: AllVariables): AllVariables = {
     AllVariables(
@@ -26,18 +27,19 @@ case class AllVariables(
       interTableVariables ++ that.interTableVariables,
       questionTableVariables ++ that.questionTableVariables,
       questionTitleVariables ++ that.questionTitleVariables,
-      qChoiceTableVariables ++ that.qChoiceTableVariables,
-      qChoiceTitleVariables ++ that.qChoiceTitleVariables,
+      qChoiceConsTableVariables ++ that.qChoiceConsTableVariables,
+      qChoiceConsTitleVariables ++ that.qChoiceConsTitleVariables,
       relationVariables ++ that.relationVariables,
-      activeChoiceVars ++ that.activeChoiceVars
+      activeChoiceVars ++ that.activeChoiceVars,
+      activeChoiceConsVars ++ that.activeChoiceConsVars
     )
   }
 
   lazy val ilpVars: Seq[Long] = {
     intraTableVariables.map(_.variable) ++ interTableVariables.map(_.variable) ++
       questionTableVariables.map(_.variable) ++ questionTitleVariables.map(_.variable) ++
-      qChoiceTitleVariables.map(_.variable) ++ qChoiceTableVariables.map(_.variable) ++
-      relationVariables.map(_.variable) ++ activeChoiceVars.values
+      qChoiceConsTitleVariables.map(_.variable) ++ qChoiceConsTableVariables.map(_.variable) ++
+      relationVariables.map(_.variable) ++ activeChoiceVars.values ++ activeChoiceConsVars.values
   }
 }
 
@@ -132,6 +134,40 @@ case class ChoiceTableVariable(
   */
 case class ChoiceTitleVariable(
   qChoiceIdx: Int,
+  tableIdx: Int,
+  colIdx: Int,
+  variable: Long
+)
+
+/** Variables involving an answer choice and a table cell.
+  *
+  * @param qChoiceIdx index identifying a choice in the question
+  * @param qChoiceConsIdx index identifying a constituent in the choice
+  * @param tableIdx index identifying a table
+  * @param rowIdx index identifying a row in the table
+  * @param colIdx index identifying a column in the table
+  * @param variable a pointer to the associated ILP variable
+  */
+case class ChoiceConsTableVariable(
+  qChoiceIdx: Int,
+  qChoiceConsIdx: Int,
+  tableIdx: Int,
+  rowIdx: Int,
+  colIdx: Int,
+  variable: Long
+)
+
+/** Variables involving an answer choice and a table title cell.
+  *
+  * @param qChoiceIdx index identifying a choice in the question
+  * @param qChoiceConsIdx index identifying a constituent in the choice
+  * @param tableIdx index identifying a table
+  * @param colIdx index identifying a column in the table
+  * @param variable a pointer to the associated ILP variable
+  */
+case class ChoiceConsTitleVariable(
+  qChoiceIdx: Int,
+  qChoiceConsIdx: Int,
   tableIdx: Int,
   colIdx: Int,
   variable: Long

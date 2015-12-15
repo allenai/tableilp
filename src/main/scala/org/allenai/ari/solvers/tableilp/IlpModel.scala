@@ -23,7 +23,8 @@ class IlpModel(
     ilpParams: IlpParams,
     weights: IlpWeights,
     tableInterface: TableInterface,
-    tableSelections: IndexedSeq[TableSelection]
+    tableSelections: IndexedSeq[TableSelection],
+    tokenizer: KeywordTokenizer
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -221,7 +222,7 @@ class IlpModel(
     // return all variables
     AllVariables(intraTableVariables, interTableVariables,
       IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty,
-      Map.empty)
+      Map.empty, Map.empty)
   }
 
   /** Create question dependent variables.
@@ -239,7 +240,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
-      if KeywordTokenizer.Default.isKeyword(qCons)
+      if tokenizer.isKeyword(qCons)
       table = tables(tableIdx)
       rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
@@ -251,7 +252,7 @@ class IlpModel(
       qConsIdx <- question.questionCons.indices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
-      if KeywordTokenizer.Default.isKeyword(qCons)
+      if tokenizer.isKeyword(qCons)
       table = tables(tableIdx)
       colIdx <- table.titleRow.indices
       x <- addQuestionTitleVariable(qCons, qConsIdx, tableIdx, colIdx)
@@ -259,20 +260,40 @@ class IlpModel(
     val qChoiceTableVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoice = question.choices(qChoiceIdx)
+      qChoiceConss = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConss.indices
+      qChoiceCons = qChoiceConss(qChoiceConsIdx)
+      // Ignore stopwords if choices are split
+      if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
       rowIdx <- tableRowIds(tableIdx)
       row = tables(tableIdx).contentMatrix(rowIdx)
       colIdx <- row.indices
-      x <- addQChoiceTableVariable(qChoice, qChoiceIdx, tableIdx, rowIdx, colIdx)
+      minWt = if (question.areChoicesSplit) {
+        weights.minCellQChoiceConsAlignment
+      } else {
+        weights.minCellQChoiceAlignment
+      }
+      x <- addQChoiceConsTableVariable(qChoiceCons, qChoiceIdx, qChoiceConsIdx, tableIdx, rowIdx,
+        colIdx, minWt)
     } yield x
     val qChoiceTitleVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoiceCons = question.choices(qChoiceIdx)
+      qChoiceConss = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConss.indices
+      qChoiceCons = qChoiceConss(qChoiceConsIdx)
+      // Ignore stopwords if choices are split
+      if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
       colIdx <- table.titleRow.indices
-      x <- addQChoiceTitleVariable(qChoiceCons, qChoiceIdx, tableIdx, colIdx)
+      minWt = if (question.areChoicesSplit) {
+        weights.minTitleQChoiceConsAlignment
+      } else {
+        weights.minTitleQChoiceAlignment
+      }
+      x <- addQChoiceConsTitleVariable(qChoiceCons, qChoiceIdx, qChoiceConsIdx, tableIdx, colIdx,
+        minWt)
     } yield x
 
     // If relation matching enabled, create the relation match variables
@@ -295,7 +316,6 @@ class IlpModel(
         matchStr <- patReg.findAllMatchIn(question.questionRaw)
       } yield {
         logger.trace("Found a match for " + matchRelation.relation + " at " + matchStr)
-        // TODO(tushar): Make the coefficient configurable
         addRelationVariable(tableIdx, matchRelation.col1Idx, matchRelation.col2Idx,
           matchStr.start, matchStr.end, weights.relationMatchCoeff, isFlipped)
       }
@@ -303,7 +323,7 @@ class IlpModel(
       // e.g., performs("fox", "hunts food") would appear as "... fox hunts food ... " in the
       // question. Create a variable with (-1, -1) offsets to indicate any match with the
       // question is allowed but no change in the ILP objective (0.0 coeff). If there is no empty
-      // pattern associated with a relation, penalize arbitrary matches to the quesion with a
+      // pattern associated with a relation, penalize arbitrary matches to the question with a
       // coefficient of -5.
       val relationEmptyPatterns = for {
         // Iterate through all the patterns
@@ -313,7 +333,6 @@ class IlpModel(
         tableIdx = tableNameToIdx(matchRelation.tableName)
         patterns = tableInterface.relationToRepresentation(matchRelation.relation).map(_.pattern
           .regex)
-        // TODO(tushar): Make the coefficients configurable
         weight = if (patterns.contains("")) {
           logger.trace("Used the empty pattern for " + matchRelation.relation)
           weights.emptyRelationMatchCoeff
@@ -357,6 +376,17 @@ class IlpModel(
       choiceIdx -> x
     }).toMap
 
+    // Auxiliary variables: whether an answer choice constituent is aligned to something
+    val activeChoiceConsVars: Map[(Int, Int), Long] = (for {
+      choiceIdx <- question.choices.indices
+      choiceConsIdx <- question.choicesCons(choiceIdx).indices
+      name = s"choice=$choiceIdx-cons=$choiceConsIdx"
+      x = createPossiblyRelaxedBinaryVar(name, 1.0)
+    } yield {
+      ilpSolver.addVar(x)
+      (choiceIdx, choiceConsIdx) -> x
+    }).toMap
+
     logger.debug(s"\t${questionTableVariables.size} question-table vars, " +
       s"${questionTitleVariables.size} question-title vars, " +
       s"${qChoiceTableVariables.size} choice-table vars, " +
@@ -367,7 +397,7 @@ class IlpModel(
     // return all variables
     AllVariables(existingAllVars.intraTableVariables, existingAllVars.interTableVariables,
       questionTableVariables, questionTitleVariables, qChoiceTableVariables, qChoiceTitleVariables,
-      relationMatchVariables.toIndexedSeq, activeChoiceVars)
+      relationMatchVariables.toIndexedSeq, activeChoiceVars, activeChoiceConsVars)
   }
 
   /** The main method to build the question dependent aspects of the ILP model.
@@ -382,9 +412,10 @@ class IlpModel(
     val interTableVariables = allVars.interTableVariables
     val questionTableVariables = allVars.questionTableVariables
     val questionTitleVariables = allVars.questionTitleVariables
-    val qChoiceTableVariables = allVars.qChoiceTableVariables
-    val qChoiceTitleVariables = allVars.qChoiceTitleVariables
+    val qChoiceConsTableVariables = allVars.qChoiceConsTableVariables
+    val qChoiceConsTitleVariables = allVars.qChoiceConsTitleVariables
     val activeChoiceVars = allVars.activeChoiceVars
+    val activeChoiceConsVars = allVars.activeChoiceConsVars
 
     // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
@@ -417,8 +448,8 @@ class IlpModel(
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
     // A convenient map from a cell to question-choice ILP variables associated with it
-    val tmpChoicesTriples = qChoiceTableVariables.map {
-      case ChoiceTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
+    val tmpChoicesTriples = qChoiceConsTableVariables.map {
+      case ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, x) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> x
     }
 
@@ -428,22 +459,38 @@ class IlpModel(
       tmpInterTriples ++ tmpQuestionTriples ++ tmpChoicesTriples
     )
 
-    // Collect all external alignments per answer choice
-    val tmpChoiceToTableVars = qChoiceTableVariables.map {
-      case ChoiceTableVariable(qChoiceCons, _, _, _, x) => qChoiceCons -> x
+    val tableToNonChoiceVars = (tmpInterTriples ++ tmpQuestionTriples).map {
+      case (CellIdx(tableIdx, _, _), x) => (tableIdx, x)
     }
-    val tmpChoiceToTitleVars = qChoiceTitleVariables.map {
-      case ChoiceTitleVariable(qChoiceCons, _, _, x) => qChoiceCons -> x
+
+    val tableToNonChoiceVarsMap = Utils.toMapUsingGroupByFirst(tableToNonChoiceVars)
+
+    // Collect all external alignments per answer choice
+    val tmpChoiceToTableVars = qChoiceConsTableVariables.map {
+      case ChoiceConsTableVariable(qChoice, _, _, _, _, x) => qChoice -> x
+    }
+    val tmpChoiceToTitleVars = qChoiceConsTitleVariables.map {
+      case ChoiceConsTitleVariable(qChoice, _, _, _, x) => qChoice -> x
     }
     val choiceToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceToTableVars ++
       tmpChoiceToTitleVars)
+
+    // Collect all external alignments per answer choice constituent
+    val tmpChoiceConsToTableVars = qChoiceConsTableVariables.map {
+      case ChoiceConsTableVariable(qChoice, qCons, _, _, _, x) => (qChoice, qCons) -> x
+    }
+    val tmpChoiceConsToTitleVars = qChoiceConsTitleVariables.map {
+      case ChoiceConsTitleVariable(qChoice, qCons, _, _, x) => (qChoice, qCons) -> x
+    }
+    val choiceConsToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpChoiceConsToTableVars ++
+      tmpChoiceConsToTitleVars)
 
     // Collect all external alignments per title
     val tmpTitleToQuestionVars = questionTitleVariables.map {
       case QuestionTitleVariable(_, tableIdx, colIdx, x) => TitleIdx(tableIdx, colIdx) -> x
     }
-    val tmpTitleToChoiceVars = qChoiceTitleVariables.map {
-      case ChoiceTitleVariable(_, tableIdx, colIdx, x) => TitleIdx(tableIdx, colIdx) -> x
+    val tmpTitleToChoiceVars = qChoiceConsTitleVariables.map {
+      case ChoiceConsTitleVariable(_, _, tableIdx, colIdx, x) => TitleIdx(tableIdx, colIdx) -> x
     }
     val titleToExtAlignmentVars = Utils.toMapUsingGroupByFirst(tmpTitleToQuestionVars ++
       tmpTitleToChoiceVars)
@@ -667,6 +714,24 @@ class IlpModel(
       }
     }
 
+    // if the question choice constituent is active, there is at least one active thing connected to
+    // it. i.e. ChoiceConsVariable <= Sum(incomingToChoice)
+    question.choices.indices.foreach { choiceIdx =>
+      question.choicesCons(choiceIdx).indices.foreach { choiceConsIdx =>
+        val choiceConsVar = activeChoiceConsVars((choiceIdx, choiceConsIdx))
+        val extAlignmentVarsForChoiceCons = choiceConsToExtAlignmentVars.getOrElse(
+          (choiceIdx, choiceConsIdx), Seq.empty
+        )
+        ilpSolver.addConsYImpliesAtLeastK("activeChoiceConsImpliesAlignments", choiceConsVar,
+          extAlignmentVarsForChoiceCons, 1d)
+        // activate the choice constituent variables if there is anything aligned to it:
+        // alignedCell => active choice constituent
+        extAlignmentVarsForChoiceCons.foreach {
+          ilpSolver.addConsXLeqY("choiceConsActivation", _, choiceConsVar)
+        }
+      }
+    }
+
     // a choice should align to at most one column
     if (ilpParams.maxRowsPerTable <= 1) {
       // at most one 1 row: simply enforce that a choice should align to at most one cell;
@@ -680,10 +745,10 @@ class IlpModel(
       }
     } else {
       // at most k rows, for k > 1
-      val tableVarsMap = qChoiceTableVariables.groupBy(v => (v.qChoiceIdx, v.tableIdx, v.colIdx))
-      val titleVarsMap = qChoiceTitleVariables.groupBy(v => (v.qChoiceIdx, v.tableIdx, v.colIdx))
-      question.choices.indices.foreach { qChoiceIdx =>
-        tables.indices.foreach { tableIdx =>
+      val tableVarsMap = qChoiceConsTableVariables.groupBy(v => (v.qChoiceIdx, v.tableIdx, v.colIdx))
+      val titleVarsMap = qChoiceConsTitleVariables.groupBy(v => (v.qChoiceIdx, v.tableIdx, v.colIdx))
+      val activeChoiceTables = question.choices.indices.map { qChoiceIdx =>
+        val activeTableVars = tables.indices.map { tableIdx =>
           val table = tables(tableIdx)
           val activeChoiceColumnVars = table.contentMatrix.head.indices.map { colIdx =>
             // create a variable indicating whether qChoice is aligned with a given table column
@@ -700,10 +765,117 @@ class IlpModel(
             titleVarsMap.getOrElse(key, Seq.empty).foreach { titleVar =>
               ilpSolver.addConsXLeqY("choiceToTitle", titleVar.variable, activeChoiceColumnVar)
             }
+            val choiceColVars = tableVarsMap.getOrElse(key, Seq.empty).map(_.variable) ++
+              titleVarsMap.getOrElse(key, Seq.empty).map(_.variable)
+            // If a column is active for a choice, there must exist an alignment to title or cell
+            ilpSolver.addConsYImpliesAtLeastK(
+              "activeChoiceColImpliesAlignments",
+              activeChoiceColumnVar, choiceColVars, 1d
+            )
             activeChoiceColumnVar
           }
-          // at most one column may be active for qChoice
-          ilpSolver.addConsAtMostOne(s"atMostOneColumn-$qChoiceIdx", activeChoiceColumnVars)
+          // At most two columns may be active for a qChoice.
+          ilpSolver.addConsAtMostK(
+            s"atMostTwoColumnsForChoice-$qChoiceIdx",
+            activeChoiceColumnVars, 2
+          )
+          val name = s"activeChoiceTableVar-$qChoiceIdx-$tableIdx"
+          val objCoeff = 0d
+          val activeChoiceTableVar = createPossiblyRelaxedBinaryVar(name, objCoeff)
+          ilpSolver.addVar(activeChoiceTableVar)
+
+          // If a column is active for a choice, the table is active
+          activeChoiceColumnVars.foreach { colVar =>
+            ilpSolver.addConsXLeqY("choiceColToTable", colVar, activeChoiceTableVar)
+          }
+          // If a table is active for a choice, there must exist an active column for choice
+          ilpSolver.addConsYImpliesAtLeastK("activeChoiceTableImpliesActiveCol", activeChoiceTableVar,
+            activeChoiceColumnVars, 1d)
+          // If a table is active for a choice, there must be some non-choice alignment
+          ilpSolver.addConsYImpliesAtLeastK(
+            "activeChoiceTableImpliesOtherAlign",
+            activeChoiceTableVar, tableToNonChoiceVarsMap.getOrElse(tableIdx, Seq.empty), 1d
+          )
+          tableIdx -> activeChoiceTableVar
+        }
+        // Answer present in max two tables
+        ilpSolver.addConsAtMostK(s"atMostTwoTables-$qChoiceIdx", activeTableVars.map(_._2), 2.0d)
+        // Re-use the active tables to create a map from choice to tables active for that choice
+        qChoiceIdx -> activeTableVars.toMap
+      }.toMap
+
+      // Similar constraints for choice constituents
+      val tableConsVarsMap = qChoiceConsTableVariables.groupBy(v =>
+        (v.qChoiceIdx, v.qChoiceConsIdx, v.tableIdx, v.colIdx))
+      val titleConsVarsMap = qChoiceConsTitleVariables.groupBy(v =>
+        (v.qChoiceIdx, v.qChoiceConsIdx, v.tableIdx, v.colIdx))
+      question.choices.indices.foreach { qChoiceIdx =>
+        question.choicesCons(qChoiceIdx).indices.foreach { qChoiceConsIdx =>
+          tables.indices.foreach { tableIdx =>
+            val table = tables(tableIdx)
+            val activeChoiceConsColumnVars = table.contentMatrix.head.indices.map { colIdx =>
+              // create a variable indicating whether qChoiceCons is aligned with a given column
+              val name = s"activeChoiceConsColumnVar-$qChoiceIdx-$qChoiceConsIdx-$tableIdx-$colIdx"
+              val activeChoiceConsColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
+              ilpSolver.addVar(activeChoiceConsColumnVar)
+              // key to look up alignment variables connecting qChoiceCons to a cell or title of a
+              // column
+              val key = (qChoiceIdx, qChoiceConsIdx, tableIdx, colIdx)
+              // if a cell in colIdx is aligned with qChoiceCons, the column is active for
+              // qChoiceCons
+              tableConsVarsMap.getOrElse(key, Seq.empty).foreach { tableVar =>
+                ilpSolver.addConsXLeqY("choiceConsToCol", tableVar.variable,
+                  activeChoiceConsColumnVar)
+              }
+              // if the title of colIdx is aligned with qChoice, the column is active for qChoice
+              titleConsVarsMap.getOrElse(key, Seq.empty).foreach { titleVar =>
+                ilpSolver.addConsXLeqY("choiceConsToTitle", titleVar.variable,
+                  activeChoiceConsColumnVar)
+              }
+              val choiceConsColVars = tableConsVarsMap.getOrElse(key, Seq.empty).map(_.variable) ++
+                titleConsVarsMap.getOrElse(key, Seq.empty).map(_.variable)
+              // If a column is active for a choice cons, there must exist an alignment to title or
+              // cell in the column
+              ilpSolver.addConsYImpliesAtLeastK(
+                "activeChoiceColImpliesAlignments",
+                activeChoiceConsColumnVar, choiceConsColVars, 1d
+              )
+              activeChoiceConsColumnVar
+            }
+            // At most 1 column may be active for qChoice constituent in a table. If there is only
+            // one constituent for a choice (no splitting), this constraint may be stricter than the
+            // constraint on the choice above
+            ilpSolver.addConsAtMostOne(
+              s"atMostOneColumn-$qChoiceIdx-$qChoiceConsIdx",
+              activeChoiceConsColumnVars
+            )
+
+            val name = s"activeChoiceConsTableVar-$qChoiceIdx-$qChoiceConsIdx-$tableIdx"
+            val activeChoiceConsTableVar = createPossiblyRelaxedBinaryVar(name, 0d)
+            ilpSolver.addVar(activeChoiceConsTableVar)
+
+            // If a column is active for a choice cons, the table is active
+            activeChoiceConsColumnVars.foreach { colVar =>
+              ilpSolver.addConsXLeqY("choiceConsColToTable", colVar, activeChoiceConsTableVar)
+            }
+            // If a table is active for a choice cons, there must exist an active column for
+            // choice cons
+            ilpSolver.addConsYImpliesAtLeastK(
+              "activeChoiceConsTableImpliesActiveCol",
+              activeChoiceConsTableVar, activeChoiceConsColumnVars, 1d
+            )
+
+            // If table is active for choice & choice const is active => table must be active for
+            // choice const
+            ilpSolver.addConsHorn(
+              "activeTableAndConsImpliesTableConsActive",
+              Seq(
+                activeChoiceTables(qChoiceIdx)(tableIdx),
+                activeChoiceConsVars((qChoiceIdx, qChoiceConsIdx))
+              ),
+              activeChoiceConsTableVar
+            )
+          }
         }
       }
     }
@@ -743,8 +915,7 @@ class IlpModel(
     // To calculate the distances ignoring the stop words, create a map from
     // question constituent index to position in sentence ignoring the stop words
     val qIdxToPos = question.questionCons.zipWithIndex.filter {
-      case (cons, idx) => KeywordTokenizer
-        .Default.isKeyword(cons)
+      case (cons, idx) => tokenizer.isKeyword(cons)
     }.map(_._2).zipWithIndex.toMap
     for {
       // Go through all question table variables
@@ -787,6 +958,25 @@ class IlpModel(
   private def addQuestionIndependentConstraints(allVars: AllVariables): Unit = {
     val interTableVariables = allVars.interTableVariables
 
+    // TODO remove these duplicate variables by potentially merging
+    // addQuestionIndependentConstraints with addQuestionIndependentConstraints
+    // A convenient map from a cell to inter-table ILP variables associated with it
+    val tmpInterTriples = interTableVariables.flatMap {
+      case InterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2, x) =>
+        val cellIdx1 = CellIdx(tableIdx1, rowIdx1, colIdx1)
+        val cellIdx2 = CellIdx(tableIdx2, rowIdx2, colIdx2)
+        Seq(cellIdx1 -> x, cellIdx2 -> x)
+    }
+    // A convenient map from a cell to question-table ILP variables associated with it
+    val tmpQuestionTriples = allVars.questionTableVariables.map {
+      case QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
+        CellIdx(tableIdx, rowIdx, colIdx) -> x
+    }
+    val rowToNonChoiceVars = (tmpInterTriples ++ tmpQuestionTriples).map {
+      case (CellIdx(tableIdx, rowIdx, _), x) => (tableIdx, rowIdx) -> x
+    }
+    val rowToNonChoiceVarsMap = Utils.toMapUsingGroupByFirst(rowToNonChoiceVars)
+
     // add question independent activity constraints
     tables.indices.foreach { tableIdx =>
       val table = tables(tableIdx)
@@ -809,12 +999,15 @@ class IlpModel(
           ilpSolver.addVar(activeRowVar)
           activeCellVarsInRow.foreach { activeCellVar =>
             ilpSolver.addConsXLeqY("activeRow", activeCellVar, activeRowVar)
-            // non-redundant use of tables: if a row is active, at least TWO of its cells must be
-            // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
-            // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
-            ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
-              activeCellVarsInRow, minActiveCellsPerRow)
           }
+          // non-redundant use of tables: if a row is active, at least TWO of its cells must be
+          // active; model as sum(activeCellVarsInRow) >= 2*activeRowVar, i.e.,
+          // 0 <= sum(activeCellVarsInRow) - 2*activeRowVar
+          ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
+            activeCellVarsInRow, minActiveCellsPerRow)
+          // If row is active, it must have non-choice alignments
+          ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastOneNonChoice", activeRowVar,
+            rowToNonChoiceVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty), 1)
         } else {
           // remove this variable from the activeRowVars mutable.Map, as it can never be 1
           activeRowVars.remove((tableIdx, rowIdx))
@@ -1005,6 +1198,41 @@ class IlpModel(
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceTableVariable(qChoiceIdx, tableIdx, rowIdx, colIdx, variable))
+    }
+  }
+
+  /** An internal method to create a question choice-to-title variable */
+  private def addQChoiceConsTitleVariable(
+    qChoiceCons: String, qChoiceIdx: Int, qChoiceConsIdx: Int, tableIdx: Int, colIdx: Int,
+    minAlignment: Double
+  ): Option[ChoiceConsTitleVariable] = {
+    val objCoeff = aligner.scoreTitleQChoice(tables(tableIdx).titleRow(colIdx), qChoiceCons)
+    if (objCoeff < minAlignment) {
+      None
+    } else {
+      val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx-I=$qChoiceConsIdx"
+      val variable = ilpSolver.createBinaryVar(name, objCoeff)
+      ilpSolver.addVar(variable)
+      Some(ChoiceConsTitleVariable(qChoiceIdx, qChoiceConsIdx, tableIdx, colIdx, variable))
+    }
+  }
+
+  /** An internal method to create a option-to-table variable */
+  private def addQChoiceConsTableVariable(
+    qChoiceCons: String, qChoiceIdx: Int, qChoiceConsIdx: Int, tableIdx: Int, rowIdx: Int,
+    colIdx: Int, minAlignment: Double
+  ): Option[ChoiceConsTableVariable] = {
+    val objCoeff = aligner.scoreCellQChoice(
+      tables(tableIdx).contentMatrix(rowIdx)(colIdx),
+      qChoiceCons
+    )
+    if (objCoeff < minAlignment) {
+      None
+    } else {
+      val name = s"T=$tableIdx-QChoice=$qChoiceIdx-R=$rowIdx-C=$colIdx-I=$qChoiceConsIdx"
+      val variable = ilpSolver.createBinaryVar(name, objCoeff)
+      ilpSolver.addVar(variable)
+      Some(ChoiceConsTableVariable(qChoiceIdx, qChoiceConsIdx, tableIdx, rowIdx, colIdx, variable))
     }
   }
 

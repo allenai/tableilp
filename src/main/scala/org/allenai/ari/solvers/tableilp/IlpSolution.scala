@@ -297,7 +297,7 @@ object IlpSolutionFactory extends Logging {
 
     // choice title alignments
     val choiceTitleAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
-      entry <- allVariables.qChoiceTitleVariables
+      entry <- allVariables.qChoiceConsTitleVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).titleAlignments(entry.colIdx)
@@ -307,7 +307,7 @@ object IlpSolutionFactory extends Logging {
 
     // choice table alignments
     val choiceTableAlignmentTriples: IndexedSeq[AlignmentTriple] = for {
-      entry <- allVariables.qChoiceTableVariables
+      entry <- allVariables.qChoiceConsTableVariables
       if ilpSolver.getSolVal(entry.variable) > alignmentThreshold
     } yield {
       val cell = tableAlignments(entry.tableIdx).contentAlignments(entry.rowIdx)(entry.colIdx)

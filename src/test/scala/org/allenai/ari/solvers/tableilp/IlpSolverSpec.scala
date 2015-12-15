@@ -28,7 +28,7 @@ class IlpSolverSpec extends UnitSpec {
     val questionIlp = TableQuestionFactory.makeQuestion(questionChunks, choices)
     val ilpSolver = new ScipInterface("sampleExample", scipParams)
     val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
-      tableSelections)
+      tableSelections, tokenizer)
     val allVariables = ilpModel.buildModel(questionIlp)
     val vars = allVariables.ilpVars
     ilpSolver.solve()
@@ -52,6 +52,6 @@ class IlpSolverSpec extends UnitSpec {
 
     // check that the correct answer was obtained
     choice should be(1)
-    assert(score === 10.6494 +- 1e-4)
+    assert(score === 11.6494 +- 1e-4)
   }
 }
