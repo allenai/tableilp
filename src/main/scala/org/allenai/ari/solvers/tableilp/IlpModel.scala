@@ -260,9 +260,9 @@ class IlpModel(
     val qChoiceTableVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoiceConses = question.choicesCons(qChoiceIdx)
-      qChoiceConsIdx <- qChoiceConses.indices
-      qChoiceCons = qChoiceConses(qChoiceConsIdx)
+      qChoiceConss = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConss.indices
+      qChoiceCons = qChoiceConss(qChoiceConsIdx)
       // Ignore stopwords if choices are split
       if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
@@ -280,9 +280,9 @@ class IlpModel(
     val qChoiceTitleVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
-      qChoiceConses = question.choicesCons(qChoiceIdx)
-      qChoiceConsIdx <- qChoiceConses.indices
-      qChoiceCons = qChoiceConses(qChoiceConsIdx)
+      qChoiceConss = question.choicesCons(qChoiceIdx)
+      qChoiceConsIdx <- qChoiceConss.indices
+      qChoiceCons = qChoiceConss(qChoiceConsIdx)
       // Ignore stopwords if choices are split
       if tokenizer.isKeyword(qChoiceCons) || !question.areChoicesSplit
       table = tables(tableIdx)
@@ -459,11 +459,11 @@ class IlpModel(
       tmpInterTriples ++ tmpQuestionTriples ++ tmpChoicesTriples
     )
 
-    val cellToNonChoiceVars = Utils.toMapUsingGroupByFirst(tmpInterTriples ++ tmpQuestionTriples)
-
-    val tableToNonChoiceVars = Utils.toMapUsingGroupByFirst(cellToNonChoiceVars.toSeq.map {
+    val tableToNonChoiceVars = (tmpInterTriples ++ tmpQuestionTriples).map {
       case (CellIdx(tableIdx, _, _), x) => (tableIdx, x)
-    }).mapValues(_.flatten)
+    }
+
+    val tableToNonChoiceVarsMap = Utils.toMapUsingGroupByFirst(tableToNonChoiceVars)
 
     // Collect all external alignments per answer choice
     val tmpChoiceToTableVars = qChoiceConsTableVariables.map {
@@ -780,15 +780,13 @@ class IlpModel(
             activeChoiceColumnVars, 2
           )
           val name = s"activeChoiceTableVar-$qChoiceIdx-$tableIdx"
-          val activeChoiceTableVar = createPossiblyRelaxedBinaryVar(name, 0d)
+          val objCoeff = 0d
+          val activeChoiceTableVar = createPossiblyRelaxedBinaryVar(name, objCoeff)
           ilpSolver.addVar(activeChoiceTableVar)
 
           // If a column is active for a choice, the table is active
           activeChoiceColumnVars.foreach { colVar =>
-            ilpSolver.addConsXLeqY(
-              "choiceColToTable",
-              colVar, activeChoiceTableVar
-            )
+            ilpSolver.addConsXLeqY("choiceColToTable", colVar, activeChoiceTableVar)
           }
           // If a table is active for a choice, there must exist an active column for choice
           ilpSolver.addConsYImpliesAtLeastK("activeChoiceTableImpliesActiveCol", activeChoiceTableVar,
@@ -796,7 +794,7 @@ class IlpModel(
           // If a table is active for a choice, there must be some non-choice alignment
           ilpSolver.addConsYImpliesAtLeastK(
             "activeChoiceTableImpliesOtherAlign",
-            activeChoiceTableVar, tableToNonChoiceVars.getOrElse(tableIdx, Seq.empty), 1d
+            activeChoiceTableVar, tableToNonChoiceVarsMap.getOrElse(tableIdx, Seq.empty), 1d
           )
           tableIdx -> activeChoiceTableVar
         }
@@ -844,7 +842,7 @@ class IlpModel(
               )
               activeChoiceConsColumnVar
             }
-            // At most 1 columns may be active for qChoice constituent in a table. If there is only
+            // At most 1 column may be active for qChoice constituent in a table. If there is only
             // one constituent for a choice (no splitting), this constraint may be stricter than the
             // constraint on the choice above
             ilpSolver.addConsAtMostOne(
@@ -960,6 +958,8 @@ class IlpModel(
   private def addQuestionIndependentConstraints(allVars: AllVariables): Unit = {
     val interTableVariables = allVars.interTableVariables
 
+    // TODO remove these duplicate variables by potentially merging
+    // addQuestionIndependentConstraints with addQuestionIndependentConstraints
     // A convenient map from a cell to inter-table ILP variables associated with it
     val tmpInterTriples = interTableVariables.flatMap {
       case InterTableVariable(tableIdx1, tableIdx2, rowIdx1, rowIdx2, colIdx1, colIdx2, x) =>

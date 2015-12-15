@@ -141,7 +141,8 @@ case class ChoiceTitleVariable(
 
 /** Variables involving an answer choice and a table cell.
   *
-  * @param qChoiceIdx index identifying a constitute in the question
+  * @param qChoiceIdx index identifying a choice in the question
+  * @param qChoiceConsIdx index identifying a constituent in the choice
   * @param tableIdx index identifying a table
   * @param rowIdx index identifying a row in the table
   * @param colIdx index identifying a column in the table
@@ -158,7 +159,8 @@ case class ChoiceConsTableVariable(
 
 /** Variables involving an answer choice and a table title cell.
   *
-  * @param qChoiceIdx index identifying a constitute in the question
+  * @param qChoiceIdx index identifying a choice in the question
+  * @param qChoiceConsIdx index identifying a constituent in the choice
   * @param tableIdx index identifying a table
   * @param colIdx index identifying a column in the table
   * @param variable a pointer to the associated ILP variable
