@@ -133,7 +133,7 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   def getVarObjCoeff(l: Long): Double = envVar.varGetObj(l)
 
   /** check whether a solution has been found */
-  private def IlpStatusFeasibleOrOptimal = Seq(IlpStatusOptimal, IlpStatusFeasible)
+  private val IlpStatusFeasibleOrOptimal = Seq(IlpStatusOptimal, IlpStatusFeasible)
   def hasSolution: Boolean = IlpStatusFeasibleOrOptimal.contains(getStatus)
 
   /** check whether an optimal solution has been found */
