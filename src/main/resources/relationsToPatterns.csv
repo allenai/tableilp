@@ -29,6 +29,7 @@ cause,results in,cold results in shivering
 cause,effect of,shivering is effect of cold
 cause,way to,shivering is a way to handle cold
 fromTo,to,liquid to solid
+fromTo,changing to,solid changing to liquid
 helpsWith,help,fur helps against cold
 helpsWith,way.*adjust to,growing furs is a way to adjust to cold
 purpose,function is,nose's function is to smell prey

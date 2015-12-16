@@ -522,7 +522,7 @@ class IlpModel(
 
     // A map from a cell to questionTable variables associated with it
     val cellToQuestionTableVar = allVars.questionTableVariables.map {
-      case y @ QuestionTableVariable(_, tableIdx, rowIdx, colIdx, x) =>
+      case y @ QuestionTableVariable(_, tableIdx, rowIdx, colIdx, _) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> y
     }
     val cellToQuestionTableVarMap = Utils.toMapUsingGroupByFirst(cellToQuestionTableVar)
@@ -701,6 +701,8 @@ class IlpModel(
                       ))
                     }
                     // Do the same for choices
+                    // TODO(tushar) Try to avoid code repetition here. Non-trivial as different
+                    // case classes used for choice-table alignments and question-table alignments
                     for {
                       rowIdx <- tableRowIds(tableIdx)
                       cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
@@ -1288,16 +1290,6 @@ class IlpModel(
       Some(ChoiceConsTableVariable(qChoiceIdx, qChoiceConsIdx, tableIdx, rowIdx, colIdx, variable))
     }
   }
-
-  /** An internal method to add relation match in the question variable */
-  /*private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
-    matchStart: Int, matchEnd: Int, coeff: Double, flipped: Boolean): RelationMatchVariable = {
-    val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd"
-    val variable = ilpSolver.createBinaryVar(name, coeff)
-    ilpSolver.addVar(variable)
-    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, None, flipped,
-      variable)
-  }*/
 
   /** An internal method to add relation match in the question/choice variable */
   private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
