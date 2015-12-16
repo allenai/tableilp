@@ -298,6 +298,10 @@ class IlpModel(
 
     // If relation matching enabled, create the relation match variables
     val relationMatchVariables: Seq[RelationMatchVariable] = if (ilpParams.requireRelationMatch) {
+      val choiceZipWithIndexOptions = question.choices.zipWithIndex.map {
+        case (choice, idx) =>
+          (choice, Some(idx))
+      }
       val relationPatternMatches = for {
         // Iterate through all the allowed table relations
         matchRelation <- tableInterface.allowedRelations
@@ -310,7 +314,7 @@ class IlpModel(
         if relPattern.pattern.regex.nonEmpty
         isFlipped = relPattern.isFlipped
         // Iterate over the question choices and the question
-        (str, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
+        (str, index) <- (question.questionRaw, None) +: choiceZipWithIndexOptions
         // TODO(tushar) Optimize this code to prevent duplicate regex matching for
         // shared relations across tables
         patReg = relPattern.pattern
@@ -336,7 +340,7 @@ class IlpModel(
         patterns = tableInterface.relationToRepresentation(matchRelation.relation).map(_.pattern
           .regex)
         // Iterate over the question choices and the question
-        (_, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
+        (_, index) <- (question.questionRaw, None) +: choiceZipWithIndexOptions
         weight = if (patterns.contains("")) {
           logger.trace("Used the empty pattern for " + matchRelation.relation)
           weights.emptyRelationMatchCoeff
@@ -361,7 +365,7 @@ class IlpModel(
         col2 <- tables(tableIdx).titleRow.indices
         if (col1 != col2)
         // Iterate over the question choices and the question
-        (_, index) <- question.choices.zipWithIndex :+ (question.questionRaw, -1)
+        (_, index) <- (question.questionRaw, None) +: choiceZipWithIndexOptions
       } yield addRelationVariable(tableIdx, col1, col2, -1, -1, 0, index, flipped = false)
 
       relationPatternMatches ++ relationEmptyPatterns ++ noRelationDefined
@@ -529,7 +533,7 @@ class IlpModel(
 
     // A map from a cell to question choice constituent variables associated with it
     val cellToQuestionChoiceVar = allVars.qChoiceConsTableVariables.map {
-      case y @ ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, x) =>
+      case y @ ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, _) =>
         CellIdx(tableIdx, rowIdx, colIdx) -> y
     }
     val cellToQuestionChoiceVarMap = Utils.toMapUsingGroupByFirst(cellToQuestionChoiceVar)
@@ -1290,13 +1294,12 @@ class IlpModel(
 
   /** An internal method to add relation match in the question/choice variable */
   private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
-    matchStart: Int, matchEnd: Int, coeff: Double, choiceIdx: Int,
+    matchStart: Int, matchEnd: Int, coeff: Double, choiceIdx: Option[Int],
     flipped: Boolean): RelationMatchVariable = {
     val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd-Ch=$choiceIdx"
     val variable = ilpSolver.createBinaryVar(name, coeff)
-    val qChoiceIndex = if (choiceIdx > 0) Some(choiceIdx) else None
     ilpSolver.addVar(variable)
-    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, qChoiceIndex,
+    RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, choiceIdx,
       flipped, variable)
   }
 
