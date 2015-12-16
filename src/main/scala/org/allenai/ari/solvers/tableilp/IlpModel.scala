@@ -668,76 +668,73 @@ class IlpModel(
                   if (question.questionConsOffsets.isEmpty) {
                     logger.error("Offsets for question constituents needed for relation matching!")
                   } else {
-                    for {
-                      rowIdx <- tableRowIds(tableIdx)
-                      cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
-                      relVar <- tmpColToRelationVar((tableIdx, colIdx))
-                      // Check for question relation match variables
-                      if relVar.choiceIndex.isEmpty
-                      // If the start and end indices are set to -1, all alignments of the cell are
-                      // allowed. This is used to handle relations whose expression in the question is
-                      // difficult to determine, e.g. X performs Y
-                      if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
-                      // Should the entries in the columns appear before the pattern, e.g.,
-                      // partOf(X, Y) should match X with a question constituent before the "is
-                      // part of" pattern
-                      // Using XOR to easily check for this
-                      isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
-                      qTableVars <- cellToQuestionTableVarMap.get(cellIdx)
-                      (_, invalidAlignments) = qTableVars.partition(qVar => if (isPrefix) {
-                        question.questionConsOffsets(qVar.qConsIdx) < relVar.qMatchStart
-                      } else {
-                        question.questionConsOffsets(qVar.qConsIdx) > relVar.qMatchEnd
-                      })
-                    } yield {
-                      logger.trace("Disallowed alignments for " +
-                        s"${invalidAlignments.map(_.qConsIdx).mkString(",")} with " +
-                        s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
-                        s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
-                      // The cell-qcons alignment and relation pattern match both can not be true.
-                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostOne(
-                        "disableQAlign",
-                        Seq(inv.variable, relVar.variable)
-                      ))
-                    }
-                    // Do the same for choices
-                    // TODO(tushar) Try to avoid code repetition here. Non-trivial as different
-                    // case classes used for choice-table alignments and question-table alignments
-                    for {
-                      rowIdx <- tableRowIds(tableIdx)
-                      cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
-                      relVar <- tmpColToRelationVar((tableIdx, colIdx))
-                      // Check for question relation match variables
-                      if relVar.choiceIndex.nonEmpty
-                      qChoiceIdx = relVar.choiceIndex.get
-                      qChoiceOffsets = question.choicesConsOffsets(qChoiceIdx)
-                      if qChoiceOffsets.nonEmpty
-                      // If the start and end indices are set to -1, all alignments of the cell are
-                      // allowed. This is used to handle relations whose expression in the question is
-                      // difficult to determine, e.g. X performs Y
-                      if relVar.qMatchStart != -1 && relVar.qMatchEnd != -1
-                      // Should the entries in the columns appear before the pattern, e.g.,
-                      // partOf(X, Y) should match X with a question constituent before the "is
-                      // part of" pattern
-                      // Using XOR to easily check for this
-                      isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
-                      choiceTableVars <- cellToQuestionChoiceVarMap.get(cellIdx)
-                      choiceIdxTableVars = choiceTableVars.filter(_.qChoiceIdx == qChoiceIdx)
-                      (_, invalidAlignments) = choiceIdxTableVars.partition(cVar => if (isPrefix) {
-                        qChoiceOffsets(cVar.qChoiceConsIdx) < relVar.qMatchStart
-                      } else {
-                        qChoiceOffsets(cVar.qChoiceConsIdx) > relVar.qMatchEnd
-                      })
-                    } yield {
-                      logger.trace("Disallowed alignments for " +
-                        s"${invalidAlignments.map(_.qChoiceConsIdx).mkString(",")} with " +
-                        s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
-                        s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
-                      // The cell-qcons alignment and relation pattern match both can not be true.
-                      invalidAlignments.foreach(inv => ilpSolver.addConsAtMostOne(
-                        "disableQChoiceConsAlign",
-                        Seq(inv.variable, relVar.variable)
-                      ))
+                    // Disallow alignments of column entries to question/choices before (or after) a
+                    // pattern, if the column entry is expected to appear after (or before) the
+                    // pattern
+                    tableRowIds(tableIdx).foreach { rowIdx =>
+                      val cellIdx = CellIdx(tableIdx, rowIdx, colIdx)
+                      tmpColToRelationVar((tableIdx, colIdx)).foreach { relVar =>
+                        // If the start and end indices are set to -1, all alignments of the cell
+                        // are allowed. This is used to handle relations whose expression in the
+                        // question is difficult to determine, e.g. X performs Y
+                        if (relVar.qMatchStart != -1 && relVar.qMatchEnd != -1) {
+                          // Should the entries in the columns appear before the pattern, e.g.,
+                          // partOf(X, Y) should match X with a question constituent before the "is
+                          // part of" pattern
+                          // Using XOR to easily check for this
+                          val isPrefix = (relVar.col1Idx == colIdx) ^ (relVar.flipped)
+                          // TODO(tushar) Try to avoid code repetition here. Non-trivial as
+                          // different classes used for choice-table alignments and
+                          // question-table alignments
+                          // Check if question or choice relation match variables
+                          val invalidAlignVars = if (relVar.choiceIndex.isEmpty) {
+                            cellToQuestionTableVarMap.get(cellIdx).map { qTableVars =>
+                              val (_, invalidAlignments) = qTableVars.partition(qVar =>
+                                if (isPrefix) {
+                                  question.questionConsOffsets(qVar.qConsIdx) < relVar.qMatchStart
+                                } else {
+                                  question.questionConsOffsets(qVar.qConsIdx) > relVar.qMatchEnd
+                                })
+                              logger.trace("Disallowed alignments for " +
+                                s"${invalidAlignments.map(_.qConsIdx).mkString(",")} with " +
+                                s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
+                                s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
+                              invalidAlignments.map(_.variable)
+                            }
+                          } else {
+                            val qChoiceIdx = relVar.choiceIndex.get
+                            val qChoiceOffsets = question.choicesConsOffsets(qChoiceIdx)
+                            if (qChoiceOffsets.nonEmpty) {
+                              cellToQuestionChoiceVarMap.get(cellIdx).map { choiceTableVars =>
+                                val choiceIdxTableVars = choiceTableVars.filter(
+                                  _.qChoiceIdx == qChoiceIdx
+                                )
+                                val (_, invalidAlignments) = choiceIdxTableVars.partition(cVar =>
+                                  if (isPrefix) {
+                                    qChoiceOffsets(cVar.qChoiceConsIdx) < relVar.qMatchStart
+                                  } else {
+                                    qChoiceOffsets(cVar.qChoiceConsIdx) > relVar.qMatchEnd
+                                  })
+                                logger.trace("Disallowed alignments for " +
+                                  s"${invalidAlignments.map(_.qChoiceConsIdx).mkString(",")} with" +
+                                  s"${table.contentMatrix(rowIdx)(colIdx)} row: " +
+                                  s"${table.contentMatrix(rowIdx).mkString("|")} rvar: $relVar")
+                                invalidAlignments.map(_.variable)
+                              }
+                            } else {
+                              None
+                            }
+                          }
+                          // The cell-qcons/cell-choiceCons alignment and relation pattern match
+                          // both can not be true, i.e., if the model assumes that a particular
+                          // substring of the question/choice (indicated by relVar) expresses a
+                          // particular relation, the alignments inconsistent with this pattern
+                          // are not allowed
+                          invalidAlignVars.getOrElse(Seq.empty).foreach { inv =>
+                            ilpSolver.addConsAtMostOne("disableQAlign", Seq(inv, relVar.variable))
+                          }
+                        }
+                      }
                     }
                   }
                 case _ =>
