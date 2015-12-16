@@ -4,7 +4,7 @@ import org.allenai.ari.models._
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.lucience.LucienceSolver
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ ScipInterface, ScipParams }
+import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusOptimal, ScipInterface, ScipParams }
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights, SolverParams }
 import org.allenai.common.Version
 
@@ -125,26 +125,32 @@ class TableIlpSolver @Inject() (
         if (allSolutions.isEmpty) {
           Seq.empty
         } else {
-          val answeredSolutions = (allSolutions map { solution =>
+          val answeredSolutions = allSolutions map { solution =>
             val ilpSolutionJson = solution.toJson
             val bestChoice = solution.bestChoice
             val bestChoiceScore = solution.bestChoiceScore
-            val ilpFeatures = new IlpFeatures(solution)
+            val ilpFeaturesOpt = if (solution.solutionQuality.status == IlpStatusOptimal) {
+              val ilpFeatures = new IlpFeatures(solution)
+              Some(features ++ ilpFeatures.featureMap)
+            } else {
+              None
+            }
             SimpleAnswer(
               question.selections(bestChoice),
               bestChoiceScore,
               Some(Map("ilpSolution" -> ilpSolutionJson)),
-              Some(features ++ ilpFeatures.featureMap)
+              ilpFeaturesOpt
             )
-            // Sorting is currently redundant but ensures any future changes to
-            // solveForAllAnswerChoices which is not required to return answers sorted by score
-          }).sortBy(-_.score)
+          }
+          // Sorting is currently redundant but ensures any future changes to
+          // solveForAllAnswerChoices which is not required to return answers sorted by score
+          val sortedAnsweredSolutions = answeredSolutions.sortBy(-_.score)
           // Find the selections that were unanswered
           val choicesAnswered = allSolutions.map(_.bestChoice)
           val selectionsUnanswered = question.selections.filterNot(
             sel => choicesAnswered.contains(sel.index)
           )
-          answeredSolutions ++ selectionsUnanswered.map(defaultIlpAnswer)
+          sortedAnsweredSolutions ++ selectionsUnanswered.map(defaultIlpAnswer)
         }
       }
     }
@@ -167,7 +173,7 @@ class TableIlpSolver @Inject() (
     disabledChoices: Set[Int]
   ): Seq[IlpSolution] = {
     ilpSolver.solve()
-    if (ilpSolver.hasSolution) {
+    if (ilpSolver.hasOptimalSolution) {
       val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
       // Solver picks a disabled choice
       if (disabledChoices.contains(choiceIdx)) {
@@ -198,8 +204,12 @@ class TableIlpSolver @Inject() (
         }
       }
     } else {
-      logger.debug("No more solutions!")
-      ilpSolutionsSoFar
+      logger.debug("No more solutions because IlpStatus = " + ilpSolver.getStatus)
+      val ilpSolution = IlpSolutionFactory.makeSimpleIlpSolution(
+        ilpSolver,
+        solverParams.fullTablesInIlpSolution
+      )
+      ilpSolutionsSoFar :+ ilpSolution
     }
   }
 }

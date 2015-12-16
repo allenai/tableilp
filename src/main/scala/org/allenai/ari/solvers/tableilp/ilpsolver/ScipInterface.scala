@@ -136,6 +136,9 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   private def IlpStatusFeasibleOrOptimal = Seq(IlpStatusOptimal, IlpStatusFeasible)
   def hasSolution: Boolean = IlpStatusFeasibleOrOptimal.contains(getStatus)
 
+  /** check whether an optimal solution has been found */
+  def hasOptimalSolution: Boolean = (getStatus == IlpStatusOptimal)
+
   /** get pointer to the best solution found */
   def getBestSol: Long = env.getBestSol(scip)
 

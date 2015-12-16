@@ -190,6 +190,48 @@ object IlpSolutionFactory extends Logging {
     (bestChoice, bestChoiceScore)
   }
 
+  /** Make a simple IlpSolution object that captures the ILP solution status and, optionally,
+    * search stats and timing stats.
+    *
+    * @param ilpSolver a reference to the SCIP solver object
+    * @param reportVariableStats include timing and search stats which change from run to run
+    * @return an IlpSolution object
+    */
+  def makeSimpleIlpSolution(
+    ilpSolver: ScipInterface,
+    reportVariableStats: Boolean = true
+  ): IlpSolution = {
+    // populate problem stats
+    val problemStats = ProblemStats(
+      ilpSolver.getNOrigVars,
+      ilpSolver.getNOrigBinVars,
+      ilpSolver.getNOrigIntVars,
+      ilpSolver.getNOrigContVars,
+      ilpSolver.getNOrigConss,
+      ilpSolver.getNVars,
+      ilpSolver.getNBinVars,
+      ilpSolver.getNIntVars,
+      ilpSolver.getNContVars,
+      ilpSolver.getNConss
+    )
+
+    // populate search stats
+    val searchStats = if (reportVariableStats) {
+      SearchStats(ilpSolver.getNNodes, ilpSolver.getNLPIterations, ilpSolver.getMaxDepth)
+    } else {
+      SearchStats.Empty
+    }
+
+    // populate timing stats
+    val timingStats = if (reportVariableStats) {
+      new TimingStats(ilpSolver.getPresolvingTime, ilpSolver.getSolvingTime, ilpSolver.getTotalTime)
+    } else {
+      TimingStats.Empty
+    }
+
+    new IlpSolution(SolutionQuality(ilpSolver.getStatus), problemStats, searchStats, timingStats)
+  }
+
   /** Process the solution found by SCIP to deduce which parts of the question + tables align with
     * which other parts. This information can then be visualized or presented in another format.
     * @param allVariables all core decision variables in the ILP model
@@ -198,7 +240,7 @@ object IlpSolutionFactory extends Logging {
     * @param tables the tables used
     * @param fullTablesInIlpSolution include entire tables, not just active rows
     * @param reportVariableStats include timing and search stats which change from run to run
-    * @return an AlignmentSolution object
+    * @return an IlpSolution object
     */
   def makeIlpSolution(
     allVariables: AllVariables,
@@ -238,7 +280,7 @@ object IlpSolutionFactory extends Logging {
 
     // If no solution is found, return an empty IlpSolution
     if (!ilpSolver.hasSolution) {
-      return new IlpSolution(SolutionQuality(IlpStatusInfeasible), problemStats, searchStats,
+      return new IlpSolution(SolutionQuality(ilpSolver.getStatus), problemStats, searchStats,
         timingStats)
     }
 
