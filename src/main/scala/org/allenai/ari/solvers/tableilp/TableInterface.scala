@@ -243,7 +243,10 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
     // identify a few top scoring tables
     val topScoredTables = if (!params.useRankThreshold) {
-      scoreTables.sortBy(-_._2).slice(0, params.maxTablesPerQuestion)
+      // Note: use stable sort for repeatability, using tableIdx to break ties
+      scoreTables.sortBy {
+        case (tableIdx, score) => (-score, tableIdx)
+      }.slice(0, params.maxTablesPerQuestion)
     } else {
       scoreTables.filter(_._2 > params.rankThreshold)
     }
@@ -292,7 +295,10 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
     }
     // sort (row,score) pairs by score, take the top K, project down to row IDs
-    rowIdsWithScores.sortBy(-_._2).take(params.maxRowsPerTable).map(_._1)
+    // Note: use stable sort for repeatability, using rowIdx to break ties
+    rowIdsWithScores.sortBy {
+      case (rowIdx, rowScore) => (-rowScore, rowIdx)
+    }.take(params.maxRowsPerTable).map(_._1)
   }
 
   /** Print all variables relevant to tables */
