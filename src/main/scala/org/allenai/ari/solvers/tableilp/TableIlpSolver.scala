@@ -133,6 +133,8 @@ class TableIlpSolver @Inject() (
               val ilpFeatures = new IlpFeatures(solution)
               Some(features ++ ilpFeatures.featureMap)
             } else {
+              // don't generate features if an optimal solution wasn't found, as this is often
+              // due to timeouts and can thus make features vary from run to run
               None
             }
             SimpleAnswer(
@@ -173,6 +175,8 @@ class TableIlpSolver @Inject() (
     disabledChoices: Set[Int]
   ): Seq[IlpSolution] = {
     ilpSolver.solve()
+    // Trust ilpSolver only if it found an optimal solution; suboptimal solutions will likely
+    // create repeatability issues
     if (ilpSolver.hasOptimalSolution) {
       val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
       // Solver picks a disabled choice

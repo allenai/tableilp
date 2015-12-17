@@ -246,7 +246,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       // Note: use stable sort for repeatability, using tableIdx to break ties
       scoreTables.sortBy {
         case (tableIdx, score) => (-score, tableIdx)
-      }.slice(0, params.maxTablesPerQuestion)
+      }.take(params.maxTablesPerQuestion)
     } else {
       scoreTables.filter(_._2 > params.rankThreshold)
     }
