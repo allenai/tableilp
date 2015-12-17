@@ -117,7 +117,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val file = Datastore(datastoreName).filePath(group, name, version).toFile
         val dataString = Source.fromFile(file).getLines().mkString("\n")
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
-        datastoreExport.tables
+        // Tablestore tables currently come in the reverse order of IDs; reverse for log readability
+        datastoreExport.tables.reverse
       }
       for {
         table <- datastoreTables
@@ -148,11 +149,12 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   private val allTableNames = allTables.map(_.fileName)
   private val tableNamesToIdx = allTableNames.zipWithIndex.toMap
-  logger.debug("tables with internal IDs:\n\t" + tableNamesToIdx.toString())
+  logger.debug("tables IDs to internal IDs:\n\t" + tableNamesToIdx.toSeq.sortBy(_._1.toInt)
+    .toString)
   if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
 
   /** a sequence of table indices to ignore */
-  logger.info("Ignoring table IDs " + ignoreList.toString())
+  logger.info("Ignoring table IDs " + ignoreList.toString)
 
   if (params.useCachedTablesForQuestion) {
     logger.info(s"Using CACHED tables for questions from ${params.questionToTablesCache}")
@@ -215,7 +217,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       tableSelections.map {
         case TableSelection(id, score, rowIds) => {
           s"\ttable $id (score $score, selected ${rowIds.size} rows}) : " +
-            allTables(id).titleRow.mkString("|")
+            allTables(id).titleRow.mkString("|").replace('\n', ' ') // some header have newlines!
         }
       }.mkString("\n"))
     tableSelections
