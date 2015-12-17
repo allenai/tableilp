@@ -117,8 +117,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         val file = Datastore(datastoreName).filePath(group, name, version).toFile
         val dataString = Source.fromFile(file).getLines().mkString("\n")
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
-        // Tablestore tables currently come in the reverse order of IDs; reverse for log readability
-        datastoreExport.tables.reverse
+        // Note: Tablestore tables currently come in the reverse order of IDs
+        datastoreExport.tables
       }
       for {
         table <- datastoreTables
