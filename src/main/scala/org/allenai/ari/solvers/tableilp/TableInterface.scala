@@ -217,7 +217,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       tableSelections.map {
         case TableSelection(id, score, rowIds) => {
           s"\ttable $id (score $score, selected ${rowIds.size} rows}) : " +
-            allTables(id).titleRow.mkString("|").replace('\n', ' ') // some header have newlines!
+            allTables(id).titleRow.mkString("|").replace('\n', ' ') // some headers have newlines!
         }
       }.mkString("\n"))
     tableSelections
@@ -421,7 +421,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
           throw new IllegalStateException(s"Error processing ${params.allowedColumnAlignmentsFile}")
         }
       }
-      logger.debug(allowedAlignments.toString())
+      logger.debug(allowedAlignments.toString)
       allowedAlignments
     }
   }
