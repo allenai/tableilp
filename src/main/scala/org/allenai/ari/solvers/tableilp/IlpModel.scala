@@ -91,7 +91,7 @@ class IlpModel(
     rowIdx <- tableRowIds(tableIdx)
     row = table.contentMatrix(rowIdx)
     colIdx <- row.indices
-    name = s"activeCell_t=${tableIdx}_r=${rowIdx}_c=$colIdx"
+    name = s"activeCell_t${tableIdx}_r${rowIdx}_c$colIdx"
     objCoeff = weights.activeCellObjCoeff
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
@@ -105,7 +105,7 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     rowIdx <- tableRowIds(tableIdx)
-    name = s"activeRow_t=${tableIdx}_r=$rowIdx"
+    name = s"activeRow_t${tableIdx}_r$rowIdx"
     // penalize row usage to discourage too many rows from being aligned unnecessarily
     objCoeff = -weights.rowUsagePenalty
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
@@ -121,7 +121,7 @@ class IlpModel(
     table = tables(tableIdx)
     if tableRowIds(tableIdx).nonEmpty
     colIdx <- table.contentMatrix.head.indices
-    name = s"activeCol_t=${tableIdx}_r=$colIdx"
+    name = s"activeCol_t${tableIdx}_c$colIdx"
     // prefer larger fraction of columns matching
     objCoeff = weights.activeColObjCoeff / table.contentMatrix.head.indices.size
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
@@ -136,7 +136,7 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     colIdx <- table.titleRow.indices
-    name = s"activeTitle_t=${tableIdx}_r=$colIdx"
+    name = s"activeTitle_t${tableIdx}_c$colIdx"
     objCoeff = weights.activeTitleObjCoeff
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
@@ -148,7 +148,7 @@ class IlpModel(
   private val activeTableVars: Map[Int, Long] = (for {
     tableIdx <- tableSelections.indices
     tableScore = tableSelections(tableIdx).score
-    name = s"activeTable_t=$tableIdx"
+    name = s"activeTable_t$tableIdx"
     objCoeff = (weights.tableScoreObjCoeff * tableScore) - weights.tableUsagePenalty
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
@@ -376,7 +376,7 @@ class IlpModel(
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
-      name = s"choice=$choiceIdx"
+      name = s"activeChoice_ch$choiceIdx"
       // use a non-zero activeChoiceObjCoeff only if mustChooseAnAnswer isn't true;
       // otherwise this only shifts all answer choices by a fixed amount
       objCoeff = if (ilpParams.mustChooseAnAnswer) 0d else weights.activeChoiceObjCoeff
@@ -390,7 +390,7 @@ class IlpModel(
     val activeChoiceConsVars: Map[(Int, Int), Long] = (for {
       choiceIdx <- question.choices.indices
       choiceConsIdx <- question.choicesCons(choiceIdx).indices
-      name = s"choice=$choiceIdx-cons=$choiceConsIdx"
+      name = s"activeChoiceCons_ch${choiceIdx}_ccons$choiceConsIdx"
       x = createPossiblyRelaxedBinaryVar(name, 1.0)
     } yield {
       ilpSolver.addVar(x)
@@ -430,7 +430,7 @@ class IlpModel(
     // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
       qConsIdx <- question.questionCons.indices
-      name = s"activeQuestion_t=$qConsIdx"
+      name = s"activeQCons_qcons$qConsIdx"
       objCoeff = weights.activeQConsObjCoeff
       x = createPossiblyRelaxedBinaryVar(name, objCoeff)
     } yield {
@@ -808,7 +808,7 @@ class IlpModel(
           val table = tables(tableIdx)
           val activeChoiceColumnVars = table.contentMatrix.head.indices.map { colIdx =>
             // create a variable indicating whether qChoice is aligned with a given table column
-            val name = s"activeChoiceColumnVar-$qChoiceIdx-$tableIdx-$colIdx"
+            val name = s"activeChoiceCol_ch${qChoiceIdx}_t${tableIdx}_c$colIdx"
             val activeChoiceColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
             ilpSolver.addVar(activeChoiceColumnVar)
             // key to look up alignment variables connecting qChoice to a cell or title of a column
@@ -832,10 +832,10 @@ class IlpModel(
           }
           // At most two columns may be active for a qChoice.
           ilpSolver.addConsAtMostK(
-            s"atMostTwoColumnsForChoice-$qChoiceIdx",
+            s"atMostTwoColumnsForChoice_ch$qChoiceIdx",
             activeChoiceColumnVars, 2
           )
-          val name = s"activeChoiceTableVar-$qChoiceIdx-$tableIdx"
+          val name = s"activeChoiceTable_ch${qChoiceIdx}_t$tableIdx"
           val objCoeff = 0d
           val activeChoiceTableVar = createPossiblyRelaxedBinaryVar(name, objCoeff)
           ilpSolver.addVar(activeChoiceTableVar)
@@ -855,7 +855,7 @@ class IlpModel(
           tableIdx -> activeChoiceTableVar
         }
         // Answer present in max two tables
-        ilpSolver.addConsAtMostK(s"atMostTwoTables-$qChoiceIdx", activeTableVars.map(_._2), 2.0d)
+        ilpSolver.addConsAtMostK(s"atMostTwoTables_ch$qChoiceIdx", activeTableVars.map(_._2), 2.0d)
         // Re-use the active tables to create a map from choice to tables active for that choice
         qChoiceIdx -> activeTableVars.toMap
       }.toMap
@@ -871,7 +871,8 @@ class IlpModel(
             val table = tables(tableIdx)
             val activeChoiceConsColumnVars = table.contentMatrix.head.indices.map { colIdx =>
               // create a variable indicating whether qChoiceCons is aligned with a given column
-              val name = s"activeChoiceConsColumnVar-$qChoiceIdx-$qChoiceConsIdx-$tableIdx-$colIdx"
+              val name = s"activeChoiceConsCol_c${qChoiceIdx}_ccons${qChoiceConsIdx}_" +
+                s"t${tableIdx}_$colIdx"
               val activeChoiceConsColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
               ilpSolver.addVar(activeChoiceConsColumnVar)
               // key to look up alignment variables connecting qChoiceCons to a cell or title of a
@@ -902,11 +903,11 @@ class IlpModel(
             // one constituent for a choice (no splitting), this constraint may be stricter than the
             // constraint on the choice above
             ilpSolver.addConsAtMostOne(
-              s"atMostOneColumn-$qChoiceIdx-$qChoiceConsIdx",
+              s"atMostOneColumn_ch${qChoiceIdx}_ccons$qChoiceConsIdx",
               activeChoiceConsColumnVars
             )
 
-            val name = s"activeChoiceConsTableVar-$qChoiceIdx-$qChoiceConsIdx-$tableIdx"
+            val name = s"activeChoiceConsTable_c${qChoiceIdx}_ccons${qChoiceConsIdx}_t$tableIdx"
             val activeChoiceConsTableVar = createPossiblyRelaxedBinaryVar(name, 0d)
             ilpSolver.addVar(activeChoiceConsTableVar)
 
@@ -993,11 +994,11 @@ class IlpModel(
         ilpSolver.addConsAtMostOne("onlyNearbyQConsPerCell", Seq(qCons1Var, qCons2Var))
       } else {
         // Boost score since the two aligned constituents are within a few words of each other
-        val varName = s"T=${qCons1QuestionTabVar.tableIdx}-R=${qCons1QuestionTabVar.rowIdx}-" +
-          s"C=${qCons1QuestionTabVar.colIdx}-Q1=$qIdx1-Q2=$qIdx2"
+        val name = s"proximityBoost_t${qCons1QuestionTabVar.tableIdx}_" +
+          "r${qCons1QuestionTabVar.rowIdx}_c${qCons1QuestionTabVar.colIdx}_q${qIdx1}_q$qIdx2"
         // Boost consecutive alignment with 1/(distance+1). The +1 is to prevent a high boost for
         // adjacent words compared to one word apart (1 -> 0.5 vs 0.5 -> 0.33).
-        val q1q2CellVar = createPossiblyRelaxedBinaryVar(varName, 1d / (qPos2 - qPos1 + 1d))
+        val q1q2CellVar = createPossiblyRelaxedBinaryVar(name, 1d / (qPos2 - qPos1 + 1d))
         ilpSolver.addVar(q1q2CellVar)
         // q1q2 should be true only if both q1 and q2 align with this cell, i.e.
         // q1q2 = min(q1, q2) encoded as q1q2 <= q1 and q1q2 <= q2. q1q2 >= min(q1,q2) isn't needed
@@ -1077,7 +1078,7 @@ class IlpModel(
       // take that into account as well
       val tableRowVars = tableRowIds(tableIdx).flatMap(r => activeRowVars.get((tableIdx, r)))
       val ub = ilpParams.maxRowsPerTable
-      ilpSolver.addConsAtMostK(s"atMost${ub}Rows_T=$tableIdx", tableRowVars, ub)
+      ilpSolver.addConsAtMostK(s"atMost${ub}Rows_t$tableIdx", tableRowVars, ub)
 
       // if two rows of a table are active, the corresponding active cell variables across the two
       // rows must match; in other words, the two rows must have identical activity signature;
@@ -1090,7 +1091,7 @@ class IlpModel(
         activeRowVar2 <- activeRowVars.get((tableIdx, rowIdx2))
         colIdx <- table.contentMatrix.head.indices
         activeCellVar1 <- activeCellVars.get(CellIdx(tableIdx, rowIdx1, colIdx))
-        name = s"ActivitySignature_$tableIdx-$rowIdx1-$rowIdx2"
+        name = s"activitySignature_t${tableIdx}_r${rowIdx1}_r$rowIdx2"
         body = Seq(activeRowVar1, activeRowVar2, activeCellVar1)
       } {
         // if activeCellVar2 is present, add a Horn clause with it as the head;
@@ -1106,11 +1107,11 @@ class IlpModel(
       // be active, and then this constraint makes the table active as well);
       val activeTableVar = activeTableVars(tableIdx)
       tableRowVars.foreach { activeRowVar =>
-        ilpSolver.addConsXLeqY(s"activeRowImpliesActiveTable_T=$tableIdx", activeRowVar,
+        ilpSolver.addConsXLeqY(s"activeRowImpliesActiveTable_t$tableIdx", activeRowVar,
           activeTableVar)
       }
       // (b) if the table is active, then at least one row is active
-      ilpSolver.addConsYImpliesAtLeastK(s"activeRowsImpliesActiveTable_T=$tableIdx", activeTableVar,
+      ilpSolver.addConsYImpliesAtLeastK(s"activeRowsImpliesActiveTable_t$tableIdx", activeTableVar,
         tableRowVars, 1d)
       // (c) if this table T1 is active and another table T2 is also active, then:
       //   - if there exists a T1-T2 inter-table edge, then at least one such edge must be used;
@@ -1120,7 +1121,7 @@ class IlpModel(
       interTableMap.toSeq.sortBy(_._1).foreach {
         case (tableIdx2, interTableVars) =>
           val activeTableVar2 = activeTableVars(tableIdx2)
-          val name = s"tablesMustConnect-$tableIdx-$tableIdx2"
+          val name = s"tablesMustConnect_t${tableIdx}_t$tableIdx2"
           // logical constraint: activeTable1 AND activeTable2 => sum(interTableVars) >= 1
           // modeled as: activeTable1 + activeTable2 - sum(interTableVars) <= 1
           val vars = Seq(activeTableVar, activeTableVar2) ++ interTableVars.map(_.variable)
@@ -1166,7 +1167,7 @@ class IlpModel(
     tableIdx: Int, rowIdx: Int, colIdx1: Int, colIdx2: Int
   ): Option[IntraTableVariable] = {
     if (enableIntraTableVars) {
-      val name = s"T=$tableIdx-R=$rowIdx-C1=$colIdx1-C2=$colIdx2"
+      val name = s"intraTable_t${tableIdx}_r${rowIdx}_c${colIdx1}_c$colIdx2"
       val objCoeff = 1d //TODO correct this with alignment score
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
@@ -1187,7 +1188,8 @@ class IlpModel(
     if (alignmentScore < weights.minCellCellAlignment) {
       None
     } else {
-      val name = s"T1=$tableIdx1-T2=$tableIdx2-R1=$rowIdx1-R2=$rowIdx2-C1=$colIdx1-C2=$colIdx2"
+      val name = s"interTable_t${tableIdx1}_t${tableIdx2}_r${rowIdx1}_r${rowIdx2}_c${colIdx1}_" +
+        s"c$colIdx2"
       // penalize inter-table alignment edges to prevent too many alignments; the gain obtained by
       // using a second table should be large enough to make up for this penalty
       val objCoeff = alignmentScore - weights.interTableAlignmentPenalty
@@ -1205,7 +1207,7 @@ class IlpModel(
     if (objCoeff < weights.minCellQConsAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-Con=$qConsIdx-R=$rowIdx-C=$colIdx"
+      val name = s"quesTable_t${tableIdx}_qcons${qConsIdx}_r${rowIdx}_c$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(QuestionTableVariable(qConsIdx, tableIdx, rowIdx, colIdx, variable))
@@ -1220,7 +1222,7 @@ class IlpModel(
     if (objCoeff < weights.minTitleQConsAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-Title=$qConsIdx-C=$colIdx"
+      val name = s"quesTitle_t${tableIdx}_qcons${qConsIdx}_c$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(QuestionTitleVariable(qConsIdx, tableIdx, colIdx, variable))
@@ -1235,7 +1237,7 @@ class IlpModel(
     if (objCoeff < weights.minTitleQChoiceAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx"
+      val name = s"choiceTitle_t${tableIdx}_ch${qChoiceIdx}_c$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceTitleVariable(qChoiceIdx, tableIdx, colIdx, variable))
@@ -1250,7 +1252,7 @@ class IlpModel(
     if (objCoeff < weights.minCellQChoiceAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-QChoice=$qChoiceIdx-R=$rowIdx-C=$colIdx"
+      val name = s"choiceTable_t${tableIdx}_ch${qChoiceIdx}_r${rowIdx}_c$colIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceTableVariable(qChoiceIdx, tableIdx, rowIdx, colIdx, variable))
@@ -1266,7 +1268,7 @@ class IlpModel(
     if (objCoeff < minAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-ChoiceIdx=$qChoiceIdx-C=$colIdx-I=$qChoiceConsIdx"
+      val name = s"choiceConsTitle_t${tableIdx}_ch${qChoiceIdx}_c${colIdx}_ccons$qChoiceConsIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceConsTitleVariable(qChoiceIdx, qChoiceConsIdx, tableIdx, colIdx, variable))
@@ -1285,7 +1287,8 @@ class IlpModel(
     if (objCoeff < minAlignment) {
       None
     } else {
-      val name = s"T=$tableIdx-QChoice=$qChoiceIdx-R=$rowIdx-C=$colIdx-I=$qChoiceConsIdx"
+      val name = s"choiceConsTable_t${tableIdx}_ch${qChoiceIdx}_r${rowIdx}_c${colIdx}_" +
+        s"_ccons$qChoiceConsIdx"
       val variable = ilpSolver.createBinaryVar(name, objCoeff)
       ilpSolver.addVar(variable)
       Some(ChoiceConsTableVariable(qChoiceIdx, qChoiceConsIdx, tableIdx, rowIdx, colIdx, variable))
@@ -1296,7 +1299,10 @@ class IlpModel(
   private def addRelationVariable(tableIdx: Int, col1Idx: Int, col2Idx: Int,
     matchStart: Int, matchEnd: Int, coeff: Double, choiceIdx: Option[Int],
     flipped: Boolean): RelationMatchVariable = {
-    val name = s"rel_T=$tableIdx-C1=$col1Idx-C2=$col2Idx-M1=$matchStart-M2=$matchEnd-Ch=$choiceIdx"
+    val matchStartStr = if (matchStart >= 0) matchStart.toString else "None"
+    val matchEndStr = if (matchEnd >= 0) matchEnd.toString else "None"
+    val name = s"rel_t${tableIdx}_c${col1Idx}_c${col2Idx}_m${matchStartStr}_m${matchEndStr}_" +
+      s"ch$choiceIdx"
     val variable = ilpSolver.createBinaryVar(name, coeff)
     ilpSolver.addVar(variable)
     RelationMatchVariable(tableIdx, col1Idx, col2Idx, matchStart, matchEnd, choiceIdx,

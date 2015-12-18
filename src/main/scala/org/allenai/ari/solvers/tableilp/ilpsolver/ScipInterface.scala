@@ -420,10 +420,13 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Export the generated ILP model to a file, either original or reduced/transformed */
   def exportModel(useOriginal: Boolean): Unit = {
+    val ilpFile = scipParams.ilpExportFile
     if (useOriginal) {
-      env.writeOrigProblem(scip, scipParams.ilpExportFile, null, false)
+      logger.debug(s"Writing original ILP model to $ilpFile")
+      env.writeOrigProblem(scip, ilpFile, null, false)
     } else {
-      env.writeTransProblem(scip, scipParams.ilpExportFile, null, false)
+      logger.debug(s"Writing reduced ILP model to $ilpFile")
+      env.writeTransProblem(scip, ilpFile, null, false)
     }
   }
 
