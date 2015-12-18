@@ -376,7 +376,7 @@ class IlpModel(
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
-      name = s"ActiveChoice_ch$choiceIdx"
+      name = s"activeChoice_ch$choiceIdx"
       // use a non-zero activeChoiceObjCoeff only if mustChooseAnAnswer isn't true;
       // otherwise this only shifts all answer choices by a fixed amount
       objCoeff = if (ilpParams.mustChooseAnAnswer) 0d else weights.activeChoiceObjCoeff
@@ -390,7 +390,7 @@ class IlpModel(
     val activeChoiceConsVars: Map[(Int, Int), Long] = (for {
       choiceIdx <- question.choices.indices
       choiceConsIdx <- question.choicesCons(choiceIdx).indices
-      name = s"ActiveChoiceCons_ch${choiceIdx}_ccons$choiceConsIdx"
+      name = s"activeChoiceCons_ch${choiceIdx}_ccons$choiceConsIdx"
       x = createPossiblyRelaxedBinaryVar(name, 1.0)
     } yield {
       ilpSolver.addVar(x)
@@ -808,7 +808,7 @@ class IlpModel(
           val table = tables(tableIdx)
           val activeChoiceColumnVars = table.contentMatrix.head.indices.map { colIdx =>
             // create a variable indicating whether qChoice is aligned with a given table column
-            val name = s"activeChoiceColumn_ch${qChoiceIdx}_t${tableIdx}_c$colIdx"
+            val name = s"activeChoiceCol_ch${qChoiceIdx}_t${tableIdx}_c$colIdx"
             val activeChoiceColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
             ilpSolver.addVar(activeChoiceColumnVar)
             // key to look up alignment variables connecting qChoice to a cell or title of a column
@@ -871,8 +871,8 @@ class IlpModel(
             val table = tables(tableIdx)
             val activeChoiceConsColumnVars = table.contentMatrix.head.indices.map { colIdx =>
               // create a variable indicating whether qChoiceCons is aligned with a given column
-              val name = s"activeChoiceConsColumn_c${qChoiceIdx}_ccons$qChoiceConsIdx" +
-                s"_t${tableIdx}_$colIdx"
+              val name = s"activeChoiceConsCol_c${qChoiceIdx}_ccons${qChoiceConsIdx}_" +
+                s"t${tableIdx}_$colIdx"
               val activeChoiceConsColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
               ilpSolver.addVar(activeChoiceConsColumnVar)
               // key to look up alignment variables connecting qChoiceCons to a cell or title of a
@@ -994,8 +994,8 @@ class IlpModel(
         ilpSolver.addConsAtMostOne("onlyNearbyQConsPerCell", Seq(qCons1Var, qCons2Var))
       } else {
         // Boost score since the two aligned constituents are within a few words of each other
-        val name = s"t${qCons1QuestionTabVar.tableIdx}_r${qCons1QuestionTabVar.rowIdx}_" +
-          s"c${qCons1QuestionTabVar.colIdx}_q${qIdx1}_q$qIdx2"
+        val name = s"proximityBoost_t${qCons1QuestionTabVar.tableIdx}_" +
+          "r${qCons1QuestionTabVar.rowIdx}_c${qCons1QuestionTabVar.colIdx}_q${qIdx1}_q$qIdx2"
         // Boost consecutive alignment with 1/(distance+1). The +1 is to prevent a high boost for
         // adjacent words compared to one word apart (1 -> 0.5 vs 0.5 -> 0.33).
         val q1q2CellVar = createPossiblyRelaxedBinaryVar(name, 1d / (qPos2 - qPos1 + 1d))
@@ -1091,7 +1091,7 @@ class IlpModel(
         activeRowVar2 <- activeRowVars.get((tableIdx, rowIdx2))
         colIdx <- table.contentMatrix.head.indices
         activeCellVar1 <- activeCellVars.get(CellIdx(tableIdx, rowIdx1, colIdx))
-        name = s"ActivitySignature_t${tableIdx}_r${rowIdx1}_r$rowIdx2"
+        name = s"activitySignature_t${tableIdx}_r${rowIdx1}_r$rowIdx2"
         body = Seq(activeRowVar1, activeRowVar2, activeCellVar1)
       } {
         // if activeCellVar2 is present, add a Horn clause with it as the head;
