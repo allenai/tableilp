@@ -6,6 +6,37 @@ import org.allenai.common.Logging
 
 case class TokenizedCell(values: Seq[String])
 
+/** Various automation level values for tables */
+sealed trait TableAutomationLevel {
+  def level: Int
+}
+case object Unknown extends TableAutomationLevel {
+  override def toString = "Unknown"
+  // Assume that the automation level would be unknown for only csv tables (since no means to
+  // specify), set their level to be the same as that of hand-written tables
+  override def level = 1
+}
+case object HandWritten extends TableAutomationLevel {
+  override def toString = "Hand written"
+  override def level = 1
+}
+case object HandCompiled extends TableAutomationLevel {
+  override def toString = "Hand compiled"
+  override def level = 2
+}
+case object WebTable extends TableAutomationLevel {
+  override def toString = "From Web"
+  override def level = 3
+}
+case object SemiAutomatic extends TableAutomationLevel {
+  override def toString = "Semi-automatic"
+  override def level = 4
+}
+case object FullyAutomatic extends TableAutomationLevel {
+  override def toString = "Fully Automatic"
+  override def level = 5
+}
+
 class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: KeywordTokenizer)
     extends Logging {
   // config: ignore "gray" columns in the KB tables that act as textual fillers between columns
@@ -47,6 +78,23 @@ class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: Key
 
   val titleRow: IndexedSeq[String] = titleRowOrig.map(_.stripPrefix("KEY "))
   val contentMatrix: IndexedSeq[IndexedSeq[String]] = fullContentsFiltered.tail
+
+  // optional automation level string provided as metadata in JSON tables
+  val automationLevel: Option[String] = None
+
+  // returns the automation level of this table (default: Unknown)
+  def getAutomationLevel: TableAutomationLevel = {
+    automationLevel.map {
+      case "0" => HandWritten
+      case "1" => HandCompiled
+      case "2" => WebTable
+      case "3" => SemiAutomatic
+      case "4" => FullyAutomatic
+      case _ => Unknown
+    }.getOrElse(Unknown) // if automation level is not specified
+  }
+  // optional metadata about Table (populated only for JSON tables)
+  val metadataOpt: Option[Metadata] = None
 }
 
 class TableWithMetadata(table: DatastoreTable, tokenizer: KeywordTokenizer) extends Table(table
@@ -79,4 +127,6 @@ class TableWithMetadata(table: DatastoreTable, tokenizer: KeywordTokenizer) exte
       row.map(cell => TokenizedCell(tokenizer.stemmedKeywordTokenize(cell)))
     }
 
+  override val automationLevel = table.metadata.automationLevel
+  override val metadataOpt = Some(table.metadata)
 }

@@ -4,7 +4,7 @@ import org.allenai.ari.models._
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.lucience.LucienceSolver
-import org.allenai.ari.solvers.tableilp.ilpsolver.{ IlpStatusOptimal, ScipInterface, ScipParams }
+import org.allenai.ari.solvers.tableilp.ilpsolver._
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights, SolverParams }
 import org.allenai.common.Version
 
@@ -177,43 +177,47 @@ class TableIlpSolver @Inject() (
     ilpSolver.solve()
     // Trust ilpSolver only if it found an optimal solution; suboptimal solutions will likely
     // create repeatability issues
-    if (ilpSolver.hasOptimalSolution) {
-      val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
-      // Solver picks a disabled choice
-      if (disabledChoices.contains(choiceIdx)) {
-        if (ilpParams.mustChooseAnAnswer) {
-          throw new IllegalStateException("Should never return the same choice if " +
-            "mustChooseAnswer is set to true")
-        }
-        logger.error(s"ILP Solver picked a disabled choice: $choiceIdx")
-        logger.debug("Not calling solver on other options.")
-        ilpSolutionsSoFar
-      } else {
-        logger.info(s"Selected choice: $choiceIdx")
-        val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
-          questionIlp, tablesUsed, solverParams.fullTablesInIlpSolution)
-        // If the number of disabled choices plus the current choice matches the number of
-        // choices in the question, solver won't be able to find any further solutions.
-        if (questionIlp.choices.size == disabledChoices.size + 1) {
-          logger.debug("All choices explored, no further calls needed.")
-          ilpSolutionsSoFar :+ ilpSolution
+    ilpSolver.getStatus match {
+      case IlpStatusOptimal =>
+        val (choiceIdx, _) = IlpSolutionFactory.getBestChoice(allVariables, ilpSolver)
+        // Solver picks a disabled choice
+        if (disabledChoices.contains(choiceIdx)) {
+          if (ilpParams.mustChooseAnAnswer) {
+            throw new IllegalStateException("Should never return the same choice if " +
+              "mustChooseAnswer is set to true")
+          }
+          logger.error(s"ILP Solver picked a disabled choice: $choiceIdx")
+          logger.debug("Not calling solver on other options.")
+          ilpSolutionsSoFar
         } else {
-          // Reset solution for any future calls to solve
-          ilpSolver.resetSolve()
-          logger.debug(s"Disabling choice: $choiceIdx")
-          ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
-          // Call the method again with the best choice disabled
-          solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
-            tablesUsed, ilpSolutionsSoFar :+ ilpSolution, disabledChoices + choiceIdx)
+          logger.info(s"Selected choice: $choiceIdx")
+          val ilpSolution = IlpSolutionFactory.makeIlpSolution(allVariables, ilpSolver,
+            questionIlp, tablesUsed, solverParams.fullTablesInIlpSolution)
+          // If the number of disabled choices plus the current choice matches the number of
+          // choices in the question, solver won't be able to find any further solutions.
+          if (questionIlp.choices.size == disabledChoices.size + 1) {
+            logger.debug("All choices explored, no further calls needed.")
+            ilpSolutionsSoFar :+ ilpSolution
+          } else {
+            // Reset solution for any future calls to solve
+            ilpSolver.resetSolve()
+            logger.debug(s"Disabling choice: $choiceIdx")
+            ilpModel.disableAnswerChoice(allVariables.activeChoiceVars(choiceIdx))
+            // Call the method again with the best choice disabled
+            solveForAllAnswerChoices(ilpSolver, ilpModel, allVariables, questionIlp,
+              tablesUsed, ilpSolutionsSoFar :+ ilpSolution, disabledChoices + choiceIdx)
+          }
         }
-      }
-    } else {
-      logger.debug("No more solutions because IlpStatus = " + ilpSolver.getStatus)
-      val ilpSolution = IlpSolutionFactory.makeSimpleIlpSolution(
-        ilpSolver,
-        solverParams.fullTablesInIlpSolution
-      )
-      ilpSolutionsSoFar :+ ilpSolution
+      case IlpStatusFeasible | IlpStatusUnknown =>
+        logger.debug("No more solutions because IlpStatus = " + ilpSolver.getStatus)
+        val ilpSolution = IlpSolutionFactory.makeSimpleIlpSolution(
+          ilpSolver,
+          solverParams.fullTablesInIlpSolution
+        )
+        ilpSolutionsSoFar :+ ilpSolution
+      case IlpStatusInfeasible =>
+        logger.debug("No more solutions because IlpStatus = " + ilpSolver.getStatus)
+        ilpSolutionsSoFar
     }
   }
 }
