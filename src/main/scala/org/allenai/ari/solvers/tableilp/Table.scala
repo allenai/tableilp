@@ -8,33 +8,33 @@ case class TokenizedCell(values: Seq[String])
 
 /** Various automation level values for tables */
 sealed trait TableAutomationLevel {
-  def level: Int
+  val level: Int
 }
 case object Unknown extends TableAutomationLevel {
   override def toString = "Unknown"
   // Assume that the automation level would be unknown for only csv tables (since no means to
   // specify), set their level to be the same as that of hand-written tables
-  override def level = 1
+  override val level = 1
 }
 case object HandWritten extends TableAutomationLevel {
   override def toString = "Hand written"
-  override def level = 1
+  override val level = 1
 }
 case object HandCompiled extends TableAutomationLevel {
   override def toString = "Hand compiled"
-  override def level = 2
+  override val level = 2
 }
 case object WebTable extends TableAutomationLevel {
-  override def toString = "From Web"
-  override def level = 3
+  override def toString = "Web"
+  override val level = 3
 }
 case object SemiAutomatic extends TableAutomationLevel {
   override def toString = "Semi-automatic"
-  override def level = 4
+  override val level = 4
 }
 case object FullyAutomatic extends TableAutomationLevel {
   override def toString = "Fully Automatic"
-  override def level = 5
+  override val level = 5
 }
 
 class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: KeywordTokenizer)
@@ -80,10 +80,11 @@ class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: Key
   val contentMatrix: IndexedSeq[IndexedSeq[String]] = fullContentsFiltered.tail
 
   // optional automation level string provided as metadata in JSON tables
-  val automationLevel: Option[String] = None
+  protected val automationLevel: Option[String] = None
 
-  // returns the automation level of this table (default: Unknown)
-  def getAutomationLevel: TableAutomationLevel = {
+  // returns the automation level of this table (default: Unknown). Lazy computation since value of
+  // automationLevel would be populated in the subclass
+  lazy val getAutomationLevel: TableAutomationLevel = {
     automationLevel.map {
       case "0" => HandWritten
       case "1" => HandCompiled
