@@ -7,6 +7,7 @@
 25&26.csv,4,0,requires
 25&26.csv,4,1,requires
 z25.csv,0,1,typeOf
+z25.csv,0,1,provides
 z25.csv,0,2,requires
 z26.csv,0,1,requires
 23.csv,0,1,sameAs

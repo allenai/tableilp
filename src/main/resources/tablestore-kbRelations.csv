@@ -11,6 +11,7 @@
 76,0,2,requires
 77,0,1,requires
 43,0,1,typeOf
+43,0,1,provides
 43,0,2,requires
 44,0,1,requires
 21,0,1,sameAs
