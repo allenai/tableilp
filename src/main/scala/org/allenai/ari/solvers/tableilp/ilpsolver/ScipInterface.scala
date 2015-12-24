@@ -403,6 +403,16 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     addConsBasicLinear(name, vars, coeffs, Some(0d), None, trigger)
   }
 
+  /** Adds the constraint sum(X) >= y */
+  def addConsYImpliesAtLeastOne(name: String, y: Long, X: Seq[Long]): Unit = {
+    addConsYImpliesAtLeastK(name, y, X, 1d)
+  }
+
+  /** If triggered, imposes the constraint sum(X) >= y; trigger is binary variable */
+  def addConsYImpliesAtLeastOne(name: String, y: Long, X: Seq[Long], trigger: Long): Unit = {
+    addConsYImpliesAtLeastK(name, y, X, 1d, trigger)
+  }
+
   /** Adds the constraint sum(X) <= k * y */
   def addConsYImpliesAtMostK(name: String, y: Long, X: Seq[Long], k: Double): Unit = {
     val vars = X :+ y
@@ -416,6 +426,16 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     val vars = X :+ y
     val coeffs = Seq.fill(X.size)(1d) :+ (-k)
     addConsBasicLinear(name, vars, coeffs, None, Some(0d), trigger)
+  }
+
+  /** Adds the constraint sum(X) <= y */
+  def addConsYImpliesAtMostOne(name: String, y: Long, X: Seq[Long]): Unit = {
+    addConsYImpliesAtMostK(name, y, X, 1d)
+  }
+
+  /** If triggered, imposes the constraint sum(X) <= y; trigger is binary variable */
+  def addConsYImpliesAtMostOne(name: String, y: Long, X: Seq[Long], trigger: Long): Unit = {
+    addConsYImpliesAtMostK(name, y, X, 1d, trigger)
   }
 
   /** Export the generated ILP model to a file, either original or reduced/transformed */
