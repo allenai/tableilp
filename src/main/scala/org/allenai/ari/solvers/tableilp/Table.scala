@@ -60,6 +60,7 @@ class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: Key
     if !ignoreTableColumnsMarkedSkip || !Seq("SKIP", "[SKIP]").contains(firstWord)
   } yield idx).toIndexedSeq
   private val fullContentsFiltered = fullContents.map(filteredColIndices collect _).toIndexedSeq
+    .distinct // keep only distinct rows
 
   // optionally tokenize every cell (include column headers) of the table
   // TODO: create a case class for each cell to keep its rawText, tokens, etc., together
@@ -123,7 +124,7 @@ class TableWithMetadata(table: DatastoreTable, tokenizer: KeywordTokenizer) exte
     }
   })
 
-  private val filteredData = table.data.map(columnsToKeep collect _).toIndexedSeq
+  private val filteredData = table.data.map(columnsToKeep collect _).toIndexedSeq.distinct
   private val filteredFullContents = IndexedSeq(titleRow) ++ filteredData
 
   override val contentMatrix = filteredData
