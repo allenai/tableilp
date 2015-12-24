@@ -579,9 +579,8 @@ class IlpModel(
                 // above minActiveCellExtAlignment constraint was added;
                 // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
                 //   0 <= sum(extAlignmentVarsForCell) - activeCellVar
-                ilpSolver.addConsYImpliesAtLeastOne(
-                  "activeCellImpliesAtLeastOneExt", activeCellVar, extAlignmentVarsForCell
-                )
+                ilpSolver.addConsYImpliesAtLeastOne("activeCellImpliesAtLeastOneExt", activeCellVar,
+                  extAlignmentVarsForCell)
               }
               // a cell may not align to more than K cells
               ilpSolver.addConsAtMostK("cellAtMostK", extAlignmentVarsForCell,
