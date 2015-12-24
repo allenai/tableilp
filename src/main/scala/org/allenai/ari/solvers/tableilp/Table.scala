@@ -79,6 +79,11 @@ class Table(val fileName: String, fullContents: Seq[Seq[String]], tokenizer: Key
   val titleRow: IndexedSeq[String] = titleRowOrig.map(_.stripPrefix("KEY "))
   val contentMatrix: IndexedSeq[IndexedSeq[String]] = fullContentsFiltered.tail
 
+  // indices of rows and columns in the table
+  // NOTE: make these 'def' or 'lazy val' as contentMatrix may be overridden later
+  def rowIndices: Range = contentMatrix.indices
+  def colIndices: Range = contentMatrix.head.indices
+
   // optional automation level string provided as metadata in JSON tables
   protected val automationLevel: Option[String] = None
 

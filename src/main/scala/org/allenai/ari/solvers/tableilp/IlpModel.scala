@@ -120,10 +120,10 @@ class IlpModel(
     tableIdx <- tables.indices
     table = tables(tableIdx)
     if tableRowIds(tableIdx).nonEmpty
-    colIdx <- table.contentMatrix.head.indices
+    colIdx <- table.colIndices
     name = s"activeCol_t${tableIdx}_c$colIdx"
     // prefer larger fraction of columns matching
-    objCoeff = weights.activeColObjCoeff / table.contentMatrix.head.indices.size
+    objCoeff = weights.activeColObjCoeff / table.colIndices.size
     x = createPossiblyRelaxedBinaryVar(name, objCoeff)
   } yield {
     // do NOT yet add activeColVar to IlpSolver; while the variable is being created here, its
@@ -579,9 +579,8 @@ class IlpModel(
                 // above minActiveCellExtAlignment constraint was added;
                 // model as sum(extAlignmentVarsForCell) >= activeCellVar, i.e.,
                 //   0 <= sum(extAlignmentVarsForCell) - activeCellVar
-                ilpSolver.addConsYImpliesAtLeastK(
-                  "activeCellImpliesAtLeastOneExt",
-                  activeCellVar, extAlignmentVarsForCell, 1d
+                ilpSolver.addConsYImpliesAtLeastOne(
+                  "activeCellImpliesAtLeastOneExt", activeCellVar, extAlignmentVarsForCell
                 )
               }
               // a cell may not align to more than K cells
@@ -610,8 +609,8 @@ class IlpModel(
           ilpSolver.addConsBasicLinear("activeTitleImpliesMinAlignment", extAlignmentVarsForTitle,
             coeffs, Some(minCoeffSum), None, activeTitleVar)
         } else {
-          ilpSolver.addConsYImpliesAtLeastK("activeTitleImpliesAlignments", activeTitleVar,
-            extAlignmentVarsForTitle, 1d)
+          ilpSolver.addConsYImpliesAtLeastOne("activeTitleImpliesAlignments", activeTitleVar,
+            extAlignmentVarsForTitle)
         }
         extAlignmentVarsForTitle.foreach {
           ilpSolver.addConsXLeqY("activeTitle", _, activeTitleVar)
@@ -639,8 +638,8 @@ class IlpModel(
             val activeColVar = activeColVars((tableIdx, colIdx))
             ilpSolver.addConsXLeqY("activeCol", activeCellVar, activeColVar)
           }
-          ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneCell", activeColVar,
-            activeCellVarsInCol, 1d)
+          ilpSolver.addConsYImpliesAtLeastOne("activeColImpliesAtLeastOneCell", activeColVar,
+            activeCellVarsInCol)
         } else {
           // remove this variable from the activeColVars mutable.Map, as it can never be 1
           activeColVars.remove((tableIdx, colIdx))
@@ -664,8 +663,10 @@ class IlpModel(
                     ilpSolver.addConsXLeqY("activeColDueToRel", relVar, activeColVar)
                   }
                   // If a column is active, at least one of the relation variables must be active
-                  ilpSolver.addConsYImpliesAtLeastK("activeColImpliesAtLeastOneRelation", activeColVar,
-                    relationIlpVars, 1d)
+                  ilpSolver.addConsYImpliesAtLeastOne(
+                    "activeColImpliesAtLeastOneRelation",
+                    activeColVar, relationIlpVars
+                  )
                   // Use the position of the matched pattern to disable alignments of the cells in
                   // this column with question constituents inconsistent with the pattern. Only
                   // possible to do if we have offsets for the question constituents
@@ -744,13 +745,13 @@ class IlpModel(
                 case _ =>
                   // No relation variable associated with this column => column can not be active
                   logger.trace("Disabling column: " + table.titleRow(colIdx) + " in " + table.titleRow)
-                  ilpSolver.addConsAtMostK("disableColVar", Seq(activeColVar), 0)
+                  ilpSolver.chgVarUb(activeColVar, 0d)
               }
             case _ =>
               // If column is inactive, relations associated with column can't be active
               tmpColToRelationVar.get((tableIdx, colIdx)).foreach { relationVars =>
                 logger.trace("Disabling relation vars: " + relationVars.mkString(","))
-                ilpSolver.addConsAtMostK("disableRelVar", relationVars.map(_.variable), 0)
+                relationVars.foreach(v => ilpSolver.chgVarUb(v.variable, 0d))
               }
           }
         }
@@ -762,8 +763,8 @@ class IlpModel(
     question.choices.indices.foreach { choiceIdx =>
       val choiceVar = activeChoiceVars(choiceIdx)
       val extAlignmentVarsForChoice = choiceToExtAlignmentVars.getOrElse(choiceIdx, Seq.empty)
-      ilpSolver.addConsYImpliesAtLeastK("activeChoiceImpliesAlignments", choiceVar,
-        extAlignmentVarsForChoice, 1d)
+      ilpSolver.addConsYImpliesAtLeastOne("activeChoiceImpliesAlignments", choiceVar,
+        extAlignmentVarsForChoice)
       // activate the choice variables if there is anything aligned to it: alignedCell => Choice
       extAlignmentVarsForChoice.foreach {
         ilpSolver.addConsXLeqY("choiceActivation", _, choiceVar)
@@ -778,8 +779,8 @@ class IlpModel(
         val extAlignmentVarsForChoiceCons = choiceConsToExtAlignmentVars.getOrElse(
           (choiceIdx, choiceConsIdx), Seq.empty
         )
-        ilpSolver.addConsYImpliesAtLeastK("activeChoiceConsImpliesAlignments", choiceConsVar,
-          extAlignmentVarsForChoiceCons, 1d)
+        ilpSolver.addConsYImpliesAtLeastOne("activeChoiceConsImpliesAlignments", choiceConsVar,
+          extAlignmentVarsForChoiceCons)
         // activate the choice constituent variables if there is anything aligned to it:
         // alignedCell => active choice constituent
         extAlignmentVarsForChoiceCons.foreach {
@@ -806,7 +807,7 @@ class IlpModel(
       val activeChoiceTables = question.choices.indices.map { qChoiceIdx =>
         val activeTableVars = tables.indices.map { tableIdx =>
           val table = tables(tableIdx)
-          val activeChoiceColumnVars = table.contentMatrix.head.indices.map { colIdx =>
+          val activeChoiceColumnVars = table.colIndices.map { colIdx =>
             // create a variable indicating whether qChoice is aligned with a given table column
             val name = s"activeChoiceCol_ch${qChoiceIdx}_t${tableIdx}_c$colIdx"
             val activeChoiceColumnVar = createPossiblyRelaxedBinaryVar(name, 0d)
@@ -824,9 +825,9 @@ class IlpModel(
             val choiceColVars = tableVarsMap.getOrElse(key, Seq.empty).map(_.variable) ++
               titleVarsMap.getOrElse(key, Seq.empty).map(_.variable)
             // If a column is active for a choice, there must exist an alignment to title or cell
-            ilpSolver.addConsYImpliesAtLeastK(
+            ilpSolver.addConsYImpliesAtLeastOne(
               "activeChoiceColImpliesAlignments",
-              activeChoiceColumnVar, choiceColVars, 1d
+              activeChoiceColumnVar, choiceColVars
             )
             activeChoiceColumnVar
           }
@@ -845,17 +846,19 @@ class IlpModel(
             ilpSolver.addConsXLeqY("choiceColToTable", colVar, activeChoiceTableVar)
           }
           // If a table is active for a choice, there must exist an active column for choice
-          ilpSolver.addConsYImpliesAtLeastK("activeChoiceTableImpliesActiveCol", activeChoiceTableVar,
-            activeChoiceColumnVars, 1d)
+          ilpSolver.addConsYImpliesAtLeastOne(
+            "activeChoiceTableImpliesActiveCol",
+            activeChoiceTableVar, activeChoiceColumnVars
+          )
           // If a table is active for a choice, there must be some non-choice alignment
-          ilpSolver.addConsYImpliesAtLeastK(
+          ilpSolver.addConsYImpliesAtLeastOne(
             "activeChoiceTableImpliesOtherAlign",
-            activeChoiceTableVar, tableToNonChoiceVarsMap.getOrElse(tableIdx, Seq.empty), 1d
+            activeChoiceTableVar, tableToNonChoiceVarsMap.getOrElse(tableIdx, Seq.empty)
           )
           tableIdx -> activeChoiceTableVar
         }
         // Answer present in max two tables
-        ilpSolver.addConsAtMostK(s"atMostTwoTables_ch$qChoiceIdx", activeTableVars.map(_._2), 2.0d)
+        ilpSolver.addConsAtMostK(s"atMostTwoTables_ch$qChoiceIdx", activeTableVars.map(_._2), 2d)
         // Re-use the active tables to create a map from choice to tables active for that choice
         qChoiceIdx -> activeTableVars.toMap
       }.toMap
@@ -869,7 +872,7 @@ class IlpModel(
         question.choicesCons(qChoiceIdx).indices.foreach { qChoiceConsIdx =>
           tables.indices.foreach { tableIdx =>
             val table = tables(tableIdx)
-            val activeChoiceConsColumnVars = table.contentMatrix.head.indices.map { colIdx =>
+            val activeChoiceConsColumnVars = table.colIndices.map { colIdx =>
               // create a variable indicating whether qChoiceCons is aligned with a given column
               val name = s"activeChoiceConsCol_c${qChoiceIdx}_ccons${qChoiceConsIdx}_" +
                 s"t${tableIdx}_$colIdx"
@@ -893,9 +896,9 @@ class IlpModel(
                 titleConsVarsMap.getOrElse(key, Seq.empty).map(_.variable)
               // If a column is active for a choice cons, there must exist an alignment to title or
               // cell in the column
-              ilpSolver.addConsYImpliesAtLeastK(
+              ilpSolver.addConsYImpliesAtLeastOne(
                 "activeChoiceColImpliesAlignments",
-                activeChoiceConsColumnVar, choiceConsColVars, 1d
+                activeChoiceConsColumnVar, choiceConsColVars
               )
               activeChoiceConsColumnVar
             }
@@ -917,9 +920,9 @@ class IlpModel(
             }
             // If a table is active for a choice cons, there must exist an active column for
             // choice cons
-            ilpSolver.addConsYImpliesAtLeastK(
+            ilpSolver.addConsYImpliesAtLeastOne(
               "activeChoiceConsTableImpliesActiveCol",
-              activeChoiceConsTableVar, activeChoiceConsColumnVars, 1d
+              activeChoiceConsTableVar, activeChoiceConsColumnVars
             )
 
             // If table is active for choice & choice const is active => table must be active for
@@ -953,8 +956,8 @@ class IlpModel(
       val questionIdx = QuestionIdx(qIdx)
       val activeQuestionVar = activeQuestionVars(qIdx)
       val extAlignmentVars = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
-      ilpSolver.addConsYImpliesAtLeastK("activeQuestionImpliesAlignments", activeQuestionVar,
-        extAlignmentVars, 1d)
+      ilpSolver.addConsYImpliesAtLeastOne("activeQuestionImpliesAlignments", activeQuestionVar,
+        extAlignmentVars)
       extAlignmentVars.foreach {
         ilpSolver.addConsXLeqY("activeQuestionCons", _, activeQuestionVar)
       }
@@ -1073,11 +1076,11 @@ class IlpModel(
           ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastTwoCells", activeRowVar,
             activeCellVarsInRow, minActiveCellsPerRow)
           // If row is active, it must have non-choice alignments
-          ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastOneNonChoice", activeRowVar,
-            rowToNonChoiceVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty), 1)
+          ilpSolver.addConsYImpliesAtLeastOne("activeRowImpliesAtLeastOneNonChoice", activeRowVar,
+            rowToNonChoiceVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty))
           // If row is active, it must have non-question alignments
-          ilpSolver.addConsYImpliesAtLeastK("activeRowImpliesAtLeastOneNonQuestion", activeRowVar,
-            rowToNonQuestionVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty), 1)
+          ilpSolver.addConsYImpliesAtLeastOne("activeRowImpliesAtLeastOneNonQuestion", activeRowVar,
+            rowToNonQuestionVarsMap.getOrElse((tableIdx, rowIdx), Seq.empty))
         } else {
           // remove this variable from the activeRowVars mutable.Map, as it can never be 1
           activeRowVars.remove((tableIdx, rowIdx))
@@ -1102,7 +1105,7 @@ class IlpModel(
         rowIdx2 <- tableRowIds(tableIdx)
         if rowIdx2 != rowIdx1
         activeRowVar2 <- activeRowVars.get((tableIdx, rowIdx2))
-        colIdx <- table.contentMatrix.head.indices
+        colIdx <- table.colIndices
         activeCellVar1 <- activeCellVars.get(CellIdx(tableIdx, rowIdx1, colIdx))
         name = s"activitySignature_t${tableIdx}_r${rowIdx1}_r$rowIdx2"
         body = Seq(activeRowVar1, activeRowVar2, activeCellVar1)
@@ -1115,6 +1118,32 @@ class IlpModel(
         }
       }
 
+      // if two rows are active, then at least one active column in which they differ must also be
+      // active; otherwise the two rows would be identical in the proof graph. Model this as:
+      //   sum(differing active columns) >= (activeRow1 + activeRow2 - 1)
+      // TODO(ashish33) consider tightening this constraint by including only active cells
+      val relevantCols = table.colIndices.filter { colIdx =>
+        activeColVars.contains((tableIdx, colIdx))
+      }
+      val tokenizedTableRows = table.fullContentTokenized.tail
+      for {
+        rowIdx1 <- tableRowIds(tableIdx)
+        activeRowVar1 <- activeRowVars.get((tableIdx, rowIdx1))
+        rowIdx2 <- tableRowIds(tableIdx)
+        if rowIdx2 != rowIdx1
+        activeRowVar2 <- activeRowVars.get((tableIdx, rowIdx2))
+        (identicalCols, differingCols) = relevantCols.partition { colIdx =>
+          tokenizedTableRows(rowIdx1)(colIdx) == tokenizedTableRows(rowIdx2)(colIdx)
+        }
+        if identicalCols.size >= 2
+        name = s"rowsMustDiffer_t${tableIdx}_r${rowIdx1}_r$rowIdx2"
+        differingColVars = differingCols.flatMap(colIdx => activeColVars.get((tableIdx, colIdx)))
+        vars = differingColVars ++ Seq(activeRowVar1, activeRowVar2)
+        coeffs = Seq.fill(differingColVars.size)(1d) ++ Seq(-1d, -1d)
+      } {
+        ilpSolver.addConsBasicLinear(name, vars, coeffs, Some(-1d), None)
+      }
+
       // table activity constraints
       // (a) if a row is active, then the table is active (NOTE: if title is active, then a row must
       // be active, and then this constraint makes the table active as well);
@@ -1124,8 +1153,10 @@ class IlpModel(
           activeTableVar)
       }
       // (b) if the table is active, then at least one row is active
-      ilpSolver.addConsYImpliesAtLeastK(s"activeRowsImpliesActiveTable_t$tableIdx", activeTableVar,
-        tableRowVars, 1d)
+      ilpSolver.addConsYImpliesAtLeastOne(
+        s"activeRowsImpliesActiveTable_t$tableIdx",
+        activeTableVar, tableRowVars
+      )
       // (c) if this table T1 is active and another table T2 is also active, then:
       //   - if there exists a T1-T2 inter-table edge, then at least one such edge must be used;
       // first create a map from tables to inter-table variables connecting this table to that table
@@ -1163,7 +1194,7 @@ class IlpModel(
           colIdx <- table.keyColumns
           activeColVar <- activeColVars.get((tableIdx, colIdx))
         } yield activeColVar
-        ilpSolver.addConsYImpliesAtLeastK("activeKeyColumns", activeTableVar, activeKeyColVars, 1d)
+        ilpSolver.addConsYImpliesAtLeastOne("activeKeyColumns", activeTableVar, activeKeyColVars)
       }
     }
 
