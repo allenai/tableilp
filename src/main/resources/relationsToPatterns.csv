@@ -10,9 +10,16 @@ requires,depends? on,humans depend on the sun
 hasProperty,has,summer has long days
 typeOf,examples? of,rain is example of precipitation
 typeOf,is,food is matter
-provides,from-1,...energy from sun...
-provides,found in-1,...energy found in food..
+provides,from-1,energy from sun
+provides,found in-1,energy found in food
 provides,has,food has energy
+provides,source of,food is a source of energy
+provides,provides,food provides energy
+provides,produces,sun produces energy
+provides,creates,sun creates energy
+provides,provided by-1,energy provided by food
+provides,produced by-1,energy is produced by the sun
+provides,created by-1,energy that is created by the sun
 in,in,
 in,inside,
 in,within,
@@ -24,26 +31,33 @@ partOf,of,claws of bears
 partOf,part of,claws are a part of bears
 sameAs,is same as,
 sameAs,is equivalent to,
-cause,causes,
-cause,results in,cold results in shivering
-cause,effect of,shivering is effect of cold
-cause,way to,shivering is a way to handle cold
+cause,causes?,
+cause,results? in,cold results in shivering
+cause,effect of-1,shivering is effect of cold
+cause,way to-1,shivering is a way to handle cold
+cause,make,cold will make one shiver
 fromTo,to,liquid to solid
 fromTo,changing to,solid changing to liquid
+fromTo,turns? into,solid turns into liquid
 helpsWith,help,fur helps against cold
 helpsWith,way.*adjust to,growing furs is a way to adjust to cold
 purpose,function is,nose's function is to smell prey
+purpose,used for,nose is used for smelling the prey
 purpose,purpose is,
 purpose,,roots take in water
 performs,,roots take in water
+performs,can,roots can take in water
 propertyOf,of,volume of solids
 object,,cylinder size
 object,of,size of cylinder
 changeFrom,chang.* from,melting is changing from solid
 changeFrom,conver.* from,heat converts ice from solid
 changeFrom,take.* from,plants take energy from sunlight
-measures,can be used to measure,clock can me used to measure time
+measures,used to measure,clock can be/is used to measure time
 measures,measur,balance measures weight
+measures,determine,balance can determine weights
 unitOf,unit of,ml unit of volume
+unitOf,used to measure,ml is an unit used to measure volume
 unitOf,describe,ml describes volume
 unitOf,measured-1,volume is measured in ml
+unitOf,measure of,ml is a measure of
