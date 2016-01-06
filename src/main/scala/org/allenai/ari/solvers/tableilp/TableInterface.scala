@@ -1,6 +1,6 @@
 package org.allenai.ari.solvers.tableilp
 
-import org.allenai.ari.models.tables.{ Table => DatastoreTable }
+import org.allenai.ari.models.tables.{ DatastoreExport, Table => DatastoreTable }
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
@@ -70,16 +70,6 @@ case class TableSelection(
   score: Double,
   rowIds: Seq[Int]
 )
-
-// TODO(ericgribkoff) Copied from tables/, refactor out to models/
-case class DatastoreExport(tables: IndexedSeq[DatastoreTable], description: String)
-
-object DatastoreExport {
-
-  import spray.json.DefaultJsonProtocol._
-
-  implicit val datastoreJsonFormat = jsonFormat2(DatastoreExport.apply)
-}
 
 /** A class for storing and processing multiple tables.
   *
