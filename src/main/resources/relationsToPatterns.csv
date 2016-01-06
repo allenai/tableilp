@@ -10,16 +10,16 @@ requires,depends? on,humans depend on the sun
 hasProperty,has,summer has long days
 typeOf,examples? of,rain is example of precipitation
 typeOf,is,food is matter
-provides,from-1,...energy from sun...
-provides,found in-1,...energy found in food..
+provides,from-1,energy from sun
+provides,found in-1,energy found in food
 provides,has,food has energy
 provides,source of,food is a source of energy
 provides,provides,food provides energy
 provides,produces,sun produces energy
 provides,creates,sun creates energy
-provides,provided by-1,food provides energy
-provides,produced by-1,sun produces energy
-provides,created by-1,sun creates energy
+provides,provided by-1,energy provided by food
+provides,produced by-1,energy is produced by the sun
+provides,created by-1,energy that is created by the sun
 in,in,
 in,inside,
 in,within,
@@ -55,7 +55,7 @@ changeFrom,conver.* from,heat converts ice from solid
 changeFrom,take.* from,plants take energy from sunlight
 measures,used to measure,clock can be/is used to measure time
 measures,measur,balance measures weight
-measures,determine
+measures,determine,balance can determine weights
 unitOf,unit of,ml unit of volume
 unitOf,used to measure,ml is an unit used to measure volume
 unitOf,describe,ml describes volume
