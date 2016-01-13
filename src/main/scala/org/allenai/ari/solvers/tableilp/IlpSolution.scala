@@ -60,15 +60,16 @@ case class SolutionQuality(
   * @param nOrigIntVars Number of integer variables in the original ILP.
   * @param nOrigContVars Number of continous variables in the original ILP.
   * @param nOrigCons Number of constraints in the original ILP.
-  * @param nVars Number of variables after presolve.
-  * @param nBinVars Number of binary variables after presolve.
-  * @param nIntVars Number of integer variables after presolve.
-  * @param nContVars Number of continuous variables after presolve.
-  * @param nCons Number of constraints after presolve.
+  * @param nPresolvedVars Number of variables after presolve.
+  * @param nPresolvedBinVars Number of binary variables after presolve.
+  * @param nPresolvedIntVars Number of integer variables after presolve.
+  * @param nPresolvedContVars Number of continuous variables after presolve.
+  * @param nPresolvedCons Number of constraints after presolve.
   */
 case class ProblemStats(
   nOrigVars: Int, nOrigBinVars: Int, nOrigIntVars: Int, nOrigContVars: Int, nOrigCons: Int,
-  nVars: Int, nBinVars: Int, nIntVars: Int, nContVars: Int, nCons: Int
+  nPresolvedVars: Int, nPresolvedBinVars: Int, nPresolvedIntVars: Int, nPresolvedContVars: Int,
+  nPresolvedCons: Int
 )
 
 /** Metrics to capture branch and bound search stats.
@@ -208,11 +209,11 @@ object IlpSolutionFactory extends Logging {
       ilpSolver.getNOrigIntVars,
       ilpSolver.getNOrigContVars,
       ilpSolver.getNOrigConss,
-      ilpSolver.getNVars,
-      ilpSolver.getNBinVars,
-      ilpSolver.getNIntVars,
-      ilpSolver.getNContVars,
-      ilpSolver.getNConss
+      ilpSolver.getNPresolvedVars,
+      ilpSolver.getNPresolvedBinVars,
+      ilpSolver.getNPresolvedIntVars,
+      ilpSolver.getNPresolvedContVars,
+      ilpSolver.getNPresolvedConss
     )
 
     // populate search stats
@@ -257,11 +258,11 @@ object IlpSolutionFactory extends Logging {
       ilpSolver.getNOrigIntVars,
       ilpSolver.getNOrigContVars,
       ilpSolver.getNOrigConss,
-      ilpSolver.getNVars,
-      ilpSolver.getNBinVars,
-      ilpSolver.getNIntVars,
-      ilpSolver.getNContVars,
-      ilpSolver.getNConss
+      ilpSolver.getNPresolvedVars,
+      ilpSolver.getNPresolvedBinVars,
+      ilpSolver.getNPresolvedIntVars,
+      ilpSolver.getNPresolvedContVars,
+      ilpSolver.getNPresolvedConss
     )
 
     // populate search stats

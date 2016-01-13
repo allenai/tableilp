@@ -40,6 +40,13 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   // initialization: create a SCIP instance
   private val scip: Long = env.create
 
+  // mutable problem stats to be captured after presolve() is called
+  private var nPresolvedVarsOpt: Option[Int] = None
+  private var nPresolvedBinVarsOpt: Option[Int] = None
+  private var nPresolvedIntVarsOpt: Option[Int] = None
+  private var nPresolvedContVarsOpt: Option[Int] = None
+  private var nPresolvedConssOpt: Option[Int] = None
+
   // initialization: set various parameters
   env.printVersion(scip, scipParams.printVersion)
   env.setMessagehdlrQuiet(scip, scipParams.messagehdlrQuiet)
@@ -104,20 +111,35 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   /** get number of constraints in the original ILP */
   def getNOrigConss: Int = env.getNOrigConss(scip)
 
-  /** get number of active variables, after presolve */
+  /** get number of currently active variables when this method is called */
   def getNVars: Int = env.getNVars(scip)
 
-  /** get number of binary variables, after presolve */
+  /** get number of currently active binary variables when this method is called */
   def getNBinVars: Int = env.getNBinVars(scip)
 
-  /** get number of integer variables, after presolve */
+  /** get number of currently active integer variables when this method is called */
   def getNIntVars: Int = env.getNIntVars(scip)
 
-  /** get number of continuous variables, after presolve */
+  /** get number of currently active continuous variables when this method is called */
   def getNContVars: Int = env.getNContVars(scip)
 
-  /** get number of active variables, after presolve */
+  /** get number of currently active constraints when this method is called */
   def getNConss: Int = env.getNConss(scip)
+
+  /** get number of variables in the ILP after presolve; defaults to -1 */
+  def getNPresolvedVars: Int = nPresolvedVarsOpt.getOrElse(-1)
+
+  /** get number of binary variables in the ILP after presolve; defaults to -1 */
+  def getNPresolvedBinVars: Int = nPresolvedBinVarsOpt.getOrElse(-1)
+
+  /** get number of integer variables in the ILP after presolve; defaults to -1 */
+  def getNPresolvedIntVars: Int = nPresolvedIntVarsOpt.getOrElse(-1)
+
+  /** get number of continuous variables in the ILP after presolve; defaults to -1 */
+  def getNPresolvedContVars: Int = nPresolvedContVarsOpt.getOrElse(-1)
+
+  /** get number of constraints in the ILP after presolve; defaults to -1 */
+  def getNPresolvedConss: Int = nPresolvedConssOpt.getOrElse(-1)
 
   /** get solution status */
   def getStatus: IlpStatus = {
@@ -452,7 +474,18 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Solve the ILP model and report the result */
   def solve(): Unit = {
+    // although solve() could have been directly called here, first call presolve() so that
+    // simplified problem stats can be stored for future reference
+    env.presolve(scip)
+    nPresolvedVarsOpt = Some(env.getNVars(scip))
+    nPresolvedBinVarsOpt = Some(env.getNBinVars(scip))
+    nPresolvedIntVarsOpt = Some(env.getNIntVars(scip))
+    nPresolvedContVarsOpt = Some(env.getNContVars(scip))
+    nPresolvedConssOpt = Some(env.getNConss(scip))
+
+    // now do branch-and-bound search using solve()
     env.solve(scip)
+
     logger.info(s"Solution status: $getStatus")
     logger.info(s"Objective value: $getPrimalbound")
   }

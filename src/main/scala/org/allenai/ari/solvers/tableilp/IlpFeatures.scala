@@ -110,8 +110,8 @@ class IlpFeatures(ilpSolution: IlpSolution) extends Logging {
       "avgQConsAlignmentScore" -> avgQConsAlignmentScore,
       "netQChoiceAlignmentScore" -> allQChoiceAlignmentScores.sum,
       "avgQChoiceAlignmentScore" -> avgQChoiceAlignmentScore,
-      "logVariables" -> math.log1p(ilpSolution.problemStats.nVars),
-      "logConstraints" -> math.log1p(ilpSolution.problemStats.nCons),
+      "logVariables" -> math.log1p(ilpSolution.problemStats.nPresolvedVars),
+      "logConstraints" -> math.log1p(ilpSolution.problemStats.nPresolvedCons),
       "log2SearchNodes" -> math.log1p(ilpSolution.searchStats.nNodes) / math.log(2),
       "logLPIterations" -> math.log1p(ilpSolution.searchStats.nLPIterations),
       // maxDepth is 0 if the ILP is solved at the root note, and is -1 if solved during presolve()
