@@ -185,7 +185,13 @@ object IlpSolutionFactory extends Logging {
     val activeChoiceVarValues = allVariables.activeChoiceVars.mapValues(ilpSolver.getSolVal)
     // adjust for floating point differences
     val (bestChoice, bestChoiceScore) = activeChoiceVarValues.find(_._2 >= 1d - Utils.eps) match {
-      case Some((choiceIdx, _)) => (choiceIdx, ilpObjectiveToScore(ilpSolver.getPrimalbound))
+      case Some((choiceIdx, _)) => {
+        val objValue = ilpObjectiveToScore(ilpSolver.getPrimalbound)
+        // round it to avoid being tripped off by tiny perturbations (such as those introduced to
+        // break ties in favor of earlier appearing choices)
+        val roundedObj = Utils.round(objValue, Utils.precision)
+        (choiceIdx, roundedObj)
+      }
       case None => (0, 0d) // the default, helpful for debugging
     }
     (bestChoice, bestChoiceScore)

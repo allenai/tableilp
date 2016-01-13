@@ -380,7 +380,10 @@ class IlpModel(
       // use a non-zero activeChoiceObjCoeff only if mustChooseAnAnswer isn't true;
       // otherwise this only shifts all answer choices by a fixed amount
       objCoeff = if (ilpParams.mustChooseAnAnswer) 0d else weights.activeChoiceObjCoeff
-      x = createPossiblyRelaxedBinaryVar(name, objCoeff)
+      // perturb by a small choiceIdx-based value to break ties in favor of earlier choices;
+      // will later round off this digit when reporting the solver score in IlpSolution
+      perturbedObjCoeff = objCoeff + (question.choices.size - 1 - choiceIdx) * (Utils.eps / 1000d)
+      x = createPossiblyRelaxedBinaryVar(name, perturbedObjCoeff)
     } yield {
       ilpSolver.addVar(x)
       choiceIdx -> x

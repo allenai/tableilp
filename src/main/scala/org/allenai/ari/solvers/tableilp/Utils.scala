@@ -20,6 +20,14 @@ object Utils extends Logging {
   /** A small value to handle floating point mismatches. */
   val eps = 1e-6
 
+  /** Precision corresponding to eps. */
+  val precision = 6
+
+  /** Round a Double to k decimal digits. */
+  def round(d: Double, precision: Int): Double = {
+    BigDecimal(d).setScale(precision, BigDecimal.RoundingMode.HALF_UP).toDouble
+  }
+
   /** Get a resource file as a Stream */
   def getResourceAsStream(name: String): BufferedInputStream = {
     new BufferedInputStream(getClass.getClassLoader.getResourceAsStream(name))
