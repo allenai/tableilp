@@ -41,6 +41,8 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
   private val scip: Long = env.create
 
   // mutable problem stats to be captured after presolve() is called
+  // TODO: would be cleaner to change solve() to return (ProblemStats, SearchStats, TimingStats)
+  // rather than using these mutable vars and computing stats later when building IlpSolution
   private var nPresolvedVarsOpt: Option[Int] = None
   private var nPresolvedBinVarsOpt: Option[Int] = None
   private var nPresolvedIntVarsOpt: Option[Int] = None
@@ -477,11 +479,11 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
     // although solve() could have been directly called here, first call presolve() so that
     // simplified problem stats can be stored for future reference
     env.presolve(scip)
-    nPresolvedVarsOpt = Some(env.getNVars(scip))
-    nPresolvedBinVarsOpt = Some(env.getNBinVars(scip))
-    nPresolvedIntVarsOpt = Some(env.getNIntVars(scip))
-    nPresolvedContVarsOpt = Some(env.getNContVars(scip))
-    nPresolvedConssOpt = Some(env.getNConss(scip))
+    nPresolvedVarsOpt = Some(getNVars)
+    nPresolvedBinVarsOpt = Some(getNBinVars)
+    nPresolvedIntVarsOpt = Some(getNIntVars)
+    nPresolvedContVarsOpt = Some(getNContVars)
+    nPresolvedConssOpt = Some(getNConss)
 
     // now do branch-and-bound search using solve()
     env.solve(scip)
@@ -492,6 +494,14 @@ class ScipInterface(probName: String, scipParams: ScipParams) extends Logging {
 
   /** Reset after calling solve() so that more constraint may be added */
   def resetSolve(): Unit = {
+    // clear presolved problem stats
+    nPresolvedVarsOpt = None
+    nPresolvedBinVarsOpt = None
+    nPresolvedIntVarsOpt = None
+    nPresolvedContVarsOpt = None
+    nPresolvedConssOpt = None
+
+    // reset SCIP to pre-presolve stage
     val origScipStage = env.getStage(scip)
     env.freeTransform(scip)
     val newScipStage = env.getStage(scip)
