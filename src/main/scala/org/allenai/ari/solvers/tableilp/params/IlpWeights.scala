@@ -17,6 +17,7 @@ import com.google.inject.name.Named
   * @param tableScoreObjCoeff How much does the table matching score contribute to the obj function
   * @param activeQConsObjCoeff How much does an active qcons contribute to the objective function
   * @param activeChoiceObjCoeff How much does an active choice contribute to the objective function
+  * @param activeScienceTermBoost Multiplicative scaling factor to use if a science term is active
   * @param tableUsagePenalty How much to penalize the use of a table
   * @param rowUsagePenalty How much to penalize the use of a row
   * @param interTableAlignmentPenalty How much to penalize alignments across two tables
@@ -39,6 +40,7 @@ class IlpWeights @Inject() (
   @Named("weights.tableScoreObjCoeff") val tableScoreObjCoeff: Double,
   @Named("weights.activeQConsObjCoeff") val activeQConsObjCoeff: Double,
   @Named("weights.activeChoiceObjCoeff") val activeChoiceObjCoeff: Double,
+  @Named("weights.activeScienceTermBoost") val activeScienceTermBoost: Double,
   @Named("weights.tableUsagePenalty") val tableUsagePenalty: Double,
   @Named("weights.rowUsagePenalty") val rowUsagePenalty: Double,
   @Named("weights.interTableAlignmentPenalty") val interTableAlignmentPenalty: Double,
@@ -69,6 +71,7 @@ object IlpWeights {
     tableScoreObjCoeff = 1d,
     activeQConsObjCoeff = 1d,
     activeChoiceObjCoeff = 100d,
+    activeScienceTermBoost = 1d,
     tableUsagePenalty = 4d,
     rowUsagePenalty = 1d,
     interTableAlignmentPenalty = 1d,

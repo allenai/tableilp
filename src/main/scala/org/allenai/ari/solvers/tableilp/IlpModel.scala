@@ -24,7 +24,8 @@ class IlpModel(
     weights: IlpWeights,
     tableInterface: TableInterface,
     tableSelections: IndexedSeq[TableSelection],
-    tokenizer: KeywordTokenizer
+    tokenizer: KeywordTokenizer,
+    scienceTerms: Set[String]
 ) extends Logging {
 
   /** An index into a cell in a table */
@@ -433,8 +434,10 @@ class IlpModel(
     // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
       qConsIdx <- question.questionCons.indices
+      qCons = question.questionCons(qConsIdx)
       name = s"activeQCons_qcons$qConsIdx"
-      objCoeff = weights.activeQConsObjCoeff
+      scalingFactor = if (scienceTerms.contains(qCons)) weights.activeScienceTermBoost else 1d
+      objCoeff = weights.activeQConsObjCoeff * scalingFactor
       x = createPossiblyRelaxedBinaryVar(name, objCoeff)
     } yield {
       ilpSolver.addVar(x)

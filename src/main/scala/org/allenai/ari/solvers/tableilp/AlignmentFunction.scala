@@ -130,7 +130,9 @@ private class EntailmentSimilarity(
       if !trimmedStr.startsWith("[") || !trimmedStr.endsWith("]") // ignore strings like "[...]"
     } yield tokenizer.stemmedKeywordTokenize(trimmedStr)
   }
-  // set of words that should be ignored for entailment calculation if they are the hypothesis
+  // set of words that should be ignored for entailment calculation if they are the hypothesis;
+  // note that in WordNet, consumer -> person -> causal_agent -> cause !
+  // Additional candidates: matter, substance, whole, part, cause
   private val ignoreHypothesisSet = Set("unit", "event", "object", "relation")
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
@@ -144,7 +146,8 @@ private class EntailmentSimilarity(
         val scores = for {
           text1Seq <- text1StemmedTokens
           text2Seq <- text2StemmedTokens
-          if !ignoreHypothesisSet.contains(text2Seq.mkString(" ").toLowerCase)
+          if text1Seq == text2Seq || !ignoreHypothesisSet.contains(text2Seq.mkString(" ")
+            .toLowerCase)
         } yield entailmentService.entail(text1Seq, text2Seq).confidence
         val scoreMax = if (scores.nonEmpty) scores.max else 0d
         redisOpt.foreach(_.set(key, scoreMax))

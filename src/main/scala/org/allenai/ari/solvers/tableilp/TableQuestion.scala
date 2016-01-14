@@ -89,7 +89,7 @@ object TableQuestionFactory extends Logging {
       choiceOffsetsOptions.map(_.getOrElse(Seq.empty).toIndexedSeq),
       areChoicesSplit = areSplit
     )
-    logger.debug("Question constituents: " + question.questionCons.mkString(",") +
+    logger.debug("Question constituents: " + question.questionCons.mkString(",") + '|' +
       question.questionConsOffsets.mkString(","))
     question
   }
@@ -118,14 +118,18 @@ sealed trait Splitter {
 private class TokenSplitter(
     val useStemmedKeywordTokenizer: Boolean = false
 ) extends Splitter {
+  // ensure that all returned tokens start with a letter (filters out "_", "?", etc.)
+  val alphaChars = ('a' to 'z').toSet
   def split(str: String): (Seq[String], Option[Seq[Int]]) = {
     if (useStemmedKeywordTokenizer) {
       // TODO(tushar): Return offsets for keyword tokenizer and make the offsets non-optional
       val tokens = KeywordTokenizer.Default.stemmedKeywordTokenize(str)
-      (tokens, None)
+      val filteredTokens = tokens.filter(s => alphaChars.contains(s.head.toLower))
+      (filteredTokens, None)
     } else {
       val tokens = defaultTokenizer.tokenize(str)
-      (tokens.map(_.string), Some(tokens.map(_.offset)))
+      val filteredTokens = tokens.filter(t => alphaChars.contains(t.string.head.toLower))
+      (filteredTokens.map(_.string), Some(filteredTokens.map(_.offset)))
     }
   }
 }

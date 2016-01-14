@@ -4,11 +4,9 @@ import org.allenai.ari.models.tables.{ DatastoreExport, Table => DatastoreTable 
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
 import org.allenai.common.Logging
-import org.allenai.datastore.Datastore
 
 import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
-import com.typesafe.config.Config
 import spray.json._
 
 import scala.collection.JavaConverters._
@@ -96,16 +94,9 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         import spray.json.DefaultJsonProtocol._
         dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
       } else {
-        val config: Config = params.datastoreTablestoreConfig
-        val datastoreName = config.getString("datastore")
-        val group = config.getString("group")
-        val name = config.getString("name")
-        val version = config.getInt("version")
-        logger.info(
-          s"Loading tables from tablestore $datastoreName datastore,$group/$name-v$version"
-        )
-        val file = Datastore(datastoreName).filePath(group, name, version).toFile
-        val dataString = Source.fromFile(file).getLines().mkString("\n")
+        logger.info("Loading tables from Tablestore")
+        val dataString = Utils.getDatastoreFileAsSource(params.datastoreTablestoreConfig)
+          .getLines().mkString("\n")
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
         // Note: Tablestore tables currently come in the reverse order of IDs
         datastoreExport.tables
@@ -121,13 +112,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         new File(params.localFolder)
       } else {
         // read tables from the specified Datastore folder
-        val config: Config = params.datastoreFolderConfig
-        val datastoreName = config.getString("datastore")
-        val group = config.getString("group")
-        val name = config.getString("name")
-        val version = config.getInt("version")
-        logger.info(s"Loading csv from $datastoreName datastore, $group/$name-v$version")
-        Datastore(datastoreName).directoryPath(group, name, version).toFile
+        logger.info("Loading CSV tables from Datastore")
+        Utils.getDatastoreDirectoryAsFolder(params.datastoreFolderConfig)
       }
       val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
       files.map(file => {

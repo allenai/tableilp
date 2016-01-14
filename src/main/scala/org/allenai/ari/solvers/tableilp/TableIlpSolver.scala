@@ -58,6 +58,14 @@ class TableIlpSolver @Inject() (
   /** For storing a tied choice along with its score */
   private case class TiedChoice(choice: Int, score: Double)
 
+  /** Load science terms from Datastore */
+  private val scienceTerms: Set[String] = {
+    val source = Utils.getDatastoreFileAsSource(solverParams.scienceTermsDatastoreConfig)
+    // get lines that do not start with '#'
+    source.getLines().filterNot(_.startsWith("#")).toSet
+  }
+  logger.debug(s"Loaded ${scienceTerms.size} science terms")
+
   /** Override SimpleSolver's implementation of solveInternal to allow calling a fallback solver */
   override protected[ari] def solveInternal(request: SolverRequest): Future[SolverResponse] = {
     handleQuestion(request.question) flatMap { simpleAnswers =>
@@ -103,7 +111,7 @@ class TableIlpSolver @Inject() (
           val aligner = new AlignmentFunction(ilpParams.alignmentType, Some(entailmentService),
             ilpParams.entailmentScoreOffset, tokenizer, solverParams.useRedisCache)
           val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
-            tableSelections, tokenizer)
+            tableSelections, tokenizer, scienceTerms)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize",
             splitAnswerChoices = ilpParams.splitAnswerChoices)
           val allVariables = ilpModel.buildModel(questionIlp)

@@ -1,8 +1,11 @@
 package org.allenai.ari.solvers.tableilp
 
 import org.allenai.common.{ Logging, Resource }
+import org.allenai.datastore.Datastore
 
-import java.io.{ BufferedInputStream, BufferedReader, InputStreamReader }
+import com.typesafe.config.Config
+
+import java.io.{ File, BufferedInputStream, BufferedReader, InputStreamReader }
 
 import scala.io.{ BufferedSource, Source }
 
@@ -51,5 +54,26 @@ object Utils extends Logging {
       logger.trace(s"lines:\n\t${lines.mkString("\n\t")}")
       lines
     }
+  }
+
+  /** Get a datastore file as a buffered Source */
+  def getDatastoreFileAsSource(config: Config): BufferedSource = {
+    val datastoreName = config.getString("datastore")
+    val group = config.getString("group")
+    val name = config.getString("name")
+    val version = config.getInt("version")
+    logger.debug(s"Loading file from $datastoreName datastore: $group/$name-v$version")
+    val file = Datastore(datastoreName).filePath(group, name, version).toFile
+    Source.fromFile(file)
+  }
+
+  /** Get a datastore directory as a folder */
+  def getDatastoreDirectoryAsFolder(config: Config): File = {
+    val datastoreName = config.getString("datastore")
+    val group = config.getString("group")
+    val name = config.getString("name")
+    val version = config.getInt("version")
+    logger.debug(s"Loading directory from $datastoreName datastore: $group/$name-v$version")
+    Datastore(datastoreName).directoryPath(group, name, version).toFile
   }
 }
