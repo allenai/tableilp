@@ -1350,7 +1350,7 @@ class IlpModel(
     flipped: Boolean): RelationMatchVariable = {
     val matchStartStr = if (matchStart >= 0) matchStart.toString else "None"
     val matchEndStr = if (matchEnd >= 0) matchEnd.toString else "None"
-    val choiceIdxStr = if (choiceIdx.isDefined) choiceIdx.get.toString else "None"
+    val choiceIdxStr = choiceIdx.map(_.toString).getOrElse("None")
     val name = s"rel_t${tableIdx}_c${col1Idx}_c${col2Idx}_m${matchStartStr}_m${matchEndStr}_" +
       s"ch$choiceIdxStr"
     val variable = ilpSolver.createBinaryVar(name, coeff)
