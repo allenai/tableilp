@@ -118,17 +118,16 @@ sealed trait Splitter {
 private class TokenSplitter(
     val useStemmedKeywordTokenizer: Boolean = false
 ) extends Splitter {
-  // ensure that all returned tokens start with a letter (filters out "_", "?", etc.)
-  val alphaChars = ('a' to 'z').toSet
   def split(str: String): (Seq[String], Option[Seq[Int]]) = {
+    // return only the tokens that start with a letter
     if (useStemmedKeywordTokenizer) {
       // TODO(tushar): Return offsets for keyword tokenizer and make the offsets non-optional
       val tokens = KeywordTokenizer.Default.stemmedKeywordTokenize(str)
-      val filteredTokens = tokens.filter(s => alphaChars.contains(s.head.toLower))
+      val filteredTokens = tokens.filter(_.head.isLetter)
       (filteredTokens, None)
     } else {
       val tokens = defaultTokenizer.tokenize(str)
-      val filteredTokens = tokens.filter(t => alphaChars.contains(t.string.head.toLower))
+      val filteredTokens = tokens.filter(_.string.head.isLetter)
       (filteredTokens.map(_.string), Some(filteredTokens.map(_.offset)))
     }
   }
