@@ -3,7 +3,6 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.models._
 import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
-import org.allenai.ari.solvers.lucience.LucienceSolver
 import org.allenai.ari.solvers.tableilp.ilpsolver._
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights, SolverParams }
 import org.allenai.common.Version
@@ -34,8 +33,7 @@ class TableIlpSolver @Inject() (
     solverParams: SolverParams,
     scipParams: ScipParams,
     ilpParams: IlpParams,
-    weights: IlpWeights,
-    lucienceSolver: LucienceSolver
+    weights: IlpWeights
 )(implicit actorSystem: ActorSystem) extends SimpleSolver {
   import actorSystem.dispatcher
 
@@ -65,34 +63,6 @@ class TableIlpSolver @Inject() (
     source.getLines().filterNot(_.startsWith("#")).toSet
   }
   logger.debug(s"Loaded ${scienceTerms.size} science terms")
-
-  /** Override SimpleSolver's implementation of solveInternal to allow calling a fallback solver */
-  override protected[ari] def solveInternal(request: SolverRequest): Future[SolverResponse] = {
-    handleQuestion(request.question) flatMap { simpleAnswers =>
-      val completeAnswers = simpleAnswers map {
-        case SimpleAnswer(selection, score, analysisOption, features) => {
-          val analysis = analysisOption getOrElse { Map.empty }
-          SolverAnswer(selection, Analysis(componentId, Some(score), analysis, features))
-        }
-      }
-      // If no answers returned and fallback solver is enabled, call the fallback solver
-      if (completeAnswers.isEmpty && solverParams.useFallbackSolver) {
-        val fallbackResponse = lucienceSolver.solveInternal(request)
-        fallbackResponse.map { response =>
-          val compId = if (solverParams.useFallbackSolverCompId) response.solver else componentId
-          val features = Map("fallbackSolverUsed" -> 1d)
-          SolverResponse(compId, response.answers.map { answer =>
-            SolverAnswer(
-              answer.selection,
-              Analysis(compId, answer.analysis.confidence, answer.analysis.analysis, Some(features))
-            )
-          })
-        }
-      } else {
-        Future(SolverResponse(componentId, completeAnswers.sorted))
-      }
-    }
-  }
 
   /** The entry point for the solver */
   protected[ari] def handleQuestion(question: Question): Future[Seq[SimpleAnswer]] = {
@@ -127,8 +97,6 @@ class TableIlpSolver @Inject() (
           Seq(IlpSolutionFactory.makeRandomIlpSolution)
         }
 
-        val features = Map("fallbackSolverUsed" -> 0d)
-
         // Only return answers if some solution was found
         if (allSolutions.isEmpty) {
           Seq.empty
@@ -139,7 +107,7 @@ class TableIlpSolver @Inject() (
             val bestChoiceScore = solution.bestChoiceScore
             val ilpFeaturesOpt = if (solution.solutionQuality.status == IlpStatusOptimal) {
               val ilpFeatures = new IlpFeatures(solution)
-              Some(features ++ ilpFeatures.featureMap)
+              Some(ilpFeatures.featureMap)
             } else {
               // don't generate features if an optimal solution wasn't found, as this is often
               // due to timeouts and can thus make features vary from run to run
