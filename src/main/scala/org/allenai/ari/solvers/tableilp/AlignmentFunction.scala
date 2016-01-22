@@ -132,8 +132,8 @@ private class EntailmentSimilarity(
   }
   // set of words that should be ignored for entailment calculation if they are the hypothesis;
   // note that in WordNet, consumer -> person -> causal_agent -> cause !
-  // Additional candidates: matter, substance, whole, part, cause
-  private val ignoreHypothesisSet = Set("unit", "event", "object", "relation")
+  // Additional candidates: matter, substance, whole, part, cause, unit, event, relation
+  private val ignoreHypothesisSet = Set("object")
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
     // If Redis cache is being used and contains 'key', return the stored value; otherwise
