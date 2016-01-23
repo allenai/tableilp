@@ -13,7 +13,7 @@ import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.util.matching.Regex
 
-import java.io.{ File, FileReader, Reader }
+import java.io.{ File, FileReader }
 
 /** A structure to store which two columns in two tables are allowed to be joined/aligned.
   *
@@ -113,7 +113,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
       val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
       files.map(file => {
-        new Table(file.getName, getCSVContentFromReader(new FileReader(file)), tokenizer)
+        new Table(file.getName, getCSVContentFromFile(file), tokenizer)
       }).toIndexedSeq
     }
   }
@@ -441,14 +441,15 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     }
   }
 
-  /** utility function to read CSV resource files into a sequence of sequence of strings */
+  /** utility function to read CSV resource file into a sequence of sequence of strings */
   private def getCSVContentFromResource(file: String): Seq[Seq[String]] = {
-    getCSVContentFromReader(Utils.getResourceAsReader(file))
+    val csvReader = new CSVReader(Utils.getResourceAsReader(file))
+    Resource.using(csvReader)(_.readAll.asScala.map(_.toSeq))
   }
 
-  /** utility function to read CSV content from a Reader into a sequence of sequence of strings */
-  private def getCSVContentFromReader(reader: Reader): Seq[Seq[String]] = {
-    val csvReader = new CSVReader(reader)
+  /** utility function to read CSV file into a sequence of sequence of strings */
+  private def getCSVContentFromFile(file: File): Seq[Seq[String]] = {
+    val csvReader = new CSVReader(new FileReader(file))
     Resource.using(csvReader)(_.readAll.asScala.map(_.toSeq))
   }
 }
