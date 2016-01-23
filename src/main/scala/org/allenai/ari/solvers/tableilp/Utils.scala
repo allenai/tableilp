@@ -31,17 +31,17 @@ object Utils extends Logging {
     BigDecimal(d).setScale(precision, BigDecimal.RoundingMode.HALF_UP).toDouble
   }
 
-  /** Get a resource file as a Stream */
+  /** Get a resource file as a Stream. Caller is responsible for closing this stream. */
   def getResourceAsStream(name: String): BufferedInputStream = {
     new BufferedInputStream(getClass.getClassLoader.getResourceAsStream(name))
   }
 
-  /** Get a resource file as a Reader */
+  /** Get a resource file as a Reader. Caller is responsible for closing this reader. */
   def getResourceAsReader(name: String): BufferedReader = {
     new BufferedReader(new InputStreamReader(getResourceAsStream(name)))
   }
 
-  /** Get a resource file as a buffered Source */
+  /** Get a resource file as a buffered Source. Caller is responsible for closing this stream. */
   def getResourceAsSource(name: String): BufferedSource = {
     Source.fromInputStream(getResourceAsStream(name))
   }
@@ -56,7 +56,7 @@ object Utils extends Logging {
     }
   }
 
-  /** Get a datastore file as a buffered Source */
+  /** Get a datastore file as a buffered Source. Caller is responsible for closing this stream. */
   def getDatastoreFileAsSource(config: Config): BufferedSource = {
     val datastoreName = config.getString("datastore")
     val group = config.getString("group")

@@ -3,7 +3,7 @@ package org.allenai.ari.solvers.tableilp
 import org.allenai.ari.models.tables.{ DatastoreExport, Table => DatastoreTable }
 import org.allenai.ari.solvers.common.KeywordTokenizer
 import org.allenai.ari.solvers.tableilp.params.TableParams
-import org.allenai.common.Logging
+import org.allenai.common.{ Logging, Resource }
 
 import au.com.bytecode.opencsv.CSVReader
 import com.google.inject.Inject
@@ -80,23 +80,19 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     if (params.useTablestoreFormat) params.ignoreListTablestore else params.ignoreList
   }
 
-  private def getFullContentsFromCsvFile(reader: Reader): Seq[Seq[String]] = {
-    val csvReader = new CSVReader(reader)
-    csvReader.readAll.asScala.map(_.toSeq)
-  }
-
   val allTables: IndexedSeq[Table] = {
     if (params.useTablestoreFormat) {
       val datastoreTables = if (params.useLocal) {
         logger.info(s"Loading tables from local tablestore folder ${params.localTablestoreFile}")
         val file = new File(params.localTablestoreFile)
-        val dataString = Source.fromFile(file).getLines().mkString("\n")
+        val dataString = Resource.using(Source.fromFile(file))(_.getLines().mkString("\n"))
         import spray.json.DefaultJsonProtocol._
         dataString.parseJson.convertTo[IndexedSeq[DatastoreTable]]
       } else {
         logger.info("Loading tables from Tablestore")
-        val dataString = Utils.getDatastoreFileAsSource(params.datastoreTablestoreConfig)
-          .getLines().mkString("\n")
+        val dataString = Resource.using(
+          Utils.getDatastoreFileAsSource(params.datastoreTablestoreConfig)
+        ) { input => input.getLines().mkString("\n") }
         val datastoreExport = dataString.parseJson.convertTo[DatastoreExport]
         // Note: Tablestore tables currently come in the reverse order of IDs
         datastoreExport.tables
@@ -117,7 +113,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
       val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
       files.map(file => {
-        new Table(file.getName, getFullContentsFromCsvFile(new FileReader(file)), tokenizer)
+        new Table(file.getName, getCSVContentFromReader(new FileReader(file)), tokenizer)
       }).toIndexedSeq
     }
   }
@@ -125,8 +121,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
 
   private val allTableNames = allTables.map(_.fileName)
   private val tableNamesToIdx = allTableNames.zipWithIndex.toMap
-  logger.debug("tables IDs to internal IDs:\n\t" + tableNamesToIdx.toSeq.sortBy(_._1.toInt)
-    .toString)
+  logger.debug("tables IDs to internal IDs:\n\t" + tableNamesToIdx.toSeq.sortBy(_._1).toString)
   if (internalLogger.isTraceEnabled) allTables.foreach(t => logger.trace(t.titleRow.mkString(",")))
 
   /** a sequence of table indices to ignore */
@@ -166,7 +161,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   private lazy val questionToTablesMap: Map[String, Seq[Int]] = {
     val mapData: Seq[Seq[String]] = new Table(
       params.questionToTablesCache,
-      getFullContentsFromCsvFile(Utils.getResourceAsReader(params.questionToTablesCache)),
+      getCSVContentFromResource(params.questionToTablesCache),
       tokenizer
     ).contentMatrix
     val hyphenSep = "-".r
@@ -375,8 +370,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       Seq.empty
     } else {
       logger.info("Reading list of titles that are allowed to be aligned")
-      val csvReader = new CSVReader(Utils.getResourceAsReader(alignmentsFile))
-      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      val fullContents: Seq[Seq[String]] = getCSVContentFromResource(alignmentsFile)
       val fullContentsWithoutCommentsAndEmptyLines = for {
         row <- fullContents
         // TODO(tushar) figure out why row.nonEmpty doesn't work below
@@ -412,8 +406,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     if (file.isEmpty) {
       Seq.empty
     } else {
-      val csvReader = new CSVReader(Utils.getResourceAsReader(file))
-      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      val fullContents: Seq[Seq[String]] = getCSVContentFromResource(file)
       fullContents.flatMap {
         line =>
           if (line.size > 1 && !line.head.startsWith("//")) {
@@ -435,8 +428,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     if (file.isEmpty) {
       Map.empty
     } else {
-      val csvReader = new CSVReader(Utils.getResourceAsReader(file))
-      val fullContents: Seq[Seq[String]] = csvReader.readAll.asScala.map(_.toSeq)
+      val fullContents: Seq[Seq[String]] = getCSVContentFromResource(file)
       val predicateRepresentations = fullContents.flatMap { line =>
         if (line.size > 1 && !line.head.startsWith("//")) {
           assert(line.size >= 2, s"Expected at least two columns in ${line.mkString(",")}")
@@ -447,5 +439,16 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       }
       Utils.toMapUsingGroupByFirst(predicateRepresentations)
     }
+  }
+
+  /** utility function to read CSV resource files into a sequence of sequence of strings */
+  private def getCSVContentFromResource(file: String): Seq[Seq[String]] = {
+    getCSVContentFromReader(Utils.getResourceAsReader(file))
+  }
+
+  /** utility function to read CSV content from a Reader into a sequence of sequence of strings */
+  private def getCSVContentFromReader(reader: Reader): Seq[Seq[String]] = {
+    val csvReader = new CSVReader(reader)
+    Resource.using(csvReader)(_.readAll.asScala.map(_.toSeq))
   }
 }

@@ -5,7 +5,7 @@ import org.allenai.ari.solvers.SimpleSolver
 import org.allenai.ari.solvers.common.{ EntailmentService, KeywordTokenizer }
 import org.allenai.ari.solvers.tableilp.ilpsolver._
 import org.allenai.ari.solvers.tableilp.params.{ IlpParams, IlpWeights, SolverParams }
-import org.allenai.common.Version
+import org.allenai.common.{ Resource, Version }
 
 import akka.actor.ActorSystem
 import com.google.inject.Inject
@@ -60,7 +60,7 @@ class TableIlpSolver @Inject() (
   private val scienceTerms: Set[String] = {
     val source = Utils.getDatastoreFileAsSource(solverParams.scienceTermsDatastoreConfig)
     // get lines that do not start with '#'
-    source.getLines().filterNot(_.startsWith("#")).toSet
+    Resource.using(source)(_.getLines().filterNot(_.startsWith("#")).toSet)
   }
   logger.debug(s"Loaded ${scienceTerms.size} science terms")
 
