@@ -16,6 +16,7 @@ import com.google.inject.name.Named
   * @param useCachedTitleAlignmentFile whether to use the title alignment using the annotated
   * document containing the valid alignments
   * @param requireRelationMatch require relations defined over tables to match the question
+  * @param whichTermSpan number of question keywords following 'which' to be considered important
   */
 class IlpParams @Inject() (
   @Named("model.alignmentType") val alignmentType: String,
@@ -28,7 +29,8 @@ class IlpParams @Inject() (
   @Named("model.keyColumnsMustMatch") val keyColumnsMustMatch: Boolean,
   @Named("model.useCachedTitleAlignmentFile") val useCachedTitleAlignmentFile: Boolean,
   @Named("model.requireRelationMatch") val requireRelationMatch: Boolean,
-  @Named("model.splitAnswerChoices") val splitAnswerChoices: Boolean
+  @Named("model.splitAnswerChoices") val splitAnswerChoices: Boolean,
+  @Named("model.whichTermSpan") val whichTermSpan: Int
 ) {}
 
 /** An object to capture the default ILP model parameters */
@@ -44,6 +46,7 @@ object IlpParams {
     keyColumnsMustMatch = true,
     useCachedTitleAlignmentFile = false,
     requireRelationMatch = false,
-    splitAnswerChoices = false
+    splitAnswerChoices = false,
+    whichTermSpan = 2
   )
 }

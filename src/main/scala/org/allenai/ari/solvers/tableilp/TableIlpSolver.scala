@@ -83,7 +83,7 @@ class TableIlpSolver @Inject() (
           val ilpModel = new IlpModel(ilpSolver, aligner, ilpParams, weights, tableInterface,
             tableSelections, tokenizer, scienceTerms)
           val questionIlp = TableQuestionFactory.makeQuestion(question, "Tokenize",
-            splitAnswerChoices = ilpParams.splitAnswerChoices)
+            splitAnswerChoices = ilpParams.splitAnswerChoices, ilpParams.whichTermSpan)
           val allVariables = ilpModel.buildModel(questionIlp)
           if (scipParams.ilpExportFile != "") ilpSolver.exportModel(useOriginal = true)
           val tablesUsed = tableSelections.map(ts => tableInterface.allTables(ts.id))
