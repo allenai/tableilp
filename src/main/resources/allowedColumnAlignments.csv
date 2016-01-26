@@ -16,8 +16,6 @@ z11.csv,1,z12.csv,0    // adaptation in tables z11 and z12
 
 // forces, energies, resources
 z25.csv,0,z26.csv,1    // resource in tables z25 and z26
-z25.csv,0,43.csv,1     // resource in table z25 and energy source in table 43
-20.csv,0,43.csv,1      // energy/force in table 20 and energy source in table 43
 07.csv,1,20.csv,0      // input energy in table 07 and energy/force in table 20
 08.csv,1,20.csv,0      // output energy in table 07 and energy/force in table 20
 

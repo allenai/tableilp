@@ -21,8 +21,6 @@
 // TODO(ericgribkoff) verify IDs once added to real tablestore
 // forces, energies, resources
 43,0,44,1    // resource in tables z25 and z26
-43,0,40,1     // resource in table z25 and energy source in table 43
-18,0,40,1      // energy/force in table 20 and energy source in table 43
 7,1,18,0      // input energy in table 07 and energy/force in table 20
 //TODO(ericgribkoff) 07.csv or 08.csv??
 7,1,18,0      // output energy in table 07 and energy/force in table 20

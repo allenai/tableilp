@@ -112,9 +112,12 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
         Utils.getDatastoreDirectoryAsFolder(params.datastoreFolderConfig)
       }
       val files = folder.listFiles.filter(_.getName.endsWith(".csv")).sorted.toSeq
-      files.map(file => {
+      val csvTables = files.map(file => {
         new Table(file.getName, getCSVContentFromFile(file), tokenizer)
-      }).toIndexedSeq
+      })
+      // Filter out the CSV tables based on their index
+      csvTables.zipWithIndex.filterNot(tableWithIdx => ignoreList.contains(tableWithIdx._2)).
+        map(_._1).toIndexedSeq
     }
   }
   logger.debug(s"${allTables.size} tables loaded")
@@ -187,7 +190,8 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
     logger.debug(s"using ${tableSelections.size} tables:\n" +
       tableSelections.map {
         case TableSelection(id, score, rowIds) => {
-          s"\ttable $id (score $score, selected ${rowIds.size} rows}) : " +
+          s"\ttable id: ${allTables(id).metadataOpt.flatMap(_.id).getOrElse(id)} " +
+            s"(score $score, selected ${rowIds.size} rows}) : " +
             allTables(id).titleRow.mkString("|").replace('\n', ' ') // some headers have newlines!
         }
       }.mkString("\n"))
@@ -211,7 +215,7 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
   /** Get a selection of tables relevant for a given question, using quick TF-IDF computation. */
   private def getRankedTablesForQuestion(question: String): IndexedSeq[TableSelection] = {
     // score all tables using tf-idf
-    val scoreTables = allTables.indices.diff(ignoreList).map { tableIdx =>
+    val scoreTables = allTables.indices.map { tableIdx =>
       (tableIdx, tfidfTableScore(tokenizer, tableIdx, question))
     }
     // identify a few top scoring tables
