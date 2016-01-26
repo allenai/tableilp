@@ -228,31 +228,37 @@ class TableInterface @Inject() (params: TableParams, tokenizer: KeywordTokenizer
       scoreTables.filter(_._2 > params.rankThreshold)
     }
     // if desired, add "intermediate" tables that can link two selected tables
-    val selectedTables = if (params.includeConnectingTables) {
+    val (selectedTables, connectingTables) = if (params.includeConnectingTables) {
+      val topScoredTableIds = topScoredTables.map(_._1)
       // first get all linked tables
-      val linkedTables: IndexedSeq[Int] = topScoredTables.flatMap { ts =>
-        allowedTableAlignments.getOrElse(ts._1, Seq.empty)
+      val linkedTables: IndexedSeq[Int] = topScoredTableIds.flatMap { ts =>
+        allowedTableAlignments.getOrElse(ts, Seq.empty)
       }
+      val tableToScore: Map[Int, Double] = scoreTables.toMap
+
       // now find those that are linked to at least two topScoredTables
       val connectingTables: Iterable[Int] = linkedTables.groupBy(identity).collect {
-        case (t, occurrences) if occurrences.size > 1 => t
+        case (t, occurrences) if occurrences.size > 1 && tableToScore.contains(t) &&
+          !topScoredTableIds.contains(t) => t
       }
       // attach scores to these tables
-      val tableToScore: Map[Int, Double] = scoreTables.toMap
       val scoredConnectingTables = connectingTables.map(t => (t, tableToScore(t)))
       // include with original top scoring tables
-      topScoredTables ++ scoredConnectingTables
+      (topScoredTables, scoredConnectingTables)
     } else {
-      topScoredTables
+      (topScoredTables, Seq.empty)
     }
     // identify most promising rows within each table, turn into a TableSelection
     val questionTokens = tokenizer.stemmedKeywordTokenize(question.toLowerCase)
-    selectedTables.map {
+    val selectedTableRows = selectedTables.map {
       case (tableIdx, score) => {
         val topRowIds = getRankedRowsForQuestion(questionTokens, tableIdx)
         TableSelection(tableIdx, score, topRowIds)
       }
     }
+    val connectedTableRows = connectingTables.map(idxScore =>
+      TableSelection(idxScore._1, idxScore._2, allTables(idxScore._1).rowIndices))
+    selectedTableRows ++ connectedTableRows
   }
 
   /** Get top scoring rows from a given table for a given tokenized question */
