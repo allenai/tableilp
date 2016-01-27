@@ -393,18 +393,15 @@ class IlpModel(
       objCoeff = if (ilpParams.mustChooseAnAnswer) {
         0d
       } else {
-        // add a boost if the choice entails 'which' terms in the question strongly enough
-        val whichTermBoost = if (weights.whichTermBoost == 0d) {
-          0d
+        // add a boost if the choice entails 'which' terms in the question strongly enough;
+        // compute alignment score lazily in case it is multiplied by whichTermMulBoost = 0 later
+        lazy val alignmentWithWhTerms = aligner.scoreStrToWhTerms(choice, question.whichTermQCons)
+        lazy val thresholdedScore = if (alignmentWithWhTerms >= weights.minAlignmentWhichTerm) {
+          alignmentWithWhTerms
         } else {
-          val alignmentWithWhTerms = aligner.scoreStrToWhTerms(choice, question.whichTermQCons)
-          if (alignmentWithWhTerms < weights.minAlignmentWhichTerm) {
-            0d
-          } else {
-            alignmentWithWhTerms
-          }
+          0d
         }
-        weights.activeChoiceObjCoeff + whichTermBoost
+        weights.activeChoiceObjCoeff + weights.whichTermMulBoost * thresholdedScore
       }
       // perturb by a small choiceIdx-based value to break ties in favor of earlier choices;
       // will later round off this digit when reporting the solver score in IlpSolution
@@ -982,16 +979,17 @@ class IlpModel(
     // also, activated only if no answer choice has more than 2 words
     val spaceSep = " ".r
     val maxChoiceLength = question.choices.map(spaceSep.split(_).length).max
-    if (weights.whichTermBoost != 0d && maxChoiceLength <= 2) {
+    if (weights.whichTermAddBoost != 0d && maxChoiceLength <= 2) {
       val whichTermQConsVars = question.whichTermQConsIndices.map(activeQuestionVars)
-      val auxVar = createPossiblyRelaxedBinaryVar("auxVarWhichCons", weights.whichTermBoost)
-      ilpSolver.addVar(auxVar)
-      ilpSolver.addConsYImpliesAtLeastOne(s"whichTermBoost", auxVar, whichTermQConsVars)
+      val activityVar = createPossiblyRelaxedBinaryVar(
+        "whichTermIsActive",
+        weights.whichTermAddBoost
+      )
+      ilpSolver.addVar(activityVar)
+      ilpSolver.addConsYImpliesAtLeastOne(s"whichTermIsActive", activityVar, whichTermQConsVars)
 
       // also add a boost if at least one of the table cells/title aligning to the choice happens
       // to have a good alignment with 'which' terms
-      val auxVar2 = createPossiblyRelaxedBinaryVar("auxVarWhichCons2", weights.whichTermBoost)
-      ilpSolver.addVar(auxVar2)
       val qChoiceTableVarsAligningWithWhTerms = qChoiceConsTableVariables.filter {
         case ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, _) =>
           val cellStr = tables(tableIdx).contentMatrix(rowIdx)(colIdx)
@@ -1004,7 +1002,12 @@ class IlpModel(
           val alignmentWithWhTerms = aligner.scoreStrToWhTerms(titleStr, question.whichTermQCons)
           alignmentWithWhTerms >= weights.minAlignmentWhichTerm
       }.map(_.variable)
-      ilpSolver.addConsYImpliesAtLeastOne("whichTermBoost2", auxVar2,
+      val alignmentVar = createPossiblyRelaxedBinaryVar(
+        "whichTermIsAligned",
+        weights.whichTermAddBoost
+      )
+      ilpSolver.addVar(alignmentVar)
+      ilpSolver.addConsYImpliesAtLeastOne("whichTermIsAligned", alignmentVar,
         qChoiceTableVarsAligningWithWhTerms ++ qChoiceTitleVarsAligningWithWhTerms)
     }
 
