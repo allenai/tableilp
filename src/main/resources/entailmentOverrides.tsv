@@ -1,2 +1,11 @@
 // a tab-separated list, with an optional comment at the end:
 //   text \t hypothesis \t score [\t comment]
+
+sense	taste	0.25	// to be consistent with (sense,touch) etc.
+sense	tasting	0.25	// to be consistent with (sense,touch) etc.
+sense	sight	0.25	// to be consistent with (sense,touch) etc.
+sense	sound	0.25	// to be consistent with (sense,touch) etc.
+taste	sense	0.75	// to be consistent with (sense,touch) etc.
+tasting	sense	0.75	// to be consistent with (sense,touch) etc.
+sight	sense	0.75	// to be consistent with (sense,touch) etc.
+sound	sense	0.75	// to be consistent with (sense,touch) etc.
