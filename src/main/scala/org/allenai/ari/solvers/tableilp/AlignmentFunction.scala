@@ -16,11 +16,18 @@ sealed trait SimilarityType {
   def scoreTitleQCons(titleStr: String, qConsStr: String): Double // directional: qCons to title
   def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double // directional: cell to qChoice
   def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double // dir.: title to qChoice
+  def scoreStrToWhTerms(str: String, whTerms: Seq[String]): Double // dir.: str to (max of) whTerms
 
   // turn a one-sided score into a symmetric one
   protected def getSymmetricScore(text1: String, text2: String,
     scoringFunction: (String, String) => Double): Double = {
     (scoringFunction(text1, text2) + scoringFunction(text2, text1)) / 2d
+  }
+
+  // take the max of scores across various hypothesis strings
+  protected def getMaxScore(text1: String, text2Seq: Seq[String],
+    scoringFunction: (String, String) => Double): Double = {
+    text2Seq.map(scoringFunction(text1, _)).max
   }
 }
 
@@ -90,6 +97,17 @@ class AlignmentFunction(
   def scoreCellQChoice(cellStr: String, qChoiceStr: String): Double = {
     similarityFunction.scoreCellQChoice(cellStr, qChoiceStr)
   }
+
+  /** Alignment score between a string and a which term */
+  private val spaceSep = " ".r
+  def scoreStrToWhTerms(str: String, whTerms: Seq[String]): Double = {
+    // very strict: returns 0 if str has more than two words
+    if (whTerms.isEmpty || spaceSep.split(str).length > 2) {
+      0d
+    } else {
+      similarityFunction.scoreStrToWhTerms(str, whTerms)
+    }
+  }
 }
 
 // how much does text1 entail text2? (directional); an entailment score below the offset value is
@@ -121,6 +139,9 @@ private class EntailmentSimilarity(
   def scoreTitleQChoice(titleStr: String, qChoiceStr: String): Double = {
     getEntailmentScore(titleStr, qChoiceStr)
   }
+  def scoreStrToWhTerms(str: String, whTerms: Seq[String]): Double = {
+    getMaxScore(str, whTerms, getEntailmentScore)
+  }
 
   private val semicolonSep = ";".r
   private def splitStemKeywordTokenizeFilter(text: String): Seq[Seq[String]] = {
@@ -133,7 +154,7 @@ private class EntailmentSimilarity(
   // set of words that should be ignored for entailment calculation if they are the hypothesis;
   // note that in WordNet, consumer -> person -> causal_agent -> cause !
   // Additional candidates: matter, substance, whole, part, cause, unit, event, relation
-  private val ignoreHypothesisSet = Set("object")
+  private val ignoreHypothesisSet = Set("object", "measure", "part")
   private def getEntailmentScore(text1: String, text2: String): Double = {
     val key = text1 + "----" + text2
     // If Redis cache is being used and contains 'key', return the stored value; otherwise
@@ -166,6 +187,9 @@ private class Word2VecSimilarity extends SimilarityType {
   def scoreTitleQCons(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
   def scoreCellQChoice(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
   def scoreTitleQChoice(text1: String, text2: String): Double = getWord2VecScore(text1, text2)
+  def scoreStrToWhTerms(text1: String, text2Seq: Seq[String]): Double = {
+    getMaxScore(text1, text2Seq, getWord2VecScore)
+  }
 
   private val word2vecFile = new File(
     "main/resources/vectors/GoogleNews-vectors-negative300_size=200000.bin"
@@ -190,6 +214,9 @@ private class WordOverlapSimilarity(tokenizer: KeywordTokenizer) extends Similar
   def scoreTitleQCons(text1: String, text2: String): Double = getWordOverlap(text2, text1)
   def scoreCellQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
   def scoreTitleQChoice(text1: String, text2: String): Double = getWordOverlap(text1, text2)
+  def scoreStrToWhTerms(text1: String, text2Seq: Seq[String]): Double = {
+    getMaxScore(text1, text2Seq, getWordOverlap)
+  }
 
   private def getWordOverlap(text1: String, text2: String): Double = {
     val text1StemmedTokens = tokenizer.stemmedKeywordTokenize(text1)

@@ -14,6 +14,8 @@ import org.allenai.nlpstack.tokenize.defaultTokenizer
   * @param questionCons the question text, chunked into strings
   * @param questionConsOffsets the offsets for the question constituents in questionCons, empty
   * if not available
+  * @param whichTermQCons important questionCons that follow 'which' in question
+  * @param whichTermQConsIndices indices of important questionCons that follow 'which' in question
   * @param choices answer choices
   * @param choicesCons constituents for each choice. If choices are not split, every choice has a
   * sequence with one element - entire choice string
@@ -25,6 +27,8 @@ case class TableQuestion(
   questionRaw: String,
   questionCons: IndexedSeq[String],
   questionConsOffsets: IndexedSeq[Int],
+  whichTermQCons: Seq[String],
+  whichTermQConsIndices: Seq[Int],
   choices: IndexedSeq[String],
   choicesCons: IndexedSeq[IndexedSeq[String]],
   choicesConsOffsets: IndexedSeq[IndexedSeq[Int]],
@@ -37,30 +41,40 @@ object TableQuestionFactory extends Logging {
   private val defaultSplittingType = "Tokenize"
 
   def makeQuestion(questionCons: Seq[String], choices: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, choices.toIndexedSeq,
-      choices.toIndexedSeq.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
+    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, Seq.empty, Seq.empty, choices
+      .toIndexedSeq, choices.toIndexedSeq.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
   }
 
   def makeQuestion(questionRaw: String): TableQuestion = {
-    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty, IndexedSeq.empty,
-      IndexedSeq.empty, IndexedSeq.empty)
+    TableQuestion(questionRaw, spaceSep.split(questionRaw), IndexedSeq.empty, Seq.empty, Seq.empty,
+      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty)
   }
 
   def makeQuestion(questionCons: Seq[String]): TableQuestion = {
-    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, IndexedSeq.empty,
-      IndexedSeq.empty, IndexedSeq.empty)
+    TableQuestion("", questionCons.toIndexedSeq, IndexedSeq.empty, Seq.empty, Seq.empty,
+      IndexedSeq.empty, IndexedSeq.empty, IndexedSeq.empty)
   }
 
   def makeQuestion(aristoQuestion: Question): TableQuestion = {
     val choices = aristoQuestion.selections.map(_.focus).toIndexedSeq
     TableQuestion(aristoQuestion.rawQuestion, spaceSep.split(aristoQuestion.text.get),
-      IndexedSeq.empty, choices, choices.map(spaceSep.split(_).toIndexedSeq), IndexedSeq.empty)
+      IndexedSeq.empty, Seq.empty, Seq.empty, choices, choices.map(spaceSep.split(_).toIndexedSeq),
+      IndexedSeq.empty)
   }
 
+  /** Create a question object starting from an aristo question.
+    *
+    * @param aristoQuestion an org.allenai.ari.models.Question object
+    * @param splittingType whether to use tokenization, chunking, or space splitting
+    * @param splitAnswerChoices whether to split answer choices
+    * @param whichTermSpan how many keywords after 'which' to consider as important
+    * @return
+    */
   def makeQuestion(
     aristoQuestion: Question,
     splittingType: String,
-    splitAnswerChoices: Boolean
+    splitAnswerChoices: Boolean,
+    whichTermSpan: Int
   ): TableQuestion = {
     val splitter = splittingType match {
       case "Tokenize" => new TokenSplitter
@@ -70,7 +84,22 @@ object TableQuestionFactory extends Logging {
         throw new IllegalArgumentException(s"Split type $splittingType not recognized")
     }
 
-    val (tokens, offsets) = splitter.split(aristoQuestion.text.get)
+    val (questionCons, offsets) = splitter.split(aristoQuestion.text.get)
+    val qConsIndices = questionCons.indices
+
+    // if a question constituent is "which", keep track of the few keywords that follow it;
+    // ignore words like 'following' (e.g., in 'which of the following traits...')
+    val addlWordsToIgnore = Set("following", "example")
+    val qConsKeywordIndices = qConsIndices.filter { idx =>
+      val qCons = questionCons(idx)
+      KeywordTokenizer.Default.isKeyword(qCons) && !addlWordsToIgnore.contains(qCons)
+    }
+    val whichTermIndices = for {
+      qConsIdx <- qConsIndices.dropRight(1)
+      if questionCons(qConsIdx).toLowerCase == "which"
+      followingKeywordIndices = qConsKeywordIndices.filter(_ > qConsIdx)
+    } yield followingKeywordIndices.take(whichTermSpan)
+
     val choices = aristoQuestion.selections.map(_.focus).toIndexedSeq
     val ((choiceTokens, choiceOffsetsOptions), areSplit) =
       // Only split if all choices should be split on
@@ -82,8 +111,10 @@ object TableQuestionFactory extends Logging {
 
     val question = TableQuestion(
       aristoQuestion.rawQuestion,
-      tokens.toIndexedSeq,
+      questionCons.toIndexedSeq,
       offsets.getOrElse(Seq.empty).toIndexedSeq,
+      whichTermIndices.flatten.map(questionCons),
+      whichTermIndices.flatten,
       choices,
       choiceTokens.map(_.toIndexedSeq),
       choiceOffsetsOptions.map(_.getOrElse(Seq.empty).toIndexedSeq),
@@ -108,6 +139,7 @@ object TableQuestionFactory extends Logging {
 /** Various ways of splitting text */
 sealed trait Splitter {
   /** Split a string into sequence of tokens and optional offsets for each token
+    *
     * @param str input string
     * @return (Sequence of tokens, optional sequence of character start offsets for each token)
     */

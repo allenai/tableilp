@@ -18,6 +18,11 @@ import com.google.inject.name.Named
   * @param activeQConsObjCoeff How much does an active qcons contribute to the objective function
   * @param activeChoiceObjCoeff How much does an active choice contribute to the objective function
   * @param activeScienceTermBoost Multiplicative scaling factor to use if a science term is active
+  * @param whichTermAddBoost Additive boost when question terms that follow the word 'which' are
+  *   active or active table cells/headers entail them
+  * @param whichTermMulBoost Multiplicative boost when choice entails active question terms that
+  *   follow the word 'which'
+  * @param minAlignmentWhichTerm Minimum alignment for boost due to cell match to 'which' terms
   * @param tableUsagePenalty How much to penalize the use of a table
   * @param rowUsagePenalty How much to penalize the use of a row
   * @param interTableAlignmentPenalty How much to penalize alignments across two tables
@@ -41,6 +46,9 @@ class IlpWeights @Inject() (
   @Named("weights.activeQConsObjCoeff") val activeQConsObjCoeff: Double,
   @Named("weights.activeChoiceObjCoeff") val activeChoiceObjCoeff: Double,
   @Named("weights.activeScienceTermBoost") val activeScienceTermBoost: Double,
+  @Named("weights.whichTermAddBoost") val whichTermAddBoost: Double,
+  @Named("weights.whichTermMulBoost") val whichTermMulBoost: Double,
+  @Named("weights.minAlignmentWhichTerm") val minAlignmentWhichTerm: Double,
   @Named("weights.tableUsagePenalty") val tableUsagePenalty: Double,
   @Named("weights.rowUsagePenalty") val rowUsagePenalty: Double,
   @Named("weights.interTableAlignmentPenalty") val interTableAlignmentPenalty: Double,
@@ -72,6 +80,9 @@ object IlpWeights {
     activeQConsObjCoeff = 1d,
     activeChoiceObjCoeff = 100d,
     activeScienceTermBoost = 1d,
+    whichTermAddBoost = 1.5d,
+    whichTermMulBoost = 1d,
+    minAlignmentWhichTerm = 0.6d,
     tableUsagePenalty = 4d,
     rowUsagePenalty = 1d,
     interTableAlignmentPenalty = 1d,

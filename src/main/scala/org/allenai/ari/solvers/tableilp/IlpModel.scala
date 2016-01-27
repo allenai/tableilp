@@ -236,9 +236,12 @@ class IlpModel(
   private def createQuestionDependentVars(
     question: TableQuestion, existingAllVars: AllVariables
   ): AllVariables = {
+    // A convenient range for all question constituent indices
+    val qConsIndices = question.questionCons.indices
+
     val questionTableVariables = for {
       tableIdx <- tables.indices
-      qConsIdx <- question.questionCons.indices
+      qConsIdx <- qConsIndices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
       if tokenizer.isKeyword(qCons)
@@ -248,9 +251,10 @@ class IlpModel(
       colIdx <- row.indices
       x <- addQuestionTableVariable(qCons, qConsIdx, tableIdx, rowIdx, colIdx)
     } yield x
+
     val questionTitleVariables = for {
       tableIdx <- tables.indices
-      qConsIdx <- question.questionCons.indices
+      qConsIdx <- qConsIndices
       qCons = question.questionCons(qConsIdx)
       if !ignoredWords.contains(qCons)
       if tokenizer.isKeyword(qCons)
@@ -258,6 +262,7 @@ class IlpModel(
       colIdx <- table.titleRow.indices
       x <- addQuestionTitleVariable(qCons, qConsIdx, tableIdx, colIdx)
     } yield x
+
     val qChoiceTableVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
@@ -278,6 +283,7 @@ class IlpModel(
       x <- addQChoiceConsTableVariable(qChoiceCons, qChoiceIdx, qChoiceConsIdx, tableIdx, rowIdx,
         colIdx, minWt)
     } yield x
+
     val qChoiceTitleVariables = for {
       tableIdx <- tables.indices
       qChoiceIdx <- question.choices.indices
@@ -374,13 +380,29 @@ class IlpModel(
       Seq.empty
     }
 
+    val spaceSep = " ".r
+    val maxChoiceLength = question.choices.map(spaceSep.split(_).length).max
+
     // Auxiliary variables: whether an answer choice is aligned to something
     val activeChoiceVars: Map[Int, Long] = (for {
       choiceIdx <- question.choices.indices
+      choice = question.choices(choiceIdx)
       name = s"activeChoice_ch$choiceIdx"
       // use a non-zero activeChoiceObjCoeff only if mustChooseAnAnswer isn't true;
       // otherwise this only shifts all answer choices by a fixed amount
-      objCoeff = if (ilpParams.mustChooseAnAnswer) 0d else weights.activeChoiceObjCoeff
+      objCoeff = if (ilpParams.mustChooseAnAnswer) {
+        0d
+      } else {
+        // add a boost if the choice entails 'which' terms in the question strongly enough;
+        // compute alignment score lazily in case it is multiplied by whichTermMulBoost = 0 later
+        lazy val alignmentWithWhTerms = aligner.scoreStrToWhTerms(choice, question.whichTermQCons)
+        lazy val thresholdedScore = if (alignmentWithWhTerms >= weights.minAlignmentWhichTerm) {
+          alignmentWithWhTerms
+        } else {
+          0d
+        }
+        weights.activeChoiceObjCoeff + weights.whichTermMulBoost * thresholdedScore
+      }
       // perturb by a small choiceIdx-based value to break ties in favor of earlier choices;
       // will later round off this digit when reporting the solver score in IlpSolution
       perturbedObjCoeff = objCoeff + (question.choices.size - 1 - choiceIdx) * (Utils.eps / 1000d)
@@ -431,9 +453,12 @@ class IlpModel(
     val activeChoiceVars = allVars.activeChoiceVars
     val activeChoiceConsVars = allVars.activeChoiceConsVars
 
+    // A convenient range for all question constituent indices
+    val qConsIndices = question.questionCons.indices
+
     // Auxiliary variables: whether a constituent of a given question is "active"
     val activeQuestionVars: Map[Int, Long] = (for {
-      qConsIdx <- question.questionCons.indices
+      qConsIdx <- qConsIndices
       qCons = question.questionCons(qConsIdx)
       name = s"activeQCons_qcons$qConsIdx"
       scalingFactor = if (scienceTerms.contains(qCons)) weights.activeScienceTermBoost else 1d
@@ -946,8 +971,45 @@ class IlpModel(
     }
 
     // align at least one question constituent
-    val qConsVars = question.questionCons.indices.map(activeQuestionVars)
+    val qConsVars = qConsIndices.map(activeQuestionVars)
     ilpSolver.addConsAtLeastOne("atLeastOneQCons", qConsVars)
+
+    // if a question constituent is "which", try to match at least one of the k following question
+    // constituents (soft constraint); NOTE: this will not detect "which" within a larger chunk;
+    // also, activated only if no answer choice has more than 2 words
+    val spaceSep = " ".r
+    val maxChoiceLength = question.choices.map(spaceSep.split(_).length).max
+    if (weights.whichTermAddBoost != 0d && maxChoiceLength <= 2) {
+      val whichTermQConsVars = question.whichTermQConsIndices.map(activeQuestionVars)
+      val activityVar = createPossiblyRelaxedBinaryVar(
+        "whichTermIsActive",
+        weights.whichTermAddBoost
+      )
+      ilpSolver.addVar(activityVar)
+      ilpSolver.addConsYImpliesAtLeastOne(s"whichTermIsActive", activityVar, whichTermQConsVars)
+
+      // also add a boost if at least one of the table cells/title aligning to the choice happens
+      // to have a good alignment with 'which' terms
+      val qChoiceTableVarsAligningWithWhTerms = qChoiceConsTableVariables.filter {
+        case ChoiceConsTableVariable(_, _, tableIdx, rowIdx, colIdx, _) =>
+          val cellStr = tables(tableIdx).contentMatrix(rowIdx)(colIdx)
+          val alignmentWithWhTerms = aligner.scoreStrToWhTerms(cellStr, question.whichTermQCons)
+          alignmentWithWhTerms >= weights.minAlignmentWhichTerm
+      }.map(_.variable)
+      val qChoiceTitleVarsAligningWithWhTerms = qChoiceConsTitleVariables.filter {
+        case ChoiceConsTitleVariable(_, _, tableIdx, colIdx, _) =>
+          val titleStr = tables(tableIdx).titleRow(colIdx)
+          val alignmentWithWhTerms = aligner.scoreStrToWhTerms(titleStr, question.whichTermQCons)
+          alignmentWithWhTerms >= weights.minAlignmentWhichTerm
+      }.map(_.variable)
+      val alignmentVar = createPossiblyRelaxedBinaryVar(
+        "whichTermIsAligned",
+        weights.whichTermAddBoost
+      )
+      ilpSolver.addVar(alignmentVar)
+      ilpSolver.addConsYImpliesAtLeastOne("whichTermIsAligned", alignmentVar,
+        qChoiceTableVarsAligningWithWhTerms ++ qChoiceTitleVarsAligningWithWhTerms)
+    }
 
     // select at most one answer choice
     val choiceVars = question.choices.indices.map(activeChoiceVars)
@@ -957,7 +1019,7 @@ class IlpModel(
     if (ilpParams.mustChooseAnAnswer) ilpSolver.addConsAtLeastOne("atLeastOneChoice", choiceVars)
 
     // active question variables
-    question.questionCons.indices.foreach { qIdx =>
+    qConsIndices.foreach { qIdx =>
       val questionIdx = QuestionIdx(qIdx)
       val activeQuestionVar = activeQuestionVars(qIdx)
       val extAlignmentVars = questionToExtAlignmentVars.getOrElse(questionIdx, Seq.empty)
@@ -1282,7 +1344,8 @@ class IlpModel(
   private def addQChoiceTitleVariable(
     qChoice: String, qChoiceIdx: Int, tableIdx: Int, colIdx: Int
   ): Option[ChoiceTitleVariable] = {
-    val objCoeff = aligner.scoreTitleQChoice(tables(tableIdx).titleRow(colIdx), qChoice)
+    val titleStr = tables(tableIdx).titleRow(colIdx)
+    val objCoeff = aligner.scoreTitleQChoice(titleStr, qChoice)
     if (objCoeff < weights.minTitleQChoiceAlignment) {
       None
     } else {
@@ -1297,7 +1360,8 @@ class IlpModel(
   private def addQChoiceTableVariable(
     qChoice: String, qChoiceIdx: Int, tableIdx: Int, rowIdx: Int, colIdx: Int
   ): Option[ChoiceTableVariable] = {
-    val objCoeff = aligner.scoreCellQChoice(tables(tableIdx).contentMatrix(rowIdx)(colIdx), qChoice)
+    val cellStr = tables(tableIdx).contentMatrix(rowIdx)(colIdx)
+    val objCoeff = aligner.scoreCellQChoice(cellStr, qChoice)
     if (objCoeff < weights.minCellQChoiceAlignment) {
       None
     } else {
@@ -1313,7 +1377,8 @@ class IlpModel(
     qChoiceCons: String, qChoiceIdx: Int, qChoiceConsIdx: Int, tableIdx: Int, colIdx: Int,
     minAlignment: Double
   ): Option[ChoiceConsTitleVariable] = {
-    val objCoeff = aligner.scoreTitleQChoice(tables(tableIdx).titleRow(colIdx), qChoiceCons)
+    val titleStr = tables(tableIdx).titleRow(colIdx)
+    val objCoeff = aligner.scoreTitleQChoice(titleStr, qChoiceCons)
     if (objCoeff < minAlignment) {
       None
     } else {
@@ -1329,10 +1394,8 @@ class IlpModel(
     qChoiceCons: String, qChoiceIdx: Int, qChoiceConsIdx: Int, tableIdx: Int, rowIdx: Int,
     colIdx: Int, minAlignment: Double
   ): Option[ChoiceConsTableVariable] = {
-    val objCoeff = aligner.scoreCellQChoice(
-      tables(tableIdx).contentMatrix(rowIdx)(colIdx),
-      qChoiceCons
-    )
+    val cellStr = tables(tableIdx).contentMatrix(rowIdx)(colIdx)
+    val objCoeff = aligner.scoreCellQChoice(cellStr, qChoiceCons)
     if (objCoeff < minAlignment) {
       None
     } else {
