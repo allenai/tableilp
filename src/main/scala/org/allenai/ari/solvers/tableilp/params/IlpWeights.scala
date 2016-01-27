@@ -18,7 +18,10 @@ import com.google.inject.name.Named
   * @param activeQConsObjCoeff How much does an active qcons contribute to the objective function
   * @param activeChoiceObjCoeff How much does an active choice contribute to the objective function
   * @param activeScienceTermBoost Multiplicative scaling factor to use if a science term is active
-  * @param whichTermBoost Additive boost for active question terms that follow the word 'which'
+  * @param whichTermAddBoost Additive boost when question terms that follow the word 'which' are
+  *   active or active table cells/headers entail them
+  * @param whichTermMulBoost Multiplicative boost when choice entails active question terms that
+  *   follow the word 'which'
   * @param minAlignmentWhichTerm Minimum alignment for boost due to cell match to 'which' terms
   * @param tableUsagePenalty How much to penalize the use of a table
   * @param rowUsagePenalty How much to penalize the use of a row
