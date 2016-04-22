@@ -1,5 +1,7 @@
 # ILP Based Table Inference Solver
 
+#### This code is just for *demonstration* of the ideas presented in [this](http://arxiv.org/abs/1604.06076) paper. Since some of the dependencies of this code are not publicly available, it is not possile to run it as it is. We hope to release an stand-alone version of this system in near future. 
+
 ## Overview
 
 This solver implements an Integer Linear Programming (ILP; https://en.wikipedia.org/wiki/Integer_programming) based method to answer Aristo questions. The input knowledge it uses is in the form of Tables. For solving the ILP model, it uses the SCIP solver (http://scip.zib.de).
