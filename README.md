@@ -1,6 +1,6 @@
 # ILP Based Table Inference Solver
 
-#### This code is just for *demonstration* of the ideas presented in [this](http://arxiv.org/abs/1604.06076) paper. Since some of the dependencies of this code are not publicly available, it is not possile to run it as it is. We hope to release an stand-alone version of this system in near future. 
+#### This code is just for *demonstration* of the ideas presented in [this](http://arxiv.org/abs/1604.06076) paper. Since some of the dependencies of this code are not publicly available, it is not possile to run it as it is. We hope to release a stand-alone version of this system in near future. 
 
 ## Overview
 
@@ -8,7 +8,7 @@ This solver implements an Integer Linear Programming (ILP; https://en.wikipedia.
 
 The ILP model consists of a set of integer (mostly binary) variables, a set of constraints on them, and an objective function.
 
-* The *variables* encode similarity or entailment links between pairs of words (or chunks) in the question, answer choices, and KB tables (both cells and table titles). These links are weighted by the lexical similarity between the words they connect, and a link turns "on" if it is part of a reasoning subgraph that connects the question to the KB tables and an answer choice.
+* The *variables* encode similarity or entailment links between pairs of words (or chunks) in the question, answer choices, and KB tables (both cells and table titles). These links are weight noed by the lexical similarity between the words they connect, and a link turns "on" if it is part of a reasoning subgraph that connects the question to the KB tables and an answer choice.
 
 * The *constraints* encode the conditions needed to create a "proper" reasoning chain between the question the the KB table, such as the reasoning chain being a connected subgraph, not having "dangling" connections that aren't on the path to the answer choice, at most *k* rows active per table, a cell having a higher priority to match if the corresponding table title matches, etc.
 
